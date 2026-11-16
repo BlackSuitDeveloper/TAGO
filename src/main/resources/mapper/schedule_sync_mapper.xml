@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="ScheduleSync">
+
+    <select id="existsSchedule" parameterType="map" resultType="boolean">
+        SELECT EXISTS (
+            SELECT 1 FROM schedule
+            WHERE trainno = #{trainno}
+              AND depplacename = #{depNodeId}
+              AND arrplacename = #{arrNodeId}
+              AND depplandtime = #{depTime}
+        )
+    </select>
+
+    <insert id="insertSchedule" parameterType="com.kedu.tago.sync.dto.ScheduleInsertDTO"
+            useGeneratedKeys="true" keyProperty="scheduleSeq" keyColumn="schedule_seq">
+        INSERT INTO schedule (
+            trainno,
+            depplacename,
+            arrplacename,
+            depplandtime,
+            arrplandtime,
+            booking_open_at,
+            first_price,
+            standard_price,
+            status
+        )
+        VALUES (
+            #{trainno},
+            #{depNodeId},
+            #{arrNodeId},
+            #{depTime},
+            #{arrTime},
+            #{bookingOpenAt},
+            #{firstPrice},
+            #{standardPrice},
+            'SCHEDULED'
+        )
+    </insert>
+
+    <insert id="batchInsertSeats" parameterType="map">
+        INSERT INTO seat (schedule_seq, car_no, seat_no, seat_grade, status, version)
+        VALUES
+        <foreach collection="seats" item="seat" separator=",">
+            (#{scheduleSeq}, #{seat.carNo}, #{seat.seatNo}, #{seat.seatGrade}, 'AVAILABLE', 0)
+        </foreach>
+        ON CONFLICT (schedule_seq, car_no, seat_no) DO NOTHING
+    </insert>
+
+</mapper>

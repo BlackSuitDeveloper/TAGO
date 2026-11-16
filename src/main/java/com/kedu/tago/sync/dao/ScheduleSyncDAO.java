@@ -1,49 +1,42 @@
 package com.kedu.tago.sync.dao;
 
+import com.kedu.tago.sync.dto.ScheduleInsertDTO;
 import com.kedu.tago.sync.service.SeatTemplateGenerator;
 import lombok.RequiredArgsConstructor;
-import org.springframework.jdbc.core.JdbcTemplate;
+import org.apache.ibatis.session.SqlSession;
 import org.springframework.stereotype.Repository;
 
-import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * 동적 운행 일정(schedule) 및 회차별 좌석(seat) DB 접근 객체 (DAO).
+ * 동적 운행 일정(schedule) 및 회차별 좌석(seat) MyBatis 기반 DB 접근 객체 (DAO).
+ * SQL문은 src/main/resources/mapper/schedule_sync_mapper.xml 에 정의되어 있습니다.
  */
 @Repository
 @RequiredArgsConstructor
 public class ScheduleSyncDAO {
 
-    private final JdbcTemplate jdbcTemplate;
+    private final SqlSession mybatis;
 
     /**
      * 동일 열차/출발역/도착역/출발시각 일정 존재 여부 확인 (멱등성 보장)
      */
     public boolean existsSchedule(int trainno, String depNodeId, String arrNodeId, LocalDateTime depTime) {
-        String sql = """
-                SELECT EXISTS (
-                    SELECT 1 FROM schedule
-                    WHERE trainno = ?
-                      AND depplacename = ?
-                      AND arrplacename = ?
-                      AND depplandtime = ?
-                )
-                """;
-        Boolean exists = jdbcTemplate.queryForObject(
-                sql,
-                Boolean.class,
-                trainno,
-                depNodeId,
-                arrNodeId,
-                Timestamp.valueOf(depTime)
-        );
+        Map<String, Object> params = new HashMap<>();
+        params.put("trainno", trainno);
+        params.put("depNodeId", depNodeId);
+        params.put("arrNodeId", arrNodeId);
+        params.put("depTime", depTime);
+
+        Boolean exists = mybatis.selectOne("ScheduleSync.existsSchedule", params);
         return Boolean.TRUE.equals(exists);
     }
 
     /**
-     * 신규 schedule INSERT 및 생성된 schedule_seq 반환
+     * 신규 schedule INSERT 및 useGeneratedKeys로 생성된 schedule_seq 반환
      */
     public Long insertScheduleAndReturnSeq(
             int trainno,
@@ -55,47 +48,33 @@ public class ScheduleSyncDAO {
             int firstPrice,
             int standardPrice) {
 
-        String sql = """
-                INSERT INTO schedule (
-                    trainno, depplacename, arrplacename,
-                    depplandtime, arrplandtime, booking_open_at,
-                    first_price, standard_price, status
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'SCHEDULED')
-                RETURNING schedule_seq
-                """;
+        ScheduleInsertDTO dto = ScheduleInsertDTO.builder()
+                .trainno(trainno)
+                .depNodeId(depNodeId)
+                .arrNodeId(arrNodeId)
+                .depTime(depTime)
+                .arrTime(arrTime)
+                .bookingOpenAt(bookingOpenAt)
+                .firstPrice(firstPrice)
+                .standardPrice(standardPrice)
+                .build();
 
-        return jdbcTemplate.queryForObject(
-                sql,
-                Long.class,
-                trainno,
-                depNodeId,
-                arrNodeId,
-                Timestamp.valueOf(depTime),
-                Timestamp.valueOf(arrTime),
-                Timestamp.valueOf(bookingOpenAt),
-                firstPrice,
-                standardPrice
-        );
+        mybatis.insert("ScheduleSync.insertSchedule", dto);
+        return dto.getScheduleSeq();
     }
 
     /**
-     * 신규 생성된 schedule_seq에 대해 1~18호차 총 935석(모두 STANDARD) 좌석을 batchUpdate로 일괄 적재
+     * 신규 생성된 schedule_seq에 대해 1~18호차 총 935석(모두 STANDARD) 좌석을 MyBatis <foreach>로 일괄 적재
      */
     public int batchInsertSeats(long scheduleSeq, List<SeatTemplateGenerator.SeatTemplateItem> template) {
-        String sql = """
-                INSERT INTO seat (schedule_seq, car_no, seat_no, seat_grade, status, version)
-                VALUES (?, ?, ?, ?, 'AVAILABLE', 0)
-                ON CONFLICT (schedule_seq, car_no, seat_no) DO NOTHING
-                """;
+        if (template == null || template.isEmpty()) {
+            return 0;
+        }
+        Map<String, Object> params = new HashMap<>();
+        params.put("scheduleSeq", scheduleSeq);
+        params.put("seats", template);
 
-        jdbcTemplate.batchUpdate(sql, template, template.size(), (ps, seat) -> {
-            ps.setLong(1, scheduleSeq);
-            ps.setInt(2, seat.getCarNo());
-            ps.setString(3, seat.getSeatNo());
-            ps.setString(4, seat.getSeatGrade());
-        });
-
+        mybatis.insert("ScheduleSync.batchInsertSeats", params);
         return template.size();
     }
 }
