@@ -1,0 +1,191 @@
+/* =========================================================
+   TAGO Header Styles - Modern Minimal
+   ========================================================= */
+
+.top-bar {
+  background-color: var(--gray-900);
+  font-size: 11px;
+  color: var(--gray-400);
+  height: 32px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.top-bar-inner {
+  width: 1160px;
+  max-width: calc(100% - 40px);
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.top-bar-left {
+  font-weight: 500;
+  letter-spacing: -0.2px;
+}
+
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.top-bar-right a, .top-bar-right span {
+  color: var(--gray-400);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.top-bar-right a:hover {
+  color: var(--white);
+}
+
+.top-bar-right .divider {
+  color: var(--gray-600);
+  font-size: 10px;
+}
+
+.top-bar-right .lang-tag {
+  font-weight: 700;
+  color: var(--gray-200);
+}
+
+/* Main Header */
+.header {
+  height: 68px;
+  background-color: var(--white);
+  border-bottom: 1px solid var(--gray-200);
+  display: flex;
+  align-items: center;
+}
+
+.header.sticky {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.header-container {
+  width: 1160px;
+  max-width: calc(100% - 40px);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+/* Logo */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+}
+
+.logo-brand {
+  font-size: 26px;
+  font-weight: 900;
+  color: var(--gray-900);
+  letter-spacing: -1px;
+}
+
+.logo-badge-ktx {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ktx-blue);
+  background: var(--ktx-blue-light);
+  border: 1px solid var(--ktx-blue-subtle);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  letter-spacing: 0.5px;
+}
+
+/* Nav Menu */
+.main-menu {
+  margin-left: 50px;
+  display: flex;
+  gap: 4px;
+}
+
+.nav-link {
+  color: var(--gray-700);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.nav-link:hover {
+  color: var(--ktx-blue);
+  background-color: var(--ktx-blue-light);
+}
+
+.nav-link.active {
+  color: var(--ktx-blue);
+  background-color: var(--ktx-blue-light);
+  font-weight: 700;
+}
+
+/* Auth Buttons */
+.member-menu {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-auth {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+}
+
+.btn-auth.login {
+  color: var(--gray-700);
+  border: 1px solid var(--gray-200);
+  background: var(--white);
+}
+
+.btn-auth.login:hover {
+  background: var(--gray-50);
+  border-color: var(--gray-300);
+  color: var(--gray-900);
+}
+
+.btn-auth.signup {
+  background: var(--ktx-blue);
+  color: var(--white);
+}
+
+.btn-auth.signup:hover {
+  background: var(--ktx-blue-dark);
+}
+
+.btn-auth.logout {
+  color: var(--gray-600);
+  border: 1px solid var(--gray-200);
+}
+
+.btn-auth.logout:hover {
+  background: #fee2e2;
+  color: var(--accent-red);
+  border-color: #fca5a5;
+}
+
+@media (max-width: 900px) {
+  .top-bar {
+    display: none;
+  }
+  .main-menu {
+    display: none;
+  }
+}

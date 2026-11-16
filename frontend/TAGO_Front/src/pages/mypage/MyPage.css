@@ -1,0 +1,591 @@
+/* =========================================================
+   TAGO MyPage Styles - Minimal & Modern
+   ========================================================= */
+
+.mypage-wrapper {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.mypage-container {
+  width: 1080px;
+  max-width: calc(100% - 40px);
+  margin: 32px auto 60px;
+}
+
+.mypage-title-row {
+  margin-bottom: 24px;
+}
+
+.mypage-title-row h1 {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--gray-900);
+  margin-bottom: 4px;
+}
+
+.mypage-title-row p {
+  font-size: 13px;
+  color: var(--gray-500);
+}
+
+.mypage-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+/* Sidebar Profile */
+.mypage-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profile-card {
+  background: var(--white);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  border: 1px solid var(--gray-200);
+  box-shadow: var(--shadow-xs);
+  display: flex;
+  flex-direction: column;
+}
+
+.user-icon {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ktx-blue);
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.member-name {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--gray-900);
+  display: block;
+}
+
+.member-id {
+  font-size: 12px;
+  color: var(--gray-500);
+  display: block;
+  margin-top: 2px;
+}
+
+/* Menu */
+.mypage-menu {
+  background: var(--white);
+  border-radius: var(--radius-md);
+  padding: 6px;
+  border: 1px solid var(--gray-200);
+  box-shadow: var(--shadow-xs);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.menu-btn {
+  width: 100%;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-xs);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: left;
+}
+
+.menu-btn:hover {
+  background: var(--gray-100);
+  color: var(--gray-900);
+}
+
+.menu-btn.active {
+  background: var(--ktx-blue);
+  color: var(--white);
+  font-weight: 700;
+}
+
+/* Content Section */
+.content-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.ticket-display-card, .edit-card {
+  background: var(--white);
+  border-radius: var(--radius-md);
+  padding: 28px 26px;
+  border: 1px solid var(--gray-200);
+  box-shadow: var(--shadow-xs);
+}
+
+.card-top-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--gray-100);
+  padding-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.card-top-header h2 {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--gray-900);
+  margin-bottom: 2px;
+}
+
+.card-subtitle {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.live-status-badge {
+  background: #ecfdf5;
+  color: var(--accent-green);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+}
+
+.btn-start-edit {
+  padding: 8px 16px;
+  background: var(--white);
+  border: 1px solid var(--ktx-blue);
+  color: var(--ktx-blue);
+  border-radius: var(--radius-xs);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-start-edit:hover {
+  background: var(--ktx-blue);
+  color: var(--white);
+}
+
+/* Minimal Modern Ticket UI */
+.mobile-ticket-container {
+  background: var(--gray-900);
+  border-radius: var(--radius-md);
+  color: var(--white);
+  padding: 24px;
+}
+
+.ticket-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.ticket-train-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ticket-train-no {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.ticket-date {
+  font-size: 12px;
+  color: var(--gray-400);
+}
+
+.ticket-route-block {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 16px 20px;
+  border-radius: var(--radius-xs);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.route-station {
+  display: flex;
+  flex-direction: column;
+}
+
+.route-station.arr {
+  align-items: flex-end;
+}
+
+.station-city {
+  font-size: 12px;
+  color: var(--gray-400);
+}
+
+.station-time {
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+}
+
+.route-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  padding: 0 16px;
+}
+
+.indicator-label {
+  font-size: 10px;
+  color: var(--gray-400);
+}
+
+.indicator-line {
+  width: 100%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.ticket-seat-details {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  background: var(--white);
+  color: var(--gray-900);
+  border-radius: var(--radius-xs);
+  padding: 14px;
+  margin-bottom: 18px;
+}
+
+.detail-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.col-label {
+  font-size: 10px;
+  color: var(--gray-500);
+  margin-bottom: 2px;
+}
+
+.col-val {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.col-val.highlight {
+  color: var(--ktx-blue);
+  font-weight: 800;
+}
+
+.ticket-qr-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.2);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.qr-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.qr-fake-visual {
+  background: var(--white);
+  color: #000;
+  padding: 4px;
+  border-radius: 4px;
+  font-size: 7px;
+  line-height: 1;
+  font-family: monospace;
+  letter-spacing: 2px;
+}
+
+.qr-hint {
+  font-size: 11px;
+  color: var(--gray-400);
+}
+
+.ticket-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-ticket-action {
+  padding: 6px 12px;
+  border-radius: var(--radius-xs);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-ticket-action.outline {
+  background: transparent;
+  color: var(--white);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.btn-ticket-action.outline:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.btn-ticket-action.danger {
+  background: transparent;
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.btn-ticket-action.danger:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.ticket-footer-number {
+  margin-top: 14px;
+  font-size: 10px;
+  color: var(--gray-500);
+  text-align: right;
+}
+
+/* Profile Form */
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 600px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.input-wrap {
+  height: 46px;
+  background: var(--white);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-xs);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  transition: border-color var(--transition-fast);
+}
+
+.input-wrap:focus-within {
+  border-color: var(--ktx-blue);
+  box-shadow: 0 0 0 2px rgba(0, 78, 162, 0.1);
+}
+
+.input-wrap.disabled {
+  background: var(--gray-50);
+  border-color: var(--gray-200);
+}
+
+.input-wrap.read-only {
+  background: var(--gray-50);
+  border-color: var(--gray-200);
+}
+
+.input-wrap.read-only input {
+  color: var(--gray-700);
+  cursor: default;
+}
+
+.input-wrap input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--gray-900);
+}
+
+.form-note {
+  font-size: 11px;
+  color: var(--gray-400);
+}
+
+.postcode-row {
+  display: flex;
+  gap: 8px;
+}
+
+.postcode-input-wrap {
+  width: 130px;
+  flex-shrink: 0;
+}
+
+.btn-address-search {
+  padding: 0 16px;
+  background: var(--gray-900);
+  color: var(--white);
+  border-radius: var(--radius-xs);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  white-space: nowrap;
+}
+
+.btn-address-search:hover {
+  background: var(--ktx-blue);
+}
+
+.edit-action-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.btn-save-profile {
+  padding: 10px 24px;
+  background: var(--ktx-blue);
+  color: var(--white);
+  border-radius: var(--radius-xs);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.btn-save-profile:hover {
+  background: var(--ktx-blue-dark);
+}
+
+.btn-cancel-profile {
+  padding: 10px 20px;
+  background: var(--white);
+  color: var(--gray-700);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-xs);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.btn-cancel-profile:hover {
+  background: var(--gray-100);
+}
+
+/* Email Auth Password Section */
+.email-auth-row {
+  display: flex;
+  gap: 8px;
+}
+
+.email-auth-row .flex-1 {
+  flex: 1;
+}
+
+.btn-email-auth {
+  padding: 0 16px;
+  background: var(--ktx-blue);
+  color: var(--white);
+  border-radius: var(--radius-xs);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  white-space: nowrap;
+}
+
+.btn-email-auth:hover:not(:disabled) {
+  background: var(--ktx-blue-dark);
+}
+
+.btn-email-auth:disabled {
+  background: var(--gray-300);
+  color: var(--gray-600);
+  cursor: not-allowed;
+}
+
+.btn-email-verify {
+  padding: 0 16px;
+  background: var(--gray-900);
+  color: var(--white);
+  border-radius: var(--radius-xs);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  white-space: nowrap;
+}
+
+.btn-email-verify:hover {
+  background: var(--gray-800);
+}
+
+.auth-hint {
+  font-size: 11px;
+  color: var(--gray-500);
+  margin-top: 4px;
+}
+
+.auth-code-group {
+  margin-top: 4px;
+  padding: 14px;
+  background: var(--gray-50);
+  border-radius: var(--radius-xs);
+  border: 1px dashed var(--gray-300);
+}
+
+.new-password-section {
+  padding: 18px;
+  background: var(--ktx-blue-light);
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--ktx-blue-subtle);
+  margin-top: 8px;
+}
+
+.verified-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ktx-blue);
+}
+
+.verified-icon {
+  background: var(--ktx-blue);
+  color: var(--white);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+}
+
+@media (max-width: 900px) {
+  .mypage-grid {
+    grid-template-columns: 1fr;
+  }
+}
