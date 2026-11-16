@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="MasterSync">
+
+    <select id="countStations" resultType="int">
+        SELECT COUNT(*) FROM station
+    </select>
+
+    <select id="selectAllStations" resultType="com.kedu.tago.sync.dto.TagoStationDTO">
+        SELECT
+            nodeid,
+            nodename,
+            citycode,
+            cityname,
+            node_address AS nodeAddress
+        FROM station
+    </select>
+
+    <insert id="upsertStations" parameterType="java.util.List">
+        INSERT INTO station (nodeid, nodename, citycode, cityname, node_address)
+        SELECT v.nodeid, v.nodename, v.citycode, v.cityname, v.node_address
+        FROM (
+            VALUES
+            <foreach collection="list" item="st" separator=",">
+                (#{st.nodeid}, #{st.nodename}, #{st.citycode}, #{st.cityname}, #{st.nodeAddress})
+            </foreach>
+        ) AS v(nodeid, nodename, citycode, cityname, node_address)
+        WHERE NOT EXISTS (
+            SELECT 1 FROM station s WHERE s.nodename = v.nodename AND s.nodeid &lt;&gt; v.nodeid
+        )
+        ON CONFLICT (nodeid) DO UPDATE SET
+            nodename = EXCLUDED.nodename,
+            citycode = EXCLUDED.citycode,
+            cityname = EXCLUDED.cityname,
+            node_address = EXCLUDED.node_address
+    </insert>
+
+    <insert id="upsertKtxTrains" parameterType="java.util.List">
+        INSERT INTO train (trainno, vehiclekndnm, line_category)
+        VALUES
+        <foreach collection="list" item="tr" separator=",">
+            (#{tr.trainno}, 'KTX', #{tr.lineCategory})
+        </foreach>
+        ON CONFLICT (trainno) DO UPDATE SET
+            line_category = EXCLUDED.line_category
+    </insert>
+
+</mapper>

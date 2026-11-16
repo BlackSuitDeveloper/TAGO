@@ -37,6 +37,12 @@ public class TagoSyncController {
         return ResponseEntity.ok(result);
     }
 
+    @PostMapping("/mock")
+    public ResponseEntity<SyncResultDTO> syncMockSampleData() {
+        SyncResultDTO result = scheduleSyncService.insertMockSampleData();
+        return ResponseEntity.ok(result);
+    }
+
     @PostMapping("/schedules")
     public ResponseEntity<SyncResultDTO> syncSchedulesByDate(
             @RequestParam(value = "date", required = false) String date) {

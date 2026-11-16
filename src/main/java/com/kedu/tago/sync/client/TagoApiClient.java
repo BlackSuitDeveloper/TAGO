@@ -37,7 +37,7 @@ public class TagoApiClient {
     private final String encodedServiceKey;
 
     public TagoApiClient(
-            @Value("${tago.api.base-url:http://apis.data.go.kr/1613000/TrainInfoService}") String baseUrl,
+            @Value("${tago.api.base-url:https://apis.data.go.kr/1613000/TrainInfo}") String baseUrl,
             @Value("${tago.api.service-key:}") String serviceKey,
             TagoRouteConfig routeConfig) {
         this.restClient = RestClient.builder().build();
@@ -68,14 +68,14 @@ public class TagoApiClient {
     }
 
     /**
-     * 1. 시/도 코드 목록 조회 (getCtyCodeList)
+     * 1. 시/도 코드 목록 조회 (GetCtyCodeList)
      */
     public List<TagoCityDTO> fetchCityCodes() {
         String url = String.format(
-                "%s/getCtyCodeList?serviceKey=%s&_type=json&numOfRows=100&pageNo=1",
+                "%s/GetCtyCodeList?serviceKey=%s&_type=json&numOfRows=100&pageNo=1",
                 baseUrl, encodedServiceKey
         );
-        JsonNode itemNode = executeGetItems(url, "getCtyCodeList");
+        JsonNode itemNode = executeGetItems(url, "GetCtyCodeList");
         if (itemNode == null) {
             return Collections.emptyList();
         }
@@ -95,14 +95,14 @@ public class TagoApiClient {
     }
 
     /**
-     * 2. 시/도별 기차역 목록 조회 (getCtyAcctoTrainSttnList)
+     * 2. 시/도별 기차역 목록 조회 (GetCtyAcctoTrainSttnList)
      */
     public List<TagoStationDTO> fetchStationsByCity(String citycode, String cityname) {
         String url = String.format(
-                "%s/getCtyAcctoTrainSttnList?serviceKey=%s&_type=json&numOfRows=500&pageNo=1&cityCode=%s",
+                "%s/GetCtyAcctoTrainSttnList?serviceKey=%s&_type=json&numOfRows=500&pageNo=1&cityCode=%s",
                 baseUrl, encodedServiceKey, URLEncoder.encode(citycode, StandardCharsets.UTF_8)
         );
-        JsonNode itemNode = executeGetItems(url, "getCtyAcctoTrainSttnList(" + cityname + ")");
+        JsonNode itemNode = executeGetItems(url, "GetCtyAcctoTrainSttnList(" + cityname + ")");
         if (itemNode == null) {
             return Collections.emptyList();
         }
@@ -125,12 +125,12 @@ public class TagoApiClient {
     }
 
     /**
-     * 3. 출/도착지 기반 KTX 열차 운행 일정 조회 (getStrtpntAlocFndTrainInfo)
+     * 3. 출/도착지 기반 KTX 열차 운행 일정 조회 (GetStrtpntAlocFndTrainInfo)
      * - trainGradeCode=00 (KTX) 고정 호출
      */
     public List<TagoTrainScheduleDTO> fetchKtxSchedules(String depPlaceId, String arrPlaceId, String depPlandTime) {
         String url = String.format(
-                "%s/getStrtpntAlocFndTrainInfo?serviceKey=%s&_type=json&numOfRows=500&pageNo=1&depPlaceId=%s&arrPlaceId=%s&depPlandTime=%s&trainGradeCode=%s",
+                "%s/GetStrtpntAlocFndTrainInfo?serviceKey=%s&_type=json&numOfRows=500&pageNo=1&depPlaceId=%s&arrPlaceId=%s&depPlandTime=%s&trainGradeCode=%s",
                 baseUrl,
                 encodedServiceKey,
                 URLEncoder.encode(depPlaceId, StandardCharsets.UTF_8),
@@ -140,7 +140,7 @@ public class TagoApiClient {
         );
 
         JsonNode itemNode = executeGetItems(url,
-                String.format("getStrtpntAlocFndTrainInfo(%s->%s, %s)", depPlaceId, arrPlaceId, depPlandTime));
+                String.format("GetStrtpntAlocFndTrainInfo(%s->%s, %s)", depPlaceId, arrPlaceId, depPlandTime));
         if (itemNode == null) {
             return Collections.emptyList();
         }
@@ -175,9 +175,10 @@ public class TagoApiClient {
 
     private boolean isKtxGrade(String gradeName) {
         if (gradeName == null || gradeName.isBlank()) {
-            return true;
+            return false;
         }
-        return gradeName.toUpperCase().contains("KTX");
+        // 순수 KTX(KTX-1, 18호차 935석 규격)만 유지 (KTX-산천, KTX-이음 등 제외)
+        return "KTX".equalsIgnoreCase(gradeName.trim());
     }
 
     private JsonNode executeGetItems(String fullUrl, String apiName) {

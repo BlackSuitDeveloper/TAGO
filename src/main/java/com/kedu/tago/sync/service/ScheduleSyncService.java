@@ -78,7 +78,6 @@ public class ScheduleSyncService {
         }
 
         List<TagoTrainScheduleDTO> collectedSchedules = new ArrayList<>();
-        Map<Integer, String> discoveredTrains = new LinkedHashMap<>();
         Map<String, Integer> routeFallbackFareMap = new LinkedHashMap<>();
 
         for (TagoRouteConfig.RoutePair route : routeConfig.getTargetRoutes()) {
@@ -95,12 +94,14 @@ public class ScheduleSyncService {
 
             List<TagoTrainScheduleDTO> apiSchedules = tagoApiClient.fetchKtxSchedules(depNodeId, arrNodeId, targetDateYmd);
             for (TagoTrainScheduleDTO dto : apiSchedules) {
-                discoveredTrains.putIfAbsent(dto.getTrainno(), route.getLineCategory());
+                // TAGO 원본 열차번호를 해당 노선에 배정된 KTX 1세대 1~46호기(trainno 1~46)로 매핑
+                int mappedUnitNo = routeConfig.mapToKtxUnitNo(dto.getTrainno(), route.getLineCategory());
+                dto.setTrainno(mappedUnitNo);
                 collectedSchedules.add(dto);
             }
         }
 
-        int upsertedTrainCount = masterSyncService.upsertKtxTrains(discoveredTrains);
+        int upsertedTrainCount = masterSyncService.upsertKtxTrains(routeConfig.getFixedKtxUnitLineMap());
 
         int insertedScheduleCount = 0;
         int skippedScheduleCount = 0;
@@ -164,6 +165,115 @@ public class ScheduleSyncService {
 
     public int batchInsertSeatsForSchedule(long scheduleSeq) {
         return scheduleSyncDAO.batchInsertSeats(scheduleSeq, seatTemplateGenerator.getKtxSeatTemplate());
+    }
+
+    /**
+     * 테스트/검증용 임의의 KTX 마스터(station, train) 및 운행 일정(schedule) + 좌석(935석) 샘플 데이터 적재
+     */
+    @Transactional
+    public SyncResultDTO insertMockSampleData() {
+        List<com.kedu.tago.sync.dto.TagoStationDTO> mockStations = List.of(
+                com.kedu.tago.sync.dto.TagoStationDTO.builder()
+                        .nodeid("NAT010000").nodename("서울").citycode("11").cityname("서울특별시")
+                        .nodeAddress(routeConfig.resolveStationAddress("서울", "서울특별시")).build(),
+                com.kedu.tago.sync.dto.TagoStationDTO.builder()
+                        .nodeid("NAT011668").nodename("대전").citycode("25").cityname("대전광역시")
+                        .nodeAddress(routeConfig.resolveStationAddress("대전", "대전광역시")).build(),
+                com.kedu.tago.sync.dto.TagoStationDTO.builder()
+                        .nodeid("NAT013271").nodename("동대구").citycode("22").cityname("대구광역시")
+                        .nodeAddress(routeConfig.resolveStationAddress("동대구", "대구광역시")).build(),
+                com.kedu.tago.sync.dto.TagoStationDTO.builder()
+                        .nodeid("NAT014445").nodename("부산").citycode("21").cityname("부산광역시")
+                        .nodeAddress(routeConfig.resolveStationAddress("부산", "부산광역시")).build(),
+                com.kedu.tago.sync.dto.TagoStationDTO.builder()
+                        .nodeid("NAT010032").nodename("용산").citycode("11").cityname("서울특별시")
+                        .nodeAddress(routeConfig.resolveStationAddress("용산", "서울특별시")).build(),
+                com.kedu.tago.sync.dto.TagoStationDTO.builder()
+                        .nodeid("NAT031857").nodename("광주송정").citycode("24").cityname("광주광역시")
+                        .nodeAddress(routeConfig.resolveStationAddress("광주송정", "광주광역시")).build()
+        );
+
+        int stationCount = masterSyncService.upsertMockStations(mockStations);
+        masterSyncService.refreshStationCacheFromDb();
+
+        Map<Integer, String> mockTrains = new LinkedHashMap<>();
+        mockTrains.put(101, "경부선");
+        mockTrains.put(102, "경부선");
+        mockTrains.put(501, "호남선");
+        int trainCount = masterSyncService.upsertKtxTrains(mockTrains);
+
+        LocalDate targetDate = LocalDate.now().plusDays(1);
+        String targetDateYmd = targetDate.format(DATE_FMT);
+
+        List<TagoTrainScheduleDTO> mockSchedules = List.of(
+                TagoTrainScheduleDTO.builder()
+                        .trainno(101).traingradename("KTX")
+                        .depPlaceId("NAT010000").depplacename("서울")
+                        .arrPlaceId("NAT014445").arrplacename("부산")
+                        .depplandtime(targetDateYmd + "090000")
+                        .arrplandtime(targetDateYmd + "113500")
+                        .adultcharge(59800).build(),
+                TagoTrainScheduleDTO.builder()
+                        .trainno(102).traingradename("KTX")
+                        .depPlaceId("NAT014445").depplacename("부산")
+                        .arrPlaceId("NAT010000").arrplacename("서울")
+                        .depplandtime(targetDateYmd + "140000")
+                        .arrplandtime(targetDateYmd + "163800")
+                        .adultcharge(59800).build(),
+                TagoTrainScheduleDTO.builder()
+                        .trainno(501).traingradename("KTX")
+                        .depPlaceId("NAT010032").depplacename("용산")
+                        .arrPlaceId("NAT031857").arrplacename("광주송정")
+                        .depplandtime(targetDateYmd + "102000")
+                        .arrplandtime(targetDateYmd + "121000")
+                        .adultcharge(46800).build()
+        );
+
+        int insertedScheduleCount = 0;
+        int skippedScheduleCount = 0;
+        int insertedSeatCount = 0;
+
+        for (TagoTrainScheduleDTO dto : mockSchedules) {
+            LocalDateTime depTime = parseTagoDateTime(dto.getDepplandtime());
+            LocalDateTime arrTime = parseTagoDateTime(dto.getArrplandtime());
+            if (scheduleSyncDAO.existsSchedule(dto.getTrainno(), dto.getDepPlaceId(), dto.getArrPlaceId(), depTime)) {
+                skippedScheduleCount++;
+                continue;
+            }
+            LocalDateTime bookingOpenAt = depTime.minusMonths(1);
+            Long scheduleSeq = scheduleSyncDAO.insertScheduleAndReturnSeq(
+                    dto.getTrainno(),
+                    dto.getDepPlaceId(),
+                    dto.getArrPlaceId(),
+                    depTime,
+                    arrTime,
+                    bookingOpenAt,
+                    dto.getAdultcharge(),
+                    dto.getAdultcharge()
+            );
+            if (scheduleSeq != null) {
+                insertedScheduleCount++;
+                insertedSeatCount += batchInsertSeatsForSchedule(scheduleSeq);
+            }
+        }
+
+        String msg = String.format(
+                "임의 샘플 데이터 적재 완료 (역: %d건, 열차: %d건, 신규 일정: %d건, 스킵 일정: %d건, 생성 좌석: %d석)",
+                stationCount, trainCount, insertedScheduleCount, skippedScheduleCount, insertedSeatCount
+        );
+        log.info("[MockSync] {}", msg);
+
+        return SyncResultDTO.builder()
+                .syncType("MOCK_SAMPLE_SYNC")
+                .targetDate(targetDateYmd)
+                .stationCount(stationCount)
+                .trainCount(trainCount)
+                .insertedScheduleCount(insertedScheduleCount)
+                .skippedScheduleCount(skippedScheduleCount)
+                .insertedSeatCount(insertedSeatCount)
+                .executedAt(LocalDateTime.now())
+                .message(msg)
+                .build();
     }
 
     private LocalDateTime parseTagoDateTime(String raw) {

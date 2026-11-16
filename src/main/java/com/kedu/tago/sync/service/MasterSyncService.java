@@ -126,30 +126,8 @@ public class MasterSyncService {
 
     @Transactional
     public int syncTrainsFromDesignatedRoutes() {
-        if (!tagoApiClient.isServiceKeyConfigured()) {
-            return 0;
-        }
-        if (stationNameToIdCache.isEmpty()) {
-            refreshStationCacheFromDb();
-        }
-
-        String today = LocalDate.now().format(DATE_FMT);
-        Map<Integer, String> trainLineMap = new LinkedHashMap<>();
-
-        for (TagoRouteConfig.RoutePair route : routeConfig.getTargetRoutes()) {
-            String depNodeId = stationNameToIdCache.get(route.getDepStationName());
-            String arrNodeId = stationNameToIdCache.get(route.getArrStationName());
-            if (depNodeId == null || arrNodeId == null) {
-                continue;
-            }
-
-            List<TagoTrainScheduleDTO> schedules = tagoApiClient.fetchKtxSchedules(depNodeId, arrNodeId, today);
-            for (TagoTrainScheduleDTO item : schedules) {
-                trainLineMap.putIfAbsent(item.getTrainno(), route.getLineCategory());
-            }
-        }
-
-        return upsertKtxTrains(trainLineMap);
+        // KTX 1세대 1호기 ~ 46호기(trainno 1 ~ 46) 고정 마스터 적재
+        return upsertKtxTrains(routeConfig.getFixedKtxUnitLineMap());
     }
 
     @Transactional
@@ -159,5 +137,10 @@ public class MasterSyncService {
             log.info("[MasterSync] train 마스터 테이블 Upsert 완료: {}건", upserted);
         }
         return upserted;
+    }
+
+    @Transactional
+    public int upsertMockStations(List<TagoStationDTO> stations) {
+        return masterSyncDAO.batchUpsertStations(stations);
     }
 }
