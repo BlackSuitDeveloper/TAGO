@@ -4,4 +4,52 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="member">
 
+    <!--로그인-->
+    <select id="isMember" resultType="int">
+        select count(*)
+        from member
+        where id = #{id}
+        and pw = #{pw}
+    </select>
+
+    <!--아이디 중복 체크-->
+    <select id="checkId" parameterType="String" resultType="int">
+        select count(*) from
+        member where id = #{id}
+    </select>
+
+    <!-- 회원가입-->
+    <insert id="insertMember" parameterType="member.MemberDTO">
+        insert into member
+        (id, pw, name, phone, email, zipcode, address1, address2)
+        values
+        (#{id}, #{pw}, #{name}, #{phone}, #{email}, #{zipcode}, #{address1}, #{address2})
+    </insert>
+
+    <!--회원 정보 조회-->
+    <select id="selectMember" parameterType="member.MemberDTO"
+            resultType="member.MemberDTO">
+        select id, name, phone, email, zipcode, address1, address2, ceated_at
+        from member
+        where id = #{id}
+    </select>
+
+    <!--회원 정보 수정-->
+    <update id="updateMember" parameterType="member.MemberDTO">
+        update member
+        set name = #{name},
+        phone = #{phone},
+        email = #{email},
+        zipcode = #{zipcode},
+        address1 = #{address1},
+        address2 = #{address2}
+        where id = #{id}
+    </update>
+
+    <!--회원 탈퇴-->
+    <delete id="deleteId" parameterType="string">
+        delete from member
+        where id = #{id}
+    </delete>
+
 </mapper>
