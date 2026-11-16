@@ -17,7 +17,7 @@ public class InterceptorConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(lv)
                 .addPathPatterns("/**") // recursive ex) localhost/member/... 전부 포함
-                .excludePathPatterns("/auth/login", "/user/signup", "/user/checkId");
+                .excludePathPatterns("/auth/login", "/user/signup", "/user/checkId", "/admin/sync/**");
 
 
     }
