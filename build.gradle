@@ -41,6 +41,8 @@ dependencies {
     implementation("com.auth0:java-jwt:4.4.0")
     implementation("com.google.cloud:google-cloud-storage:2.70.0")
     implementation("org.springframework.boot:spring-boot-starter-data-redis:4.1.0")
+    implementation(platform("me.paulschwarz:spring-dotenv-bom:5.1.0"))
+    developmentOnly("me.paulschwarz:springboot4-dotenv")
 }
 
 dependencyManagement {
