@@ -1,0 +1,205 @@
+/* =========================================================
+   TAGO SignupPage Styles - Modern & Clean
+   ========================================================= */
+
+.signup-page-wrapper {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--gray-50);
+}
+
+.signup-container {
+  width: 500px;
+  max-width: calc(100% - 40px);
+  margin: 50px auto 80px;
+}
+
+.signup-card {
+  background: var(--white);
+  border-radius: var(--radius-md);
+  padding: 38px 34px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--gray-200);
+}
+
+.signup-header {
+  text-align: center;
+  margin-bottom: 26px;
+}
+
+.signup-sub-title {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: var(--ktx-blue);
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.signup-header h2 {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--gray-900);
+  margin-bottom: 6px;
+}
+
+.signup-desc {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+/* Form Groups */
+.signup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.form-group label .req {
+  color: var(--accent-red);
+}
+
+.input-wrap {
+  height: 46px;
+  background: var(--white);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-xs);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  transition: border-color var(--transition-fast);
+}
+
+.input-wrap:focus-within {
+  border-color: var(--ktx-blue);
+  box-shadow: 0 0 0 2px rgba(0, 78, 162, 0.1);
+}
+
+.input-wrap.has-error {
+  border-color: var(--accent-red);
+}
+
+.input-wrap input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--gray-900);
+}
+
+.error-text {
+  font-size: 11px;
+  color: var(--accent-red);
+  margin-top: 2px;
+}
+
+/* Postcode & Address */
+.postcode-row {
+  display: flex;
+  gap: 8px;
+}
+
+.postcode-input-wrap {
+  width: 140px;
+  flex-shrink: 0;
+}
+
+.btn-address-search {
+  padding: 0 16px;
+  background: var(--gray-900);
+  color: var(--white);
+  border-radius: var(--radius-xs);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  white-space: nowrap;
+}
+
+.btn-address-search:hover {
+  background: var(--ktx-blue);
+}
+
+/* Terms */
+.terms-card {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xs);
+  padding: 14px;
+  margin-top: 6px;
+}
+
+.terms-agree-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--gray-800);
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.terms-scroll-text {
+  max-height: 65px;
+  overflow-y: auto;
+  font-size: 11px;
+  color: var(--gray-500);
+  line-height: 1.5;
+  padding: 8px;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xs);
+}
+
+/* Submit Button */
+.signup-btn-submit {
+  height: 48px;
+  background: var(--ktx-blue);
+  color: var(--white);
+  border-radius: var(--radius-xs);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  margin-top: 10px;
+}
+
+.signup-btn-submit:hover {
+  background: var(--ktx-blue-dark);
+}
+
+/* Prompt */
+.login-prompt {
+  text-align: center;
+  font-size: 12px;
+  color: var(--gray-500);
+  border-top: 1px solid var(--gray-100);
+  padding-top: 16px;
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.login-link {
+  color: var(--ktx-blue);
+  font-weight: 600;
+}
+
+.login-link:hover {
+  text-decoration: underline;
+}

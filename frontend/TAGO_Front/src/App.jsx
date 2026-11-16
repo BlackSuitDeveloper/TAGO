@@ -1,14 +1,21 @@
-import {Routes, Route, useNavigate} from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import MainPage from './pages/MainPage/MainPage';
+import LoginPage from './pages/LoginPage/LoginPage';
+import SignupPage from './pages/SignupPage/SignupPage';
+import MyPage from './pages/MyPage/MyPage';
+import SchedulePage from './pages/SchedulePage/SchedulePage';
+import './index.css';
 
-function App() {
-
+export default function App() {
   return (
-    <div>test</div>
-  )
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<MainPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+        <Route path="/mypage" element={<MyPage />} />
+        <Route path="/schedule" element={<SchedulePage />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }
-
-<Routes>
-  <Route path='/' element={<Index />}></Route>
-</Routes>
-
-export default App;
