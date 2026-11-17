@@ -24,6 +24,12 @@ export default function MyPage() {
     ticketNumber: '1029-3847-5690-11',
   });
 
+  const handleCancelTicket = () => {
+    if (!window.confirm('정말 이 승차권 예매를 취소하시겠습니까?')) return;
+    setActiveTicket(null);
+    alert('승차권 예매가 취소되었습니다.');
+  };
+
   const [favorites, setFavorites] = useState(() => {
     const saved = localStorage.getItem('tago_favorite_trains');
     if (saved) {
@@ -294,6 +300,7 @@ export default function MyPage() {
                       </div>
                       <div className="ticket-actions">
                         <button type="button" className="btn-ticket-action outline">영수증 발급</button>
+                        <button type="button" className="btn-ticket-action danger" onClick={handleCancelTicket}>취소하기</button>
                       </div>
                     </div>
 

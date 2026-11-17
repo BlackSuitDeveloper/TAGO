@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="Schedule">
+
+    <sql id="scheduleWhere">
+        <where>
+            <if test="effectiveDepStation != null and effectiveDepStation != ''">
+                AND (s.depplacename = #{effectiveDepStation} OR ds.nodename = #{effectiveDepStation})
+            </if>
+            <if test="effectiveArrStation != null and effectiveArrStation != ''">
+                AND (s.arrplacename = #{effectiveArrStation} OR as2.nodename = #{effectiveArrStation})
+            </if>
+            <if test="date != null and date != ''">
+                AND DATE(s.depplandtime) = CAST(#{date} AS DATE)
+            </if>
+        </where>
+    </sql>
+
+    <select id="selectScheduleList"
+            parameterType="com.kedu.tago.schedule.ScheduleSearchDTO"
+            resultType="com.kedu.tago.schedule.ScheduleDTO">
+        SELECT
+            s.schedule_seq,
+            s.trainno,
+            s.depplacename,
+            s.arrplacename,
+            s.depplandtime,
+            s.arrplandtime,
+            s.booking_open_at,
+            s.first_price,
+            s.standard_price,
+            s.status,
+            ds.nodename AS depStationName,
+            as2.nodename AS arrStationName,
+            t.vehiclekndnm,
+            t.line_category AS lineCategory,
+            (SELECT COUNT(*) FROM seat st WHERE st.schedule_seq = s.schedule_seq AND st.status = 'AVAILABLE') AS availableSeats
+        FROM schedule s
+        LEFT JOIN station ds ON s.depplacename = ds.nodeid
+        LEFT JOIN station as2 ON s.arrplacename = as2.nodeid
+        LEFT JOIN train t ON s.trainno = t.trainno
+        <include refid="scheduleWhere" />
+        ORDER BY s.depplandtime ASC
+        LIMIT #{safeSize} OFFSET #{offset}
+    </select>
+
+    <select id="countScheduleList"
+            parameterType="com.kedu.tago.schedule.ScheduleSearchDTO"
+            resultType="long">
+        SELECT COUNT(*)
+        FROM schedule s
+        LEFT JOIN station ds ON s.depplacename = ds.nodeid
+        LEFT JOIN station as2 ON s.arrplacename = as2.nodeid
+        <include refid="scheduleWhere" />
+    </select>
+
+    <select id="selectScheduleDetail"
+            parameterType="long"
+            resultType="com.kedu.tago.schedule.ScheduleDTO">
+        SELECT
+            s.schedule_seq,
+            s.trainno,
+            s.depplacename,
+            s.arrplacename,
+            s.depplandtime,
+            s.arrplandtime,
+            s.booking_open_at,
+            s.first_price,
+            s.standard_price,
+            s.status,
+            ds.nodename AS depStationName,
+            as2.nodename AS arrStationName,
+            t.vehiclekndnm,
+            t.line_category AS lineCategory,
+            (SELECT COUNT(*) FROM seat st WHERE st.schedule_seq = s.schedule_seq AND st.status = 'AVAILABLE') AS availableSeats
+        FROM schedule s
+        LEFT JOIN station ds ON s.depplacename = ds.nodeid
+        LEFT JOIN station as2 ON s.arrplacename = as2.nodeid
+        LEFT JOIN train t ON s.trainno = t.trainno
+        WHERE s.schedule_seq = #{scheduleSeq}
+    </select>
+
+</mapper>

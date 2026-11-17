@@ -1,24 +1,95 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import QuickMenu from '../../components/QuickMenu/QuickMenu';
 import './SchedulePage.css';
 
+const STATION_OPTIONS = ['서울', '용산', '광명', '대전', '동대구', '부산', '광주송정', '강릉', '포항'];
+
+function normalizeDateInput(dateStr) {
+  if (!dateStr) return '2026-11-16';
+  const match = String(dateStr).match(/(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : '2026-11-16';
+}
+
+function formatDateWithDay(dateStr) {
+  const normalized = normalizeDateInput(dateStr);
+  const [y, m, d] = normalized.split('-').map(Number);
+  const days = ['일', '월', '화', '수', '목', '금', '토'];
+  const dateObj = new Date(y, m - 1, d);
+  return `${normalized} (${days[dateObj.getDay()]})`;
+}
+
 export default function SchedulePage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const depStation = location.state?.departureStation || '서울';
-  const arrStation = location.state?.arrivalStation || '부산';
-  const initialDate = location.state?.departureDate || '2026-11-16 (월)';
-  const passenger = location.state?.passengerCount || '어른 1명';
-  const targetTrainName = location.state?.targetTrainName || null;
+  const [tripType, setTripType] = useState(location.state?.tripType || '편도');
+  const [depStation, setDepStation] = useState(location.state?.departureStation || '서울');
+  const [arrStation, setArrStation] = useState(location.state?.arrivalStation || '부산');
+  const [currentDate, setCurrentDate] = useState(() => normalizeDateInput(location.state?.departureDate));
+  const [returnDate, setReturnDate] = useState(() => normalizeDateInput(location.state?.returnDate || '2026-11-17'));
+  const [passengers, setPassengers] = useState(() => location.state?.passengerDetail || { adult: 1 });
+  const [isPassengerOpen, setIsPassengerOpen] = useState(false);
+  const passengerRef = useRef(null);
 
-  const [currentDate, setCurrentDate] = useState(initialDate);
+  const targetTrainName = location.state?.targetTrainName || null;
   const [selectedFilter, setSelectedFilter] = useState('ALL');
 
-  const isBaseDay = currentDate === initialDate;
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (passengerRef.current && !passengerRef.current.contains(event.target)) {
+        setIsPassengerOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const passengerSummaryText = `어른 ${passengers.adult}명`;
+
+  const handleDepartureStationChange = (newDep) => {
+    setDepStation(newDep);
+    if (arrStation === newDep) {
+      const fallback = STATION_OPTIONS.find((st) => st !== newDep) || '부산';
+      setArrivalStationSafe(fallback);
+    }
+  };
+
+  const setArrivalStationSafe = (nextArr) => {
+    setArrStation(nextArr);
+  };
+
+  const handleArrivalStationChange = (newArr) => {
+    setArrStation(newArr);
+    if (depStation === newArr) {
+      const fallback = STATION_OPTIONS.find((st) => st !== newArr) || '서울';
+      setDepStation(fallback);
+    }
+  };
+
+  const handleSwapStations = () => {
+    setDepStation(arrStation);
+    setArrStation(depStation);
+  };
+
+  const handlePassengerChange = (delta) => {
+    setPassengers((prev) => {
+      const nextVal = prev.adult + delta;
+      if (nextVal > 9) {
+        alert('승차권은 1회 최대 9명까지 예매하실 수 있습니다.');
+        return prev;
+      }
+      if (nextVal < 1) {
+        alert('최소 1명 이상의 승객을 선택해야 합니다.');
+        return prev;
+      }
+      return { adult: nextVal };
+    });
+  };
 
   const [favorites, setFavorites] = useState(() => {
     const saved = localStorage.getItem('tago_favorite_trains');
@@ -83,39 +154,9 @@ export default function SchedulePage() {
     },
   ]);
 
-  const handlePrevDay = () => {
-    if (isBaseDay) return;
-    const match = currentDate.match(/(\d{4})-(\d{2})-(\d{2})/);
-    if (match) {
-      const year = parseInt(match[1], 10);
-      const month = parseInt(match[2], 10) - 1;
-      const day = parseInt(match[3], 10);
-      const prevDateObj = new Date(year, month, day - 1);
-      const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-      const nextY = prevDateObj.getFullYear();
-      const nextM = String(prevDateObj.getMonth() + 1).padStart(2, '0');
-      const nextD = String(prevDateObj.getDate()).padStart(2, '0');
-      const dayName = dayNames[prevDateObj.getDay()];
-      setCurrentDate(`${nextY}-${nextM}-${nextD} (${dayName})`);
-    }
-  };
-
-  const handleNextDay = () => {
-    const match = currentDate.match(/(\d{4})-(\d{2})-(\d{2})/);
-    if (match) {
-      const year = parseInt(match[1], 10);
-      const month = parseInt(match[2], 10) - 1;
-      const day = parseInt(match[3], 10);
-      const nextDateObj = new Date(year, month, day + 1);
-      const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-      const nextY = nextDateObj.getFullYear();
-      const nextM = String(nextDateObj.getMonth() + 1).padStart(2, '0');
-      const nextD = String(nextDateObj.getDate()).padStart(2, '0');
-      const dayName = dayNames[nextDateObj.getDay()];
-      setCurrentDate(`${nextY}-${nextM}-${nextD} (${dayName})`);
-    } else {
-      setCurrentDate('2026-11-17 (화)');
-    }
+  const handleSearchSchedule = () => {
+    setIsPassengerOpen(false);
+    // 추후 GET /api/schedule 연동 시 depStation, arrStation, currentDate 조건으로 재조회
   };
 
   const filteredList = scheduleList.filter((item) => {
@@ -141,9 +182,11 @@ export default function SchedulePage() {
         duration: train.duration,
         depStation,
         arrStation,
-        depDate: currentDate,
-        passenger,
-        passengerDetail: location.state?.passengerDetail,
+        depDate: formatDateWithDay(currentDate),
+        returnDate: tripType === '왕복' ? formatDateWithDay(returnDate) : null,
+        tripType,
+        passenger: passengerSummaryText,
+        passengerDetail: passengers,
         seatType: '일반실',
         price: train.generalPrice,
       }
@@ -155,82 +198,221 @@ export default function SchedulePage() {
       <Header showTopBar={true} />
 
       <main className="schedule-container">
-        <div className="schedule-search-bar">
-          <div className="summary-info">
-            <div className="summary-route">
-              <span className="station-name dep">{depStation}</span>
-              <span className="route-arrow">➔</span>
-              <span className="station-name arr">{arrStation}</span>
+        <section className="schedule-search-bar">
+          <div className="schedule-search-top">
+            <div className="schedule-trip-tabs">
+              <button
+                type="button"
+                className={`schedule-trip-tab ${tripType === '편도' ? 'active' : ''}`}
+                onClick={() => setTripType('편도')}
+              >
+                편도
+              </button>
+              <button
+                type="button"
+                className={`schedule-trip-tab ${tripType === '왕복' ? 'active' : ''}`}
+                onClick={() => setTripType('왕복')}
+              >
+                왕복
+              </button>
             </div>
-            <div className="summary-meta">
-              <span>{currentDate}</span>
-              <span className="meta-divider">|</span>
-              <span>{passenger}</span>
-              <span className="meta-divider">|</span>
-              <span className="tag-ktx">KTX 전용</span>
+            <span className="tag-ktx">KTX 전용</span>
+          </div>
+
+          <div className="schedule-search-grid">
+            <div className="schedule-input-group">
+              <span className="schedule-input-label">출발역</span>
+              <div className="schedule-field-box">
+                <select
+                  value={depStation}
+                  onChange={(e) => handleDepartureStationChange(e.target.value)}
+                  className="schedule-select"
+                >
+                  {STATION_OPTIONS.map((station) => (
+                    <option key={station} value={station}>{station}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="schedule-swap-cell">
+              <button
+                type="button"
+                className="schedule-swap-btn"
+                onClick={handleSwapStations}
+                title="출발/도착역 전환"
+              >
+                ⇄
+              </button>
+            </div>
+
+            <div className="schedule-input-group">
+              <span className="schedule-input-label">도착역</span>
+              <div className="schedule-field-box">
+                <select
+                  value={arrStation}
+                  onChange={(e) => handleArrivalStationChange(e.target.value)}
+                  className="schedule-select"
+                >
+                  {STATION_OPTIONS.map((station) => (
+                    <option key={station} value={station}>{station}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="schedule-input-group">
+              <span className="schedule-input-label">출발일</span>
+              <div className="schedule-field-box">
+                <input
+                  type="date"
+                  value={currentDate}
+                  onChange={(e) => setCurrentDate(e.target.value)}
+                  className="schedule-date-input"
+                />
+              </div>
+            </div>
+
+            <div className="schedule-input-group schedule-passenger-group" ref={passengerRef}>
+              <span className="schedule-input-label">승객 인원</span>
+              <div
+                className={`schedule-field-box schedule-passenger-trigger ${isPassengerOpen ? 'active' : ''}`}
+                onClick={() => setIsPassengerOpen((prev) => !prev)}
+              >
+                <span className="passenger-summary-text">{passengerSummaryText}</span>
+                <span className="passenger-chevron">{isPassengerOpen ? '▲' : '▼'}</span>
+              </div>
+
+              {isPassengerOpen && (
+                <div className="schedule-passenger-popover">
+                  <div className="popover-header">
+                    <h4>인원 선택</h4>
+                    <span className="max-hint">1회 최대 9명</span>
+                  </div>
+
+                  <div className="passenger-category-list">
+                    <div className="passenger-row">
+                      <div className="category-info">
+                        <strong>어른</strong>
+                        <span className="category-desc">만 19세 이상</span>
+                      </div>
+                      <div className="stepper-box">
+                        <button
+                          type="button"
+                          className="step-btn"
+                          disabled={passengers.adult <= 1}
+                          onClick={() => handlePassengerChange(-1)}
+                        >
+                          -
+                        </button>
+                        <span className="step-count">{passengers.adult}</span>
+                        <button
+                          type="button"
+                          className="step-btn"
+                          disabled={passengers.adult >= 9}
+                          onClick={() => handlePassengerChange(1)}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="popover-footer">
+                    <span className="footer-summary">총 <strong>{passengers.adult}명</strong></span>
+                    <button
+                      type="button"
+                      className="btn-popover-close"
+                      onClick={() => setIsPassengerOpen(false)}
+                    >
+                      선택 완료
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="schedule-search-action">
+              <button
+                type="button"
+                className="schedule-submit-btn"
+                onClick={handleSearchSchedule}
+              >
+                열차 조회
+              </button>
             </div>
           </div>
-          <button 
-            type="button" 
-            className="modify-search-btn"
-            onClick={() => navigate('/')}
-          >
-            여정 변경
-          </button>
-        </div>
+
+          {tripType === '왕복' && (
+            <div className="schedule-return-row">
+              <div className="schedule-search-grid return-grid">
+                <div className="schedule-input-group">
+                  <span className="schedule-input-label">귀가 출발역</span>
+                  <div className="schedule-field-box disabled">
+                    <input type="text" readOnly value={arrStation} className="schedule-readonly-input" />
+                  </div>
+                </div>
+                <div className="schedule-swap-cell">
+                  <span className="arrow-static">➔</span>
+                </div>
+                <div className="schedule-input-group">
+                  <span className="schedule-input-label">귀가 도착역</span>
+                  <div className="schedule-field-box disabled">
+                    <input type="text" readOnly value={depStation} className="schedule-readonly-input" />
+                  </div>
+                </div>
+                <div className="schedule-input-group">
+                  <span className="schedule-input-label">귀가일</span>
+                  <div className="schedule-field-box">
+                    <input
+                      type="date"
+                      value={returnDate}
+                      min={currentDate}
+                      onChange={(e) => setReturnDate(e.target.value)}
+                      className="schedule-date-input"
+                    />
+                  </div>
+                </div>
+                <div className="schedule-input-group">
+                  <span className="schedule-input-label">인원</span>
+                  <div className="schedule-field-box disabled">
+                    <input type="text" readOnly value={passengerSummaryText} className="schedule-readonly-input" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
 
         <div className="schedule-filter-row">
           <div className="filter-buttons">
-            <button 
-              type="button" 
+            <button
+              type="button"
               className={`filter-btn ${selectedFilter === 'ALL' ? 'active' : ''}`}
               onClick={() => setSelectedFilter('ALL')}
             >
               전체 열차 ({scheduleList.length})
             </button>
-            <button 
-              type="button" 
+            <button
+              type="button"
               className={`filter-btn ${selectedFilter === 'AVAILABLE' ? 'active' : ''}`}
               onClick={() => setSelectedFilter('AVAILABLE')}
             >
               예매 가능만
             </button>
-            <button 
-              type="button" 
+            <button
+              type="button"
               className={`filter-btn ${selectedFilter === 'MORNING' ? 'active' : ''}`}
               onClick={() => setSelectedFilter('MORNING')}
             >
               오전 출발 (~12:00)
             </button>
-            <button 
-              type="button" 
+            <button
+              type="button"
               className={`filter-btn ${selectedFilter === 'AFTERNOON' ? 'active' : ''}`}
               onClick={() => setSelectedFilter('AFTERNOON')}
             >
               오후 출발 (12:00~)
-            </button>
-          </div>
-
-          <div className="date-changer">
-            <span className="date-label">출발일</span>
-            {!isBaseDay && (
-              <button 
-                type="button" 
-                className="date-arrow-btn prev-active"
-                onClick={handlePrevDay}
-                title="이전날 운행 시각표 조회"
-              >
-                ◀ 이전일
-              </button>
-            )}
-            <span className="current-date-text">{currentDate}</span>
-            <button 
-              type="button" 
-              className="date-arrow-btn next-active"
-              onClick={handleNextDay}
-              title="다음날 운행 시각표 조회"
-            >
-              다음일 ▶
             </button>
           </div>
         </div>

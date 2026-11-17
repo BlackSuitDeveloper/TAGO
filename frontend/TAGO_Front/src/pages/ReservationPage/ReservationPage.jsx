@@ -7,23 +7,23 @@ import './ReservationPage.css';
 
 const KTX_CARS = [
   { carNo: 1, seats: 56, rows: 14, status: '여유' },
-  { carNo: 2, seats: 56, rows: 14, status: '여유' },
-  { carNo: 3, seats: 56, rows: 14, status: '여유' },
-  { carNo: 4, seats: 56, rows: 14, status: '여유' },
-  { carNo: 5, seats: 56, rows: 14, status: '여유' },
+  { carNo: 2, seats: 35, rows: 9, status: '여유' },
+  { carNo: 3, seats: 46, rows: 12, status: '여유' },
+  { carNo: 4, seats: 50, rows: 13, status: '여유' },
+  { carNo: 5, seats: 55, rows: 14, status: '여유' },
   { carNo: 6, seats: 56, rows: 14, status: '여유' },
-  { carNo: 7, seats: 60, rows: 15, status: '여유' },
+  { carNo: 7, seats: 56, rows: 14, status: '여유' },
   { carNo: 8, seats: 56, rows: 14, status: '여유' },
-  { carNo: 9, seats: 60, rows: 15, status: '여유' },
-  { carNo: 10, seats: 60, rows: 15, status: '여유' },
+  { carNo: 9, seats: 56, rows: 14, status: '여유' },
+  { carNo: 10, seats: 56, rows: 14, status: '여유' },
   { carNo: 11, seats: 56, rows: 14, status: '여유' },
-  { carNo: 12, seats: 60, rows: 15, status: '여유' },
+  { carNo: 12, seats: 56, rows: 14, status: '여유' },
   { carNo: 13, seats: 56, rows: 14, status: '여유' },
-  { carNo: 14, seats: 60, rows: 15, status: '여유' },
+  { carNo: 14, seats: 56, rows: 14, status: '여유' },
   { carNo: 15, seats: 56, rows: 14, status: '여유' },
-  { carNo: 16, seats: 60, rows: 15, status: '여유' },
+  { carNo: 16, seats: 56, rows: 14, status: '여유' },
   { carNo: 17, seats: 56, rows: 14, status: '여유' },
-  { carNo: 18, seats: 56, rows: 14, status: '여유' },
+  { carNo: 18, seats: 21, rows: 6, status: '여유' },
 ];
 
 export default function ReservationPage() {
@@ -328,7 +328,18 @@ export default function ReservationPage() {
                       <span className="window-mark left"></span>
 
                       <div className="seat-pair left">
-                        {leftColumns.map((col) => {
+                        {leftColumns.map((col, colIdx) => {
+                          const seatOrdinal = (row - 1) * 4 + colIdx;
+                          if (seatOrdinal >= currentCar.seats) {
+                            return (
+                              <span
+                                key={`${row}${col}`}
+                                className="modern-seat-btn"
+                                style={{ visibility: 'hidden', pointerEvents: 'none' }}
+                                aria-hidden="true"
+                              />
+                            );
+                          }
                           const seatId = `${row}${col}`;
                           const isOccupied = currentCarOccupied.includes(seatId);
                           const isSelected = currentCarSelectedSeatIds.includes(seatId);
@@ -362,7 +373,18 @@ export default function ReservationPage() {
                       </div>
 
                       <div className="seat-pair right">
-                        {rightColumns.map((col) => {
+                        {rightColumns.map((col, colIdx) => {
+                          const seatOrdinal = (row - 1) * 4 + 2 + colIdx;
+                          if (seatOrdinal >= currentCar.seats) {
+                            return (
+                              <span
+                                key={`${row}${col}`}
+                                className="modern-seat-btn"
+                                style={{ visibility: 'hidden', pointerEvents: 'none' }}
+                                aria-hidden="true"
+                              />
+                            );
+                          }
                           const seatId = `${row}${col}`;
                           const isOccupied = currentCarOccupied.includes(seatId);
                           const isSelected = currentCarSelectedSeatIds.includes(seatId);

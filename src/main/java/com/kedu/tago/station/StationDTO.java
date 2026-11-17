@@ -11,8 +11,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class StationDTO {
 
-    private Long trainno;
-    private String vehiclekndnm;
-    private String line_category;
-
+    private String nodeid;
+    private String nodename;
+    private Integer citycode;
+    private String cityname;
+    private String node_address;
 }

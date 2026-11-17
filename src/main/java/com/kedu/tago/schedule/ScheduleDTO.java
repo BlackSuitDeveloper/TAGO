@@ -23,4 +23,11 @@ public class ScheduleDTO {
     private Long first_price;
     private Long standard_price;
     private String status;
+
+    // JOIN 조회용 부가 정보 (역명, 열차 정보, 잔여 좌석 수)
+    private String depStationName;
+    private String arrStationName;
+    private String vehiclekndnm;
+    private String lineCategory;
+    private Integer availableSeats;
 }

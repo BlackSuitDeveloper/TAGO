@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import MainPage from './pages/MainPage/MainPage';
 import LoginPage from './pages/LoginPage/LoginPage';
 import SignupPage from './pages/SignupPage/SignupPage';
-import MyPage from './pages/MyPage/MyPage';
+import MyPage from './pages/mypage/Mypage';
 import SchedulePage from './pages/SchedulePage/SchedulePage';
 import ReservationPage from './pages/ReservationPage/ReservationPage';
 import './index.css';
