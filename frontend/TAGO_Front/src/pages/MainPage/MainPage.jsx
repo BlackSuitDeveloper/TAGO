@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import QuickMenu from '../../components/QuickMenu/QuickMenu';
+import client from '../Api/client';
 import './MainPage.css';
 
 export default function MainPage() {
@@ -107,58 +108,47 @@ export default function MainPage() {
     });
   };
 
-  const [favorites, setFavorites] = useState(() => {
-    const saved = localStorage.getItem('tago_favorite_trains');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return [];
-      }
+  const [favorites, setFavorites] = useState([
+    {
+      scheduleSeq: 1,
+      name: 'KTX 001',
+      type: 'KTX',
+      depTime: '05:15',
+      arrTime: '07:42',
+      duration: '2시간 27분',
+      depStation: '서울',
+      arrStation: '부산',
+      price: '59,800',
     }
-    return [
-      {
-        id: 'fav-1',
-        name: 'KTX 001',
-        type: 'KTX',
-        depTime: '05:15',
-        arrTime: '07:42',
-        duration: '2시간 27분',
-        depStation: '서울',
-        arrStation: '부산',
-        price: '59,800',
-      }
-    ];
-  });
+  ]);
+
+  useEffect(() => {
+    client.get('/api/favorite')
+      .then((res) => {
+        if (Array.isArray(res.data)) {
+          setFavorites(res.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleToggleFavorite = (train) => {
-    setFavorites((prev) => {
-      const exists = prev.some((item) => item.name === train.name);
-      let next;
-      if (exists) {
-        next = prev.filter((item) => item.name !== train.name);
-      } else {
-        const newFav = {
-          id: `fav-${Date.now()}`,
-          name: train.name,
-          type: 'KTX',
-          depTime: train.depTime,
-          arrTime: train.arrTime,
-          duration: train.duration,
-          depStation: departureStation,
-          arrStation: arrivalStation,
-          price: train.price,
-        };
-        next = [...prev, newFav];
-      }
-      localStorage.setItem('tago_favorite_trains', JSON.stringify(next));
-      return next;
-    });
+    const scheduleSeq = train.scheduleSeq || train.id;
+    const isFav = favorites.some((f) => f.name === train.name);
+
+    if (isFav) {
+      client.delete(`/api/favorite/${scheduleSeq}`).catch(() => {});
+      setFavorites(favorites.filter((f) => f.name !== train.name));
+    } else {
+      client.post('/api/favorite', { scheduleSeq }).catch(() => {});
+      setFavorites([...favorites, train]);
+    }
   };
 
   const [previewTrains, setPreviewTrains] = useState([
     {
       id: 1,
+      scheduleSeq: 1,
       name: 'KTX 001',
       type: 'KTX',
       depTime: '05:15',
