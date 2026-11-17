@@ -45,32 +45,18 @@ public class MemberController {
     // 회원 정보 수정
     @PutMapping
     public ResponseEntity<String> updateMember(@RequestBody MemberUpdateRequestDTO dto, HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
-            DecodedJWT dToken = jwt.verifyToken(token);
-            String id = dToken.getSubject();
-
+            String id = (String) request.getAttribute("id");
             dto.setId(id);
             mServ.updateMember(dto);
             return ResponseEntity.ok("수정 완료");
-        }
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("인증 실패");
     }
 
     // 회원 탈퇴
     @DeleteMapping
     public ResponseEntity<String> deleteId(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
-
-            DecodedJWT dToken = jwt.verifyToken(token);
-            String id = dToken.getSubject();
-
+            String id = (String) request.getAttribute("id");
             mServ.deleteId(id);
             return ResponseEntity.ok("탈퇴 완료");
         }
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("잘못된 접근입니다.");
     }
-}
+
