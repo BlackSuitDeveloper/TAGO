@@ -11,102 +11,143 @@ export default function SchedulePage() {
 
   const depStation = location.state?.departureStation || '서울';
   const arrStation = location.state?.arrivalStation || '부산';
-  const depDate = location.state?.departureDate || '2026-11-16 (월)';
+  const initialDate = location.state?.departureDate || '2026-11-16 (월)';
   const passenger = location.state?.passengerCount || '어른 1명';
+  const targetTrainName = location.state?.targetTrainName || null;
 
+  const [currentDate, setCurrentDate] = useState(initialDate);
   const [selectedFilter, setSelectedFilter] = useState('ALL');
 
-  // KTX 전용 열차 목록
-  const scheduleList = [
+  const isBaseDay = currentDate === initialDate;
+
+  const [favorites, setFavorites] = useState(() => {
+    const saved = localStorage.getItem('tago_favorite_trains');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return [];
+      }
+    }
+    return [
+      {
+        id: 'fav-1',
+        name: 'KTX 001',
+        type: 'KTX',
+        depTime: '05:15',
+        arrTime: '07:42',
+        duration: '2시간 27분',
+        depStation: '서울',
+        arrStation: '부산',
+        price: '59,800',
+      }
+    ];
+  });
+
+  const handleToggleFavorite = (train) => {
+    setFavorites((prev) => {
+      const exists = prev.some((item) => item.name === train.name);
+      let next;
+      if (exists) {
+        next = prev.filter((item) => item.name !== train.name);
+      } else {
+        const newFav = {
+          id: `fav-${Date.now()}`,
+          name: train.name,
+          type: 'KTX',
+          depTime: train.depTime,
+          arrTime: train.arrTime,
+          duration: train.duration,
+          depStation,
+          arrStation,
+          price: train.generalPrice,
+        };
+        next = [...prev, newFav];
+      }
+      localStorage.setItem('tago_favorite_trains', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const [scheduleList, setScheduleList] = useState([
     {
       id: 1,
-      trainNo: '011',
-      name: 'KTX 011',
+      trainNo: '001',
+      name: 'KTX 001',
       type: 'KTX',
       depTime: '05:15',
       arrTime: '07:42',
       duration: '2시간 27분',
       generalPrice: '59,800',
-      firstPrice: '83,700',
       generalStatus: '예매가능',
-      firstStatus: '매진',
     },
-    {
-      id: 2,
-      trainNo: '002',
-      name: 'KTX-청룡 002',
-      type: 'KTX-청룡',
-      depTime: '06:00',
-      arrTime: '08:15',
-      duration: '2시간 15분',
-      generalPrice: '59,800',
-      firstPrice: '83,700',
-      generalStatus: '예매가능',
-      firstStatus: '예매가능',
-    },
-    {
-      id: 3,
-      trainNo: '402',
-      name: 'KTX-산천 402',
-      type: 'KTX-산천',
-      depTime: '06:30',
-      arrTime: '08:58',
-      duration: '2시간 28분',
-      generalPrice: '59,800',
-      firstPrice: '83,700',
-      generalStatus: '매진',
-      firstStatus: '예매가능',
-    },
-    {
-      id: 4,
-      trainNo: '015',
-      name: 'KTX 015',
-      type: 'KTX',
-      depTime: '07:00',
-      arrTime: '09:25',
-      duration: '2시간 25분',
-      generalPrice: '59,800',
-      firstPrice: '83,700',
-      generalStatus: '예매가능',
-      firstStatus: '예매가능',
-    },
-    {
-      id: 5,
-      trainNo: '701',
-      name: 'KTX-이음 701',
-      type: 'KTX-이음',
-      depTime: '08:00',
-      arrTime: '10:18',
-      duration: '2시간 18분',
-      generalPrice: '59,800',
-      firstPrice: '83,700',
-      generalStatus: '예매가능',
-      firstStatus: '예매가능',
-    },
-    {
-      id: 6,
-      trainNo: '019',
-      name: 'KTX 019',
-      type: 'KTX',
-      depTime: '08:45',
-      arrTime: '11:10',
-      duration: '2시간 25분',
-      generalPrice: '59,800',
-      firstPrice: '83,700',
-      generalStatus: '매진',
-      firstStatus: '매진',
-    },
-  ];
+  ]);
+
+  const handlePrevDay = () => {
+    if (isBaseDay) return;
+    const match = currentDate.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      const year = parseInt(match[1], 10);
+      const month = parseInt(match[2], 10) - 1;
+      const day = parseInt(match[3], 10);
+      const prevDateObj = new Date(year, month, day - 1);
+      const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+      const nextY = prevDateObj.getFullYear();
+      const nextM = String(prevDateObj.getMonth() + 1).padStart(2, '0');
+      const nextD = String(prevDateObj.getDate()).padStart(2, '0');
+      const dayName = dayNames[prevDateObj.getDay()];
+      setCurrentDate(`${nextY}-${nextM}-${nextD} (${dayName})`);
+    }
+  };
+
+  const handleNextDay = () => {
+    const match = currentDate.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      const year = parseInt(match[1], 10);
+      const month = parseInt(match[2], 10) - 1;
+      const day = parseInt(match[3], 10);
+      const nextDateObj = new Date(year, month, day + 1);
+      const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+      const nextY = nextDateObj.getFullYear();
+      const nextM = String(nextDateObj.getMonth() + 1).padStart(2, '0');
+      const nextD = String(nextDateObj.getDate()).padStart(2, '0');
+      const dayName = dayNames[nextDateObj.getDay()];
+      setCurrentDate(`${nextY}-${nextM}-${nextD} (${dayName})`);
+    } else {
+      setCurrentDate('2026-11-17 (화)');
+    }
+  };
 
   const filteredList = scheduleList.filter((item) => {
-    if (selectedFilter === 'ALL') return true;
-    return item.type === selectedFilter;
+    if (selectedFilter === 'AVAILABLE') return item.generalStatus === '예매가능';
+    if (selectedFilter === 'MORNING') {
+      const hour = parseInt(item.depTime.split(':')[0], 10);
+      return hour < 12;
+    }
+    if (selectedFilter === 'AFTERNOON') {
+      const hour = parseInt(item.depTime.split(':')[0], 10);
+      return hour >= 12;
+    }
+    return true;
   });
 
-  const handleSelectTrain = (train, seatType) => {
-    const price = seatType === '특실' ? train.firstPrice : train.generalPrice;
-    alert(`[KTX 승차권 예매 완료]\n\n• 열차: ${train.name} (${seatType})\n• 구간: ${depStation} ➔ ${arrStation}\n• 출발일시: ${depDate} ${train.depTime}\n• 결제운임: ${price}원\n• 좌석: 3호차 4B (자동 배정)\n\n발권이 완료되었습니다. 마이페이지에서 승차권을 확인하세요.`);
-    navigate('/mypage');
+  const handleSelectTrain = (train) => {
+    navigate('/reservation', {
+      state: {
+        trainName: train.name,
+        trainType: 'KTX',
+        depTime: train.depTime,
+        arrTime: train.arrTime,
+        duration: train.duration,
+        depStation,
+        arrStation,
+        depDate: currentDate,
+        passenger,
+        passengerDetail: location.state?.passengerDetail,
+        seatType: '일반실',
+        price: train.generalPrice,
+      }
+    });
   };
 
   return (
@@ -114,7 +155,6 @@ export default function SchedulePage() {
       <Header showTopBar={true} />
 
       <main className="schedule-container">
-        {/* Top Summary Bar */}
         <div className="schedule-search-bar">
           <div className="summary-info">
             <div className="summary-route">
@@ -123,11 +163,11 @@ export default function SchedulePage() {
               <span className="station-name arr">{arrStation}</span>
             </div>
             <div className="summary-meta">
-              <span>{depDate}</span>
+              <span>{currentDate}</span>
               <span className="meta-divider">|</span>
               <span>{passenger}</span>
               <span className="meta-divider">|</span>
-              <span className="tag-ktx">KTX 직통</span>
+              <span className="tag-ktx">KTX 전용</span>
             </div>
           </div>
           <button 
@@ -139,7 +179,6 @@ export default function SchedulePage() {
           </button>
         </div>
 
-        {/* Filter Navigation */}
         <div className="schedule-filter-row">
           <div className="filter-buttons">
             <button 
@@ -147,123 +186,146 @@ export default function SchedulePage() {
               className={`filter-btn ${selectedFilter === 'ALL' ? 'active' : ''}`}
               onClick={() => setSelectedFilter('ALL')}
             >
-              전체 KTX ({scheduleList.length})
+              전체 열차 ({scheduleList.length})
             </button>
             <button 
               type="button" 
-              className={`filter-btn ${selectedFilter === 'KTX' ? 'active' : ''}`}
-              onClick={() => setSelectedFilter('KTX')}
+              className={`filter-btn ${selectedFilter === 'AVAILABLE' ? 'active' : ''}`}
+              onClick={() => setSelectedFilter('AVAILABLE')}
             >
-              KTX
+              예매 가능만
             </button>
             <button 
               type="button" 
-              className={`filter-btn ${selectedFilter === 'KTX-청룡' ? 'active' : ''}`}
-              onClick={() => setSelectedFilter('KTX-청룡')}
+              className={`filter-btn ${selectedFilter === 'MORNING' ? 'active' : ''}`}
+              onClick={() => setSelectedFilter('MORNING')}
             >
-              KTX-청룡 (320km/h)
+              오전 출발 (~12:00)
             </button>
             <button 
               type="button" 
-              className={`filter-btn ${selectedFilter === 'KTX-산천' ? 'active' : ''}`}
-              onClick={() => setSelectedFilter('KTX-산천')}
+              className={`filter-btn ${selectedFilter === 'AFTERNOON' ? 'active' : ''}`}
+              onClick={() => setSelectedFilter('AFTERNOON')}
             >
-              KTX-산천
-            </button>
-            <button 
-              type="button" 
-              className={`filter-btn ${selectedFilter === 'KTX-이음' ? 'active' : ''}`}
-              onClick={() => setSelectedFilter('KTX-이음')}
-            >
-              KTX-이음
+              오후 출발 (12:00~)
             </button>
           </div>
 
           <div className="date-changer">
-            <button type="button" className="date-arrow-btn">◀ 이전일</button>
-            <span className="current-date-text">{depDate}</span>
-            <button type="button" className="date-arrow-btn">다음일 ▶</button>
+            <span className="date-label">출발일</span>
+            {!isBaseDay && (
+              <button 
+                type="button" 
+                className="date-arrow-btn prev-active"
+                onClick={handlePrevDay}
+                title="이전날 운행 시각표 조회"
+              >
+                ◀ 이전일
+              </button>
+            )}
+            <span className="current-date-text">{currentDate}</span>
+            <button 
+              type="button" 
+              className="date-arrow-btn next-active"
+              onClick={handleNextDay}
+              title="다음날 운행 시각표 조회"
+            >
+              다음일 ▶
+            </button>
           </div>
         </div>
 
-        {/* Schedule Table Header */}
+        {targetTrainName && (
+          <div className="target-train-notice">
+            <span className="notice-badge">선택 열차 안내</span>
+            <span className="notice-text">
+              메인에서 선택하신 <strong>[{targetTrainName}]</strong> 열차입니다. [좌석선택 및 예매]를 눌러 좌석을 지정해 주세요.
+            </span>
+          </div>
+        )}
+
         <div className="schedule-table-head">
-          <span className="col-train">열차 구분</span>
-          <span className="col-time">출발 / 도착</span>
+          <span className="col-train">열차 번호 (KTX)</span>
+          <span className="col-time">출발 / 도착 시각</span>
           <span className="col-duration">소요시간</span>
-          <span className="col-class">일반실 (Standard)</span>
-          <span className="col-class">특실 / 우등 (First)</span>
+          <span className="col-class-single">일반실 운임 및 좌석 예매</span>
         </div>
 
-        {/* Schedule List */}
         <div className="schedule-list">
-          {filteredList.map((item) => {
-            const isGeneralSoldout = item.generalStatus === '매진';
-            const isFirstSoldout = item.firstStatus === '매진';
+          {filteredList.length > 0 ? (
+            filteredList.map((item) => {
+              const isGeneralSoldout = item.generalStatus === '매진';
+              const isTarget = targetTrainName === item.name;
 
-            return (
-              <div key={item.id} className="schedule-row-card">
-                {/* Train Info */}
-                <div className="col-train">
-                  <span className={`badge-ktx`}>{item.type}</span>
-                  <strong className="train-title">{item.name}</strong>
-                </div>
-
-                {/* Times */}
-                <div className="col-time">
-                  <div className="time-block">
-                    <span className="time-text dep">{item.depTime}</span>
-                    <span className="station-text">{depStation}</span>
+              return (
+                <div key={item.id} className={`schedule-row-card ${isTarget ? 'highlighted' : ''}`}>
+                  <div className="col-train">
+                    <span className="badge-ktx-gen1">KTX</span>
+                    <div className="train-id-box">
+                      <strong className="train-title">{item.name}</strong>
+                      <span className="train-sub-desc">1~18호차 일반실</span>
+                    </div>
                   </div>
-                  <div className="time-arrow">➔</div>
-                  <div className="time-block">
-                    <span className="time-text arr">{item.arrTime}</span>
-                    <span className="station-text">{arrStation}</span>
+
+                  <div className="col-time">
+                    <div className="time-block">
+                      <span className="time-text dep">{item.depTime}</span>
+                      <span className="station-text">{depStation}</span>
+                    </div>
+                    <div className="time-arrow">➔</div>
+                    <div className="time-block">
+                      <span className="time-text arr">{item.arrTime}</span>
+                      <span className="station-text">{arrStation}</span>
+                    </div>
+                  </div>
+
+                  <div className="col-duration">
+                    <span className="duration-pill">{item.duration}</span>
+                  </div>
+
+                  <div className="col-class-single">
+                    <button 
+                      type="button" 
+                      className={`btn-schedule-favorite ${favorites.some((f) => f.name === item.name) ? 'active' : ''}`}
+                      onClick={() => handleToggleFavorite(item)}
+                      title={favorites.some((f) => f.name === item.name) ? '찜 해제' : '열차 찜하기'}
+                      aria-label="열차 찜하기"
+                    >
+                      {favorites.some((f) => f.name === item.name) ? '♥' : '♡'}
+                    </button>
+                    <button 
+                      type="button" 
+                      className={`ktx-booking-btn ${isGeneralSoldout ? 'soldout' : 'available'}`}
+                      disabled={isGeneralSoldout}
+                      onClick={() => handleSelectTrain(item)}
+                    >
+                      <div className="fare-badge-wrap">
+                        <span className="fare-class-tag">일반실</span>
+                        <strong className="fare-price-text">{item.generalPrice}원</strong>
+                      </div>
+                      <div className="booking-action-wrap">
+                        <span className="action-label-pill">
+                          {isGeneralSoldout ? '매진' : '좌석선택 →'}
+                        </span>
+                      </div>
+                    </button>
                   </div>
                 </div>
-
-                {/* Duration */}
-                <div className="col-duration">
-                  <span className="duration-pill">{item.duration}</span>
-                </div>
-
-                {/* General Class Seat Button */}
-                <div className="col-class">
-                  <button 
-                    type="button" 
-                    className={`seat-select-btn ${isGeneralSoldout ? 'soldout' : 'available'}`}
-                    disabled={isGeneralSoldout}
-                    onClick={() => handleSelectTrain(item, '일반실')}
-                  >
-                    <span className="price-text">{item.generalPrice}원</span>
-                    <span className="status-sub">{item.generalStatus}</span>
-                  </button>
-                </div>
-
-                {/* First Class Seat Button */}
-                <div className="col-class">
-                  <button 
-                    type="button" 
-                    className={`seat-select-btn ${isFirstSoldout ? 'soldout' : 'available'}`}
-                    disabled={isFirstSoldout}
-                    onClick={() => handleSelectTrain(item, '특실')}
-                  >
-                    <span className="price-text">{item.firstPrice}원</span>
-                    <span className="status-sub">{item.firstStatus}</span>
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })
+          ) : (
+            <div className="schedule-empty-box">
+              <p>조회된 KTX 운행 시각표가 없습니다.</p>
+              <span className="empty-sub">출발일 또는 여정을 변경하여 다시 조회해 주세요.</span>
+            </div>
+          )}
         </div>
 
-        {/* Notice Info Box */}
         <div className="schedule-notice-box">
-          <h4>KTX 승차권 예매 및 이용 안내</h4>
+          <h4>TAGO KTX 승차권 예매 안내</h4>
           <ul>
-            <li>원하시는 좌석 등급(일반실/특실) 버튼을 클릭하시면 승차권이 자동 배정되어 즉시 발권됩니다.</li>
-            <li>발권된 승차권은 마이페이지에서 QR 코드로 확인하실 수 있으며 스마트폰으로 개찰구를 통과하실 수 있습니다.</li>
-            <li>열차 출발 전까지 마이페이지에서 위약금 없이 반환(취소) 및 영수증 출력이 가능합니다.</li>
+            <li>TAGO는 KTX(20량 편성, 전 차량 일반실) 직통 열차를 기준으로 실시간 좌석 배정 및 예매를 제공합니다.</li>
+            <li>[좌석선택 →] 버튼을 누르면 1호차부터 18호차까지 원하는 좌석을 직접 지정하여 결제하실 수 있습니다.</li>
           </ul>
         </div>
       </main>

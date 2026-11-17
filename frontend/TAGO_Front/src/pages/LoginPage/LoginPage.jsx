@@ -32,7 +32,6 @@ export default function LoginPage() {
             <p className="login-desc">TAGO 계정으로 로그인해 주세요.</p>
           </div>
 
-          {/* 자체 계정 로그인 폼 */}
           <form onSubmit={handleLoginSubmit} className="login-form">
             <div className="form-group">
               <label>아이디</label>
@@ -83,7 +82,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* 회원가입 이동 링크 */}
           <div className="signup-prompt">
             <span>아직 TAGO 계정이 없으신가요?</span>
             <Link to="/signup" className="signup-link">

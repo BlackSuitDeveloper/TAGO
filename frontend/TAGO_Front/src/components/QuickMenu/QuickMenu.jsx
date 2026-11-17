@@ -21,9 +21,6 @@ export default function QuickMenu() {
         <Link to="/mypage" className="quick-menu-item">
           발권 승차권
         </Link>
-        <a href="#delay" className="quick-menu-item">
-          정시 운행 안내
-        </a>
       </div>
       <button type="button" className="quick-top-btn" onClick={scrollToTop}>
         TOP ↑
