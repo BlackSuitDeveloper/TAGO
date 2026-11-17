@@ -1,23 +1,62 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import './LoginPage.css';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
 export default function LoginPage() {
-  const [userId, setUserId] = useState('');
+  const [userId, setUserId] = useState(() => localStorage.getItem('savedUserId') || '');
   const [password, setPassword] = useState('');
-  const [saveId, setSaveId] = useState(true);
+  const [saveId, setSaveId] = useState(() => Boolean(localStorage.getItem('savedUserId')));
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleLoginSubmit = (e) => {
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
     if (!userId || !password) {
       alert('아이디와 비밀번호를 모두 입력해 주세요.');
       return;
     }
-    alert(`${userId}님, 로그인이 완료되었습니다.`);
-    navigate('/');
+
+    setLoading(true);
+    try {
+      // POST /auth/login - 요청 데이터: id, pw (AuthDTO)
+      const response = await axios.post(`${API_BASE_URL}/auth/login`, {
+        id: userId,
+        pw: password,
+      });
+
+      // 응답: 200, JWT token, id
+      const data = response.data || {};
+      const token = data.token || data.accessToken || data.jwt || (typeof data === 'string' ? data : null);
+      const loggedInId = data.id || userId;
+
+      if (token) {
+        localStorage.setItem('token', token);
+      }
+      localStorage.setItem('userId', loggedInId);
+
+      if (saveId) {
+        localStorage.setItem('savedUserId', userId);
+      } else {
+        localStorage.removeItem('savedUserId');
+      }
+
+      alert(`${loggedInId}님, 로그인이 완료되었습니다.`);
+      navigate('/');
+    } catch (error) {
+      console.error('로그인 에러:', error);
+      const message =
+        error.response?.data?.message ||
+        (typeof error.response?.data === 'string' ? error.response.data : null) ||
+        '아이디 또는 비밀번호가 올바르지 않습니다.';
+      alert(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -77,8 +116,8 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <button type="submit" className="login-btn-submit">
-              로그인
+            <button type="submit" className="login-btn-submit" disabled={loading}>
+              {loading ? '로그인 중...' : '로그인'}
             </button>
           </form>
 

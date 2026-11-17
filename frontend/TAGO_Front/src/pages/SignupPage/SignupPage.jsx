@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import './SignupPage.css';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
@@ -19,10 +22,17 @@ export default function SignupPage() {
 
   const [passwordMatchError, setPasswordMatchError] = useState(false);
   const [agreed, setAgreed] = useState(false);
+  const [isIdChecked, setIsIdChecked] = useState(false);
+  const [checkedId, setCheckedId] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'userId') {
+      setIsIdChecked(false);
+      setCheckedId('');
+    }
     setFormData((prev) => {
       const next = { ...prev, [name]: value };
       if (name === 'confirmPassword' || name === 'password') {
@@ -67,8 +77,52 @@ export default function SignupPage() {
     }
   };
 
-  const handleSignupSubmit = (e) => {
+  // 아이디 중복확인 (GET /member/checkId?id=...)
+  // MemberController: public int checkId(@RequestParam String id) -> 0: 사용 가능, 1 이상: 중복됨
+  const handleCheckDuplicateId = async () => {
+    const userId = formData.userId.trim();
+
+    if (!userId) {
+      alert('아이디를 입력해 주세요.');
+      return;
+    }
+
+    try {
+      const response = await axios.get(`${API_BASE_URL}/member/checkId`, {
+        params: { id: userId },
+      });
+
+      const count = Number(response.data);
+
+      if (count === 0) {
+        alert('사용 가능한 아이디입니다.');
+        setIsIdChecked(true);
+        setCheckedId(userId);
+      } else {
+        alert('이미 사용 중인 아이디입니다.');
+        setIsIdChecked(false);
+        setCheckedId('');
+      }
+    } catch (error) {
+      console.error('아이디 중복 확인 에러:', error);
+      const message =
+        error.response?.data?.message ||
+        (typeof error.response?.data === 'string' ? error.response.data : null) ||
+        '아이디 중복 확인 중 오류가 발생했습니다.';
+      alert(message);
+    }
+  };
+
+  // 회원가입 (POST /member)
+  // MemberController: public int signup(@RequestBody MemberDTO dto) -> 성공 시 1 반환
+  const handleSignupSubmit = async (e) => {
     e.preventDefault();
+
+    const currentId = formData.userId.trim();
+    if (!isIdChecked || checkedId !== currentId) {
+      alert('아이디 중복확인을 진행해 주세요.');
+      return;
+    }
 
     if (formData.password !== formData.confirmPassword) {
       alert('비밀번호가 일치하지 않습니다. 다시 확인해 주세요.');
@@ -85,8 +139,37 @@ export default function SignupPage() {
       return;
     }
 
-    alert(`[회원가입 완료]\n${formData.name}님, 회원가입이 성공적으로 완료되었습니다.\n로그인 페이지로 이동합니다.`);
-    navigate('/login');
+    setLoading(true);
+    try {
+      const payload = {
+        id: currentId,
+        pw: formData.password,
+        name: formData.name,
+        phone: formData.phone,
+        email: formData.email,
+        zipcode: formData.postcode,
+        address1: formData.address,
+        address2: formData.detailAddress,
+      };
+
+      const response = await axios.post(`${API_BASE_URL}/member`, payload);
+
+      if (response.status === 200 && Number(response.data) === 1) {
+        alert(`[회원가입 완료]\n${formData.name}님, 회원가입이 성공적으로 완료되었습니다.\n로그인 페이지로 이동합니다.`);
+        navigate('/login');
+      } else {
+        alert('회원가입 처리에 실패했습니다. 입력 정보를 다시 확인해 주세요.');
+      }
+    } catch (error) {
+      console.error('회원가입 에러:', error);
+      const message =
+        error.response?.data?.message ||
+        (typeof error.response?.data === 'string' ? error.response.data : null) ||
+        '회원가입 중 오류가 발생했습니다. 다시 시도해 주세요.';
+      alert(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -102,17 +185,28 @@ export default function SignupPage() {
           </div>
 
           <form onSubmit={handleSignupSubmit} className="signup-form">
+            {/* 아이디 입력 + 중복체크 버튼 */}
             <div className="form-group">
               <label>아이디 <span className="req">*</span></label>
-              <div className="input-wrap">
-                <input
-                  type="text"
-                  name="userId"
-                  placeholder="아이디를 입력하세요"
-                  value={formData.userId}
-                  onChange={handleChange}
-                  required
-                />
+              <div className="postcode-row" style={{ display: 'flex', gap: '12px' }}>
+                <div className="input-wrap postcode-input-wrap" style={{ flex: 1 }}>
+                  <input
+                    type="text"
+                    name="userId"
+                    placeholder="아이디를 입력하세요"
+                    value={formData.userId}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="btn-address-search"
+                  style={{ whiteSpace: 'nowrap' }}
+                  onClick={handleCheckDuplicateId}
+                >
+                  중복확인
+                </button>
               </div>
             </div>
 
@@ -245,8 +339,8 @@ export default function SignupPage() {
               </label>
             </div>
 
-            <button type="submit" className="signup-btn-submit">
-              가입하기
+            <button type="submit" className="signup-btn-submit" disabled={loading}>
+              {loading ? '가입 처리 중...' : '가입하기'}
             </button>
           </form>
 
