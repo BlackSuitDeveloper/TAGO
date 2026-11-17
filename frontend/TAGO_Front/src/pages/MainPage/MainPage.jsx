@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
@@ -6,13 +6,58 @@ import QuickMenu from '../../components/QuickMenu/QuickMenu';
 import './MainPage.css';
 
 export default function MainPage() {
+  const quickStations = ['서울', '용산', '광명', '대전', '동대구', '부산', '광주송정', '강릉'];
   const [tripType, setTripType] = useState('편도');
   const [departureStation, setDepartureStation] = useState('서울');
   const [arrivalStation, setArrivalStation] = useState('부산');
   const [departureDate, setDepartureDate] = useState('2026-11-16');
-  const [passengerCount, setPassengerCount] = useState('어른 1명');
-  const [seatPreference, setSeatPreference] = useState('일반실');
   const navigate = useNavigate();
+
+  const [passengers, setPassengers] = useState({
+    adult: 1,
+  });
+
+  const [isPassengerOpen, setIsPassengerOpen] = useState(false);
+  const passengerRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (passengerRef.current && !passengerRef.current.contains(event.target)) {
+        setIsPassengerOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const totalPassengerCount = passengers.adult;
+
+  const handlePassengerChange = (delta) => {
+    setPassengers((prev) => {
+      const nextVal = prev.adult + delta;
+      if (nextVal > 9) {
+        alert('승차권은 1회 최대 9명까지 예매하실 수 있습니다.');
+        return prev;
+      }
+      if (nextVal < 1) {
+        alert('최소 1명 이상의 승객을 선택해야 합니다.');
+        return prev;
+      }
+      return { adult: nextVal };
+    });
+  };
+
+  const passengerSummaryText = `어른 ${passengers.adult}명`;
+
+  const handleDepartureStationChange = (newDep) => {
+    setDepartureStation(newDep);
+    if (arrivalStation === newDep) {
+      const fallback = quickStations.find((st) => st !== newDep) || '부산';
+      setArrivalStation(fallback);
+    }
+  };
 
   const handleSwapStations = () => {
     const temp = departureStation;
@@ -26,32 +71,108 @@ export default function MainPage() {
         departureStation,
         arrivalStation,
         departureDate,
-        passengerCount,
+        passengerCount: passengerSummaryText,
+        passengerDetail: passengers,
         tripType,
-        seatPreference,
       }
     });
   };
 
-  const handleDirectBooking = (train) => {
-    alert(`[KTX 예매 완료]\n열차: ${train.name}\n구간: ${departureStation} ➔ ${arrivalStation}\n일시: ${departureDate} (${train.depTime})\n운임: ${train.price}원\n\n승차권이 자동 배정 발권되었습니다. 마이페이지로 이동합니다.`);
-    navigate('/mypage');
+  const formatDepartureDate = (dateStr) => {
+    if (!dateStr) return '2026-11-16 (월)';
+    const match = dateStr.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (!match) return dateStr;
+    const days = ['일', '월', '화', '수', '목', '금', '토'];
+    const d = new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10));
+    return `${dateStr} (${days[d.getDay()]})`;
   };
 
-  const quickStations = ['서울', '용산', '광명', '대전', '동대구', '부산', '광주송정', '강릉'];
+  const handleGoToScheduleBooking = (train) => {
+    const formattedDate = formatDepartureDate(departureDate);
+    navigate('/reservation', {
+      state: {
+        trainName: train.name,
+        trainType: 'KTX',
+        depTime: train.depTime,
+        arrTime: train.arrTime,
+        duration: train.duration,
+        depStation: departureStation,
+        arrStation: arrivalStation,
+        depDate: formattedDate,
+        passenger: passengerSummaryText,
+        passengerDetail: passengers,
+        seatType: '일반실',
+        price: train.price,
+      }
+    });
+  };
 
-  const previewTrains = [
-    { id: 1, name: 'KTX 011', type: 'KTX', depTime: '05:15', arrTime: '07:42', duration: '2시간 27분', price: '59,800', status: '예매가능' },
-    { id: 2, name: 'KTX-청룡 001', type: 'KTX-청룡', depTime: '06:00', arrTime: '08:15', duration: '2시간 15분', price: '59,800', status: '예매가능' },
-    { id: 3, name: 'KTX-산천 403', type: 'KTX-산천', depTime: '06:30', arrTime: '08:58', duration: '2시간 28분', price: '59,800', status: '매진' },
-    { id: 4, name: 'KTX 015', type: 'KTX', depTime: '07:00', arrTime: '09:25', duration: '2시간 25분', price: '59,800', status: '예매가능' },
-  ];
+  const [favorites, setFavorites] = useState(() => {
+    const saved = localStorage.getItem('tago_favorite_trains');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return [];
+      }
+    }
+    return [
+      {
+        id: 'fav-1',
+        name: 'KTX 001',
+        type: 'KTX',
+        depTime: '05:15',
+        arrTime: '07:42',
+        duration: '2시간 27분',
+        depStation: '서울',
+        arrStation: '부산',
+        price: '59,800',
+      }
+    ];
+  });
+
+  const handleToggleFavorite = (train) => {
+    setFavorites((prev) => {
+      const exists = prev.some((item) => item.name === train.name);
+      let next;
+      if (exists) {
+        next = prev.filter((item) => item.name !== train.name);
+      } else {
+        const newFav = {
+          id: `fav-${Date.now()}`,
+          name: train.name,
+          type: 'KTX',
+          depTime: train.depTime,
+          arrTime: train.arrTime,
+          duration: train.duration,
+          depStation: departureStation,
+          arrStation: arrivalStation,
+          price: train.price,
+        };
+        next = [...prev, newFav];
+      }
+      localStorage.setItem('tago_favorite_trains', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const [previewTrains, setPreviewTrains] = useState([
+    {
+      id: 1,
+      name: 'KTX 001',
+      type: 'KTX',
+      depTime: '05:15',
+      arrTime: '07:42',
+      duration: '2시간 27분',
+      price: '59,800',
+      status: '예매가능',
+    },
+  ]);
 
   return (
     <div className="main-page-wrapper">
       <Header showTopBar={true} />
 
-      {/* Hero Header */}
       <section className="rail-hero">
         <div className="hero-content">
           <span className="hero-tag">TAGO KTX 공식 예매</span>
@@ -61,10 +182,9 @@ export default function MainPage() {
       </section>
 
       <main className="main-container">
-        {/* Booking Card Panel */}
-        <section className="booking-panel">
-          <div className="booking-header-row">
-            <div className="booking-nav-tabs">
+        <section className="booking-panel ticket-booking-card">
+          <div className="booking-header-row booking-top-nav">
+            <div className="booking-nav-tabs trip-type-selector">
               <button
                 type="button"
                 className={`booking-tab ${tripType === '편도' ? 'active' : ''}`}
@@ -81,35 +201,30 @@ export default function MainPage() {
               </button>
             </div>
 
-            {/* Quick Stations */}
             <div className="station-quick-select">
               <span className="quick-label">주요 정차역</span>
-              {quickStations.map((st) => (
-                <button
-                  type="button"
-                  key={st}
-                  className={`chip-btn ${arrivalStation === st ? 'selected' : ''}`}
-                  onClick={() => {
-                    if (departureStation !== st) {
-                      setArrivalStation(st);
-                    }
-                  }}
-                >
-                  {st}
-                </button>
-              ))}
+              {quickStations
+                .filter((st) => st !== departureStation)
+                .map((st) => (
+                  <button
+                    type="button"
+                    key={st}
+                    className={`chip-btn ${arrivalStation === st ? 'selected' : ''}`}
+                    onClick={() => setArrivalStation(st)}
+                  >
+                    {st}
+                  </button>
+                ))}
             </div>
           </div>
 
-          {/* Departure Info Grid */}
           <div className="station-route-grid">
-            {/* Departure */}
             <div className="input-group">
               <span className="input-label">출발역</span>
               <div className="input-field-box">
                 <select 
                   value={departureStation} 
-                  onChange={(e) => setDepartureStation(e.target.value)}
+                  onChange={(e) => handleDepartureStationChange(e.target.value)}
                   className="station-select"
                 >
                   <option value="서울">서울</option>
@@ -124,7 +239,6 @@ export default function MainPage() {
               </div>
             </div>
 
-            {/* Swap Button */}
             <div className="swap-cell">
               <button 
                 type="button" 
@@ -136,7 +250,6 @@ export default function MainPage() {
               </button>
             </div>
 
-            {/* Arrival */}
             <div className="input-group">
               <span className="input-label">도착역</span>
               <div className="input-field-box">
@@ -157,7 +270,6 @@ export default function MainPage() {
               </div>
             </div>
 
-            {/* Date */}
             <div className="input-group">
               <span className="input-label">출발일</span>
               <div className="input-field-box">
@@ -170,32 +282,68 @@ export default function MainPage() {
               </div>
             </div>
 
-            {/* Passenger */}
-            <div className="input-group">
-              <span className="input-label">인원</span>
-              <div className="input-field-box">
-                <select 
-                  value={passengerCount} 
-                  onChange={(e) => setPassengerCount(e.target.value)}
-                  className="station-select"
-                >
-                  <option value="어른 1명">어른 1명</option>
-                  <option value="어른 2명">어른 2명</option>
-                  <option value="어른 3명">어른 3명</option>
-                  <option value="어른 4명">어른 4명</option>
-                  <option value="어른 1명, 어린이 1명">어른 1명 + 어린이 1명</option>
-                </select>
+            <div className="input-group passenger-input-group" ref={passengerRef}>
+              <span className="input-label">승객 인원</span>
+              <div 
+                className={`input-field-box passenger-trigger-btn ${isPassengerOpen ? 'active' : ''}`}
+                onClick={() => setIsPassengerOpen((prev) => !prev)}
+              >
+                <span className="passenger-summary-text">{passengerSummaryText}</span>
+                <span className="passenger-chevron">{isPassengerOpen ? '▲' : '▼'}</span>
               </div>
+
+              {isPassengerOpen && (
+                <div className="passenger-popover-panel">
+                  <div className="popover-header">
+                    <h4>인원 선택</h4>
+                    <span className="max-hint">1회 최대 9명</span>
+                  </div>
+
+                  <div className="passenger-category-list">
+                    <div className="passenger-row">
+                      <div className="category-info">
+                        <strong>어른</strong>
+                        <span className="category-desc">만 19세 이상</span>
+                      </div>
+                      <div className="stepper-box">
+                        <button
+                          type="button"
+                          className="step-btn"
+                          disabled={passengers.adult <= 1}
+                          onClick={() => handlePassengerChange(-1)}
+                        >
+                          -
+                        </button>
+                        <span className="step-count">{passengers.adult}</span>
+                        <button
+                          type="button"
+                          className="step-btn"
+                          disabled={passengers.adult >= 9}
+                          onClick={() => handlePassengerChange(1)}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="popover-footer">
+                    <span className="footer-summary">총 <strong>{passengers.adult}명</strong></span>
+                    <button 
+                      type="button" 
+                      className="btn-popover-close"
+                      onClick={() => setIsPassengerOpen(false)}
+                    >
+                      선택 완료
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* 왕복 선택 시 오는 편 정보 */}
           {tripType === '왕복' && (
-            <div className="return-trip-box">
-              <div className="return-header">
-                <span className="return-tag">오는 편 여정</span>
-                <span className="return-text">{arrivalStation} ➔ {departureStation}</span>
-              </div>
+            <div className="return-trip-row">
               <div className="station-route-grid return-grid">
                 <div className="input-group">
                   <span className="input-label">귀가 출발역</span>
@@ -221,31 +369,14 @@ export default function MainPage() {
                 <div className="input-group">
                   <span className="input-label">인원</span>
                   <div className="input-field-box disabled">
-                    <input type="text" readOnly value={passengerCount} className="readonly-input" />
+                    <input type="text" readOnly value={passengerSummaryText} className="readonly-input" />
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Options & Search Action */}
           <div className="booking-footer-row">
-            <div className="seat-pref-group">
-              <span className="opt-title">좌석 등급 :</span>
-              <div className="opt-buttons">
-                {['일반실', '특실/우등'].map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    className={`pref-btn ${seatPreference === opt ? 'active' : ''}`}
-                    onClick={() => setSeatPreference(opt)}
-                  >
-                    {opt}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <button type="button" className="search-submit-btn" onClick={handleSearch}>
               <span>KTX 열차 조회</span>
               <span className="btn-arrow">→</span>
@@ -253,7 +384,6 @@ export default function MainPage() {
           </div>
         </section>
 
-        {/* Real-time Schedule Section */}
         <section className="train-schedule-section">
           <div className="section-head">
             <div>
@@ -270,97 +400,68 @@ export default function MainPage() {
           </div>
           
           <div className="preview-trains-grid">
-            {previewTrains.map((train) => (
-              <div key={train.id} className="preview-train-card">
-                <div className="card-top">
-                  <div className="train-badge-group">
-                    <span className="badge-ktx">{train.type}</span>
-                    <strong className="train-no">{train.name}</strong>
+            {previewTrains && previewTrains.length > 0 ? (
+              previewTrains.map((train) => (
+                <div key={train.id} className="preview-train-card">
+                  <div className="card-top">
+                    <div className="train-badge-group">
+                      <span className="badge-ktx">{train.type}</span>
+                      <strong className="train-no">{train.name}</strong>
+                    </div>
+                    <span className={`status-pill ${train.status === '매진' ? 'soldout' : 'available'}`}>
+                      {train.status}
+                    </span>
                   </div>
-                  <span className={`status-pill ${train.status === '매진' ? 'soldout' : 'available'}`}>
-                    {train.status}
-                  </span>
-                </div>
-                
-                <div className="card-time-row">
-                  <div className="time-col">
-                    <span className="time-val">{train.depTime}</span>
-                    <span className="station-name">{departureStation}</span>
+                  
+                  <div className="card-time-row">
+                    <div className="time-col">
+                      <span className="time-val">{train.depTime}</span>
+                      <span className="station-name">{departureStation}</span>
+                    </div>
+                    <div className="arrow-col">
+                      <span className="duration-text">{train.duration}</span>
+                      <div className="route-line"></div>
+                    </div>
+                    <div className="time-col">
+                      <span className="time-val">{train.arrTime}</span>
+                      <span className="station-name">{arrivalStation}</span>
+                    </div>
                   </div>
-                  <div className="arrow-col">
-                    <span className="duration-text">{train.duration}</span>
-                    <div className="route-line"></div>
-                  </div>
-                  <div className="time-col">
-                    <span className="time-val">{train.arrTime}</span>
-                    <span className="station-name">{arrivalStation}</span>
-                  </div>
-                </div>
 
-                <div className="card-bottom">
-                  <div className="price-tag">
-                    <span className="price-label">운임</span>
-                    <strong className="price-num">{train.price}원</strong>
+                  <div className="card-bottom">
+                    <div className="price-tag">
+                      <span className="price-label">운임</span>
+                      <strong className="price-num">{train.price}원</strong>
+                    </div>
+                    <div className="card-btn-group">
+                      <button 
+                        type="button" 
+                        className={`btn-favorite-heart ${favorites.some((f) => f.name === train.name) ? 'active' : ''}`}
+                        onClick={() => handleToggleFavorite(train)}
+                        title={favorites.some((f) => f.name === train.name) ? '찜 해제' : '열차 찜하기'}
+                        aria-label="열차 찜하기"
+                      >
+                        {favorites.some((f) => f.name === train.name) ? '♥' : '♡'}
+                      </button>
+                      <button 
+                        type="button" 
+                        className="reserve-quick-btn"
+                        disabled={train.status === '매진'}
+                        onClick={() => handleGoToScheduleBooking(train)}
+                      >
+                        {train.status === '매진' ? '매진' : '예매'}
+                      </button>
+                    </div>
                   </div>
-                  <button 
-                    type="button" 
-                    className="reserve-quick-btn"
-                    disabled={train.status === '매진'}
-                    onClick={() => handleDirectBooking(train)}
-                  >
-                    {train.status === '매진' ? '매진' : '바로예매'}
-                  </button>
                 </div>
+              ))
+            ) : (
+              <div className="empty-train-message">
+                <p>실시간 KTX 운행 정보를 불러오는 중이거나 조회된 열차가 없습니다.</p>
               </div>
-            ))}
+            )}
           </div>
         </section>
-
-        {/* Operational Information */}
-        <div className="info-two-grid">
-          <div className="info-card">
-            <div className="card-header">
-              <h3>KTX 운행 및 안전 공지</h3>
-              <a href="#more" className="card-more">더보기</a>
-            </div>
-            <ul className="info-list">
-              <li>
-                <span className="list-date">2026.11.10</span>
-                <span className="list-text">KTX-청룡 경부선 고속 운행 추가 배차 일정 안내</span>
-              </li>
-              <li>
-                <span className="list-date">2026.11.01</span>
-                <span className="list-text">동절기 선로 안전 점검에 따른 일부 열차 서행 안내</span>
-              </li>
-              <li>
-                <span className="list-date">2026.10.20</span>
-                <span className="list-text">KTX 특실 무료 어메니티 패키지 리뉴얼 안내</span>
-              </li>
-            </ul>
-          </div>
-
-          <div className="info-card">
-            <div className="card-header">
-              <h3>TAGO KTX 이용 안내</h3>
-            </div>
-            <div className="benefit-list">
-              <div className="benefit-item">
-                <span className="benefit-num">01</span>
-                <div>
-                  <strong>모바일 전자 승차권 발권</strong>
-                  <p>예매 완료 즉시 QR 코드가 포함된 전자 승차권이 마이페이지에 자동 발권됩니다.</p>
-                </div>
-              </div>
-              <div className="benefit-item">
-                <span className="benefit-num">02</span>
-                <div>
-                  <strong>출발 3시간 전 무료 취소</strong>
-                  <p>열차 출발 전까지 마이페이지에서 위약금 없이 간편하게 반환(취소)할 수 있습니다.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </main>
 
       <QuickMenu />
