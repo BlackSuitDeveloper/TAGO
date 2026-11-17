@@ -1,17 +1,16 @@
-package com.kedu.tago.redis;
+package com.kedu.tago.config;
 
+import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 
-@Service
-public class Redis {
+@Configuration
+public class RedisConfig {
 
     private final StringRedisTemplate redis;
 
-
-    public Redis(StringRedisTemplate redis) {
+    public RedisConfig(StringRedisTemplate redis) {
         this.redis = redis;
     }
 
@@ -30,5 +29,4 @@ public class Redis {
     public void deleteValue(String key) {
         redis.delete(key);
     }
-
 }

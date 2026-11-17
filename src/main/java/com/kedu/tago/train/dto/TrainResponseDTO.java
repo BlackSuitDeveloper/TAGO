@@ -1,4 +1,4 @@
-package com.kedu.tago.train;
+package com.kedu.tago.train.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class TrainDTO {
+public class TrainResponseDTO {
 
     private Long trainno;
     private String vehiclekndnm;

@@ -2,7 +2,7 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="member">
+<mapper namespace="com.kedu.tago.member.MemberMapper">
 
     <!--로그인-->
     <select id="isMember" resultType="int">
@@ -13,13 +13,13 @@
     </select>
 
     <!--아이디 중복 체크-->
-    <select id="checkId" parameterType="String" resultType="int">
+    <select id="checkId" parameterType="string" resultType="int">
         select count(*) from
         member where id = #{id}
     </select>
 
     <!-- 회원가입-->
-    <insert id="insertMember" parameterType="member.MemberDTO">
+    <insert id="insertMember" parameterType="com.kedu.tago.member.dto.MemberSignupRequestDTO">
         insert into member
         (id, pw, name, phone, email, zipcode, address1, address2)
         values
@@ -27,15 +27,15 @@
     </insert>
 
     <!--회원 정보 조회-->
-    <select id="selectMember" parameterType="member.MemberDTO"
-            resultType="member.MemberDTO">
-        select id, name, phone, email, zipcode, address1, address2, ceated_at
+    <select id="selectMember" parameterType="string"
+            resultType="com.kedu.tago.member.dto.MemberProfileResponseDTO">
+        select id, name, phone, email, zipcode, address1, address2, created_at
         from member
         where id = #{id}
     </select>
 
     <!--회원 정보 수정-->
-    <update id="updateMember" parameterType="member.MemberDTO">
+    <update id="updateMember" parameterType="com.kedu.tago.member.dto.MemberUpdateRequestDTO">
         update member
         set name = #{name},
         phone = #{phone},

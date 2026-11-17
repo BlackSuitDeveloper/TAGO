@@ -1,18 +1,18 @@
 package com.kedu.tago.interceptor;
 
 import com.auth0.jwt.interfaces.DecodedJWT;
-import com.kedu.tago.commons.JwtUtil;
+import com.kedu.tago.common.utils.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 @Component
-public class LoginValidator implements HandlerInterceptor {
+public class AuthInterceptor implements HandlerInterceptor {
 
     private final JwtUtil jwtUtil;
 
-    public LoginValidator(JwtUtil jwtUtil) {
+    public AuthInterceptor(JwtUtil jwtUtil) {
         this.jwtUtil = jwtUtil;
     }
 
@@ -22,18 +22,17 @@ public class LoginValidator implements HandlerInterceptor {
         String uri = request.getRequestURI();
         String method = request.getMethod();
 
-        if(request.getMethod().equalsIgnoreCase("options")) {
+        if (request.getMethod().equalsIgnoreCase("options")) {
             return true;
         }
 
-        if(uri.equals("/user") && method.equalsIgnoreCase("POST")) {
+        if (uri.equals("/user") && method.equalsIgnoreCase("POST")) {
             return true;
         }
 
         String authHeader = request.getHeader("Authorization");
 
-        if(authHeader != null && authHeader.startsWith("Bearer")) {
-
+        if (authHeader != null && authHeader.startsWith("Bearer")) {
             String token = authHeader.substring(7);
             DecodedJWT dToken = jwtUtil.verifyToken(token);
             String id = dToken.getSubject();
@@ -41,12 +40,10 @@ public class LoginValidator implements HandlerInterceptor {
 
             return true;
         } else {
-
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.getWriter().write("undefined access");
 
             return false;
         }
-
     }
 }

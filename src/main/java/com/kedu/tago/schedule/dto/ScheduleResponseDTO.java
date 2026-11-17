@@ -1,4 +1,4 @@
-package com.kedu.tago.schedule;
+package com.kedu.tago.schedule.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -11,7 +11,7 @@ import java.sql.Timestamp;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ScheduleDTO {
+public class ScheduleResponseDTO {
 
     private Long schedule_seq;
     private Long trainno;

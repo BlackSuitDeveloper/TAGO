@@ -1,6 +1,6 @@
 package com.kedu.tago.auth;
 
-import com.kedu.tago.commons.JwtUtil;
+import com.kedu.tago.common.utils.JwtUtil;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;

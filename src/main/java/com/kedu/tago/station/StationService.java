@@ -1,5 +1,6 @@
 package com.kedu.tago.station;
 
+import com.kedu.tago.station.dto.StationResponseDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -9,9 +10,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class StationService {
 
-    private final StationDAO stationDAO;
+    private final StationMapper stationMapper;
 
-    public List<StationDTO> getStationList() {
-        return stationDAO.selectStationList();
+    public List<StationResponseDTO> getStationList() {
+        return stationMapper.selectStationList();
     }
 }

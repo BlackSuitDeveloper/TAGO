@@ -2,7 +2,7 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="Schedule">
+<mapper namespace="com.kedu.tago.schedule.ScheduleMapper">
 
     <sql id="scheduleWhere">
         <where>
@@ -19,8 +19,8 @@
     </sql>
 
     <select id="selectScheduleList"
-            parameterType="com.kedu.tago.schedule.ScheduleSearchDTO"
-            resultType="com.kedu.tago.schedule.ScheduleDTO">
+            parameterType="com.kedu.tago.schedule.dto.ScheduleSearchRequestDTO"
+            resultType="com.kedu.tago.schedule.dto.ScheduleResponseDTO">
         SELECT
             s.schedule_seq,
             s.trainno,
@@ -47,7 +47,7 @@
     </select>
 
     <select id="countScheduleList"
-            parameterType="com.kedu.tago.schedule.ScheduleSearchDTO"
+            parameterType="com.kedu.tago.schedule.dto.ScheduleSearchRequestDTO"
             resultType="long">
         SELECT COUNT(*)
         FROM schedule s
@@ -58,7 +58,7 @@
 
     <select id="selectScheduleDetail"
             parameterType="long"
-            resultType="com.kedu.tago.schedule.ScheduleDTO">
+            resultType="com.kedu.tago.schedule.dto.ScheduleResponseDTO">
         SELECT
             s.schedule_seq,
             s.trainno,

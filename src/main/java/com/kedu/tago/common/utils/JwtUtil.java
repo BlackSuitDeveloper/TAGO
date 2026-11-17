@@ -1,4 +1,4 @@
-package com.kedu.tago.commons;
+package com.kedu.tago.common.utils;
 
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
@@ -41,5 +41,4 @@ public class JwtUtil {
     public DecodedJWT verifyToken(String token) {
         return jwt.verify(token);
     }
-
 }

@@ -1,9 +1,9 @@
-package com.kedu.tago.schedule;
+package com.kedu.tago.schedule.dto;
 
 import lombok.Data;
 
 @Data
-public class ScheduleSearchDTO {
+public class ScheduleSearchRequestDTO {
 
     private String depStation;
     private String arrStation;

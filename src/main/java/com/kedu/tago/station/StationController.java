@@ -1,5 +1,6 @@
 package com.kedu.tago.station;
 
+import com.kedu.tago.station.dto.StationResponseDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,8 +16,11 @@ public class StationController {
 
     private final StationService stationService;
 
+    /**
+     * 역 목록 조회 (GET /api/station)
+     */
     @GetMapping
-    public ResponseEntity<List<StationDTO>> getStationList() {
+    public ResponseEntity<List<StationResponseDTO>> getStationList() {
         return ResponseEntity.ok(stationService.getStationList());
     }
 }

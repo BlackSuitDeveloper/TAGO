@@ -1,4 +1,4 @@
-package com.kedu.tago.schedule;
+package com.kedu.tago.schedule.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -11,9 +11,9 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class SchedulePageResDTO {
+public class SchedulePageResponseDTO {
 
-    private List<ScheduleDTO> schedules;
+    private List<ScheduleResponseDTO> schedules;
     private int page;
     private int size;
     private long totalCount;

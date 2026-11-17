@@ -1,43 +1,46 @@
 package com.kedu.tago.member;
 
+import com.kedu.tago.member.dto.MemberProfileResponseDTO;
+import com.kedu.tago.member.dto.MemberSignupRequestDTO;
+import com.kedu.tago.member.dto.MemberUpdateRequestDTO;
 import org.springframework.stereotype.Service;
 
 @Service
 public class MemberService {
 
-    private MemberDAO mDao;
+    private final MemberMapper memberMapper;
 
-    MemberService(MemberDAO mDao) {
-        this.mDao = mDao;
+    public MemberService(MemberMapper memberMapper) {
+        this.memberMapper = memberMapper;
     }
 
     // 로그인
     public boolean isMember(String id, String pw) {
-        return mDao.isMember(id, pw);
+        return memberMapper.isMember(id, pw) > 0;
     }
 
     // 아이디 중복 체크
     public int checkId(String id) {
-        return mDao.checkId(id);
+        return memberMapper.checkId(id);
     }
 
     // 회원가입
-    public int insertMember(MemberDTO dto) {
-        return mDao.insertMember(dto);
+    public int insertMember(MemberSignupRequestDTO dto) {
+        return memberMapper.insertMember(dto);
     }
 
     // 회원 정보 조회
-    public MemberDTO selectMember(String id) {
-        return mDao.selectMember(id);
+    public MemberProfileResponseDTO selectMember(String id) {
+        return memberMapper.selectMember(id);
     }
 
     // 회원 정보 수정
-    public int updateMember(MemberDTO dto) {
-        return mDao.updateMember(dto);
+    public int updateMember(MemberUpdateRequestDTO dto) {
+        return memberMapper.updateMember(dto);
     }
 
     // 회원 탈퇴
     public int deleteId(String id) {
-        return mDao.deleteId(id);
+        return memberMapper.deleteId(id);
     }
 }

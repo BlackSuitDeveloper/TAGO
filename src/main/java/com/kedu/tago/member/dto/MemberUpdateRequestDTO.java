@@ -1,23 +1,21 @@
-package com.kedu.tago.member;
+package com.kedu.tago.member.dto;
 
-import lombok.*;
-
-import java.sql.Timestamp;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class MemberDTO {
+public class MemberUpdateRequestDTO {
 
     private String id;
-    private String pw;
     private String name;
     private String phone;
     private String email;
     private String zipcode;
     private String address1;
     private String address2;
-    private Timestamp created_at;
-
 }

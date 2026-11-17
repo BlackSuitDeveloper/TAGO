@@ -1,5 +1,8 @@
 package com.kedu.tago.schedule;
 
+import com.kedu.tago.schedule.dto.SchedulePageResponseDTO;
+import com.kedu.tago.schedule.dto.ScheduleResponseDTO;
+import com.kedu.tago.schedule.dto.ScheduleSearchRequestDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -9,21 +12,21 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ScheduleService {
 
-    private final ScheduleDAO scheduleDAO;
+    private final ScheduleMapper scheduleMapper;
 
-    public List<ScheduleDTO> getListBySchedule() {
-        return scheduleDAO.selectScheduleList(new ScheduleSearchDTO());
+    public List<ScheduleResponseDTO> getListBySchedule() {
+        return scheduleMapper.selectScheduleList(new ScheduleSearchRequestDTO());
     }
 
-    public SchedulePageResDTO getScheduleList(ScheduleSearchDTO searchDTO) {
+    public SchedulePageResponseDTO getScheduleList(ScheduleSearchRequestDTO searchDTO) {
         int page = searchDTO.getSafePage();
         int size = searchDTO.getSafeSize();
 
-        List<ScheduleDTO> schedules = scheduleDAO.selectScheduleList(searchDTO);
-        long totalCount = scheduleDAO.countScheduleList(searchDTO);
+        List<ScheduleResponseDTO> schedules = scheduleMapper.selectScheduleList(searchDTO);
+        long totalCount = scheduleMapper.countScheduleList(searchDTO);
         int totalPages = (int) Math.ceil((double) totalCount / size);
 
-        return SchedulePageResDTO.builder()
+        return SchedulePageResponseDTO.builder()
                 .schedules(schedules)
                 .page(page)
                 .size(size)
@@ -32,7 +35,7 @@ public class ScheduleService {
                 .build();
     }
 
-    public ScheduleDTO getScheduleDetail(Long scheduleSeq) {
-        return scheduleDAO.selectScheduleDetail(scheduleSeq);
+    public ScheduleResponseDTO getScheduleDetail(Long scheduleSeq) {
+        return scheduleMapper.selectScheduleDetail(scheduleSeq);
     }
 }

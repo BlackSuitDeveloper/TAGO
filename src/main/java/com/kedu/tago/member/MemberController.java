@@ -1,7 +1,10 @@
 package com.kedu.tago.member;
 
 import com.auth0.jwt.interfaces.DecodedJWT;
-import com.kedu.tago.commons.JwtUtil;
+import com.kedu.tago.common.utils.JwtUtil;
+import com.kedu.tago.member.dto.MemberProfileResponseDTO;
+import com.kedu.tago.member.dto.MemberSignupRequestDTO;
+import com.kedu.tago.member.dto.MemberUpdateRequestDTO;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,7 +24,7 @@ public class MemberController {
 
     // 회원가입
     @PostMapping
-    public int signup(@RequestBody MemberDTO dto) {
+    public int signup(@RequestBody MemberSignupRequestDTO dto) {
         return mServ.insertMember(dto);
     }
 
@@ -33,18 +36,17 @@ public class MemberController {
 
     // 회원 정보 조회
     @GetMapping("/mypage")
-    public ResponseEntity<MemberDTO> mypage(HttpServletRequest request) {
+    public ResponseEntity<MemberProfileResponseDTO> mypage(HttpServletRequest request) {
         String id = (String) request.getAttribute("id");
-        MemberDTO dto = mServ.selectMember(id);
-        dto.setPw(null);
+        MemberProfileResponseDTO dto = mServ.selectMember(id);
         return ResponseEntity.ok(dto);
     }
 
     // 회원 정보 수정
     @PutMapping
-    public ResponseEntity<String> updateMember(@RequestBody MemberDTO dto, HttpServletRequest request) {
+    public ResponseEntity<String> updateMember(@RequestBody MemberUpdateRequestDTO dto, HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
-        if(authHeader != null && authHeader.startsWith("Bearer ")) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
             DecodedJWT dToken = jwt.verifyToken(token);
             String id = dToken.getSubject();
@@ -60,7 +62,7 @@ public class MemberController {
     @DeleteMapping
     public ResponseEntity<String> deleteId(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
-        if(authHeader.startsWith("Bearer ")) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
 
             DecodedJWT dToken = jwt.verifyToken(token);
