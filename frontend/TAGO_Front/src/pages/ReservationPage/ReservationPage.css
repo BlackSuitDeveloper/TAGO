@@ -1,184 +1,494 @@
 /* =========================================================
-   KTX ReservationPage (Seat Selection) - Minimal & Modern
+   TAGO KTX 1세대 Premium Reservation Styles
    ========================================================= */
 
 .reservation-page-wrapper {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  background: #f8fafc;
 }
 
 .reservation-container {
-  width: 860px;
-  max-width: calc(100% - 40px);
-  margin: 30px auto 60px;
+  width: 1080px;
+  max-width: calc(100% - 32px);
+  margin: 24px auto 60px;
 }
 
-/* Header Bar */
-.reservation-header-bar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 20px;
-}
-
-.back-btn {
-  padding: 6px 12px;
+/* =========================================================
+   1. 상단 단계 바 & 여정 요약 카드
+   ========================================================= */
+.reservation-header-card {
   background: var(--white);
-  border: 1px solid var(--gray-300);
-  border-radius: var(--radius-xs);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--gray-700);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.back-btn:hover {
-  background: var(--gray-100);
-  color: var(--ktx-blue);
-}
-
-.reservation-header-bar h2 {
-  font-size: 20px;
-  font-weight: 800;
-  color: var(--gray-900);
-}
-
-/* Summary Card */
-.train-summary-card {
-  background: var(--white);
+  border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
-  padding: 16px 24px;
+  padding: 24px 28px;
+  box-shadow: 0 2px 8px rgba(0, 78, 162, 0.04);
+  margin-bottom: 24px;
+}
+
+.res-card-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border: 1px solid var(--gray-200);
-  box-shadow: var(--shadow-xs);
+  border-bottom: 1px solid var(--gray-100);
+  padding-bottom: 16px;
   margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
-.train-meta {
+.train-id-badge {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.train-title-main {
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--gray-900);
+.badge-logo {
+  background: var(--ktx-blue);
+  color: var(--white);
+  font-size: 13px;
+  font-weight: 900;
+  padding: 3px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
 }
 
-.class-pill {
-  background: var(--gray-100);
-  color: var(--gray-700);
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: var(--radius-xs);
-}
-
-.train-time-display {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.time-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.time-item .station {
-  font-size: 11px;
-  color: var(--gray-500);
-}
-
-.time-item .time {
+.badge-name {
   font-size: 18px;
   font-weight: 800;
   color: var(--gray-900);
 }
 
-.route-arrow-box {
-  color: var(--gray-300);
-  font-size: 14px;
+.badge-gen {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ktx-blue);
+  background: var(--ktx-blue-light);
+  padding: 3px 8px;
+  border-radius: 4px;
 }
 
-/* Car Selector */
-.car-selection-wrapper {
-  background: var(--white);
-  border-radius: var(--radius-md);
-  padding: 14px 20px;
+/* Booking Stepper */
+.booking-stepper {
   display: flex;
   align-items: center;
-  gap: 14px;
-  border: 1px solid var(--gray-200);
-  margin-bottom: 18px;
+  gap: 10px;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-400);
+}
+
+.step-item.done {
+  color: var(--ktx-blue);
+}
+
+.step-item.active {
+  color: var(--gray-900);
+  font-weight: 800;
+}
+
+.step-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--gray-100);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+}
+
+.step-item.done .step-num {
+  background: var(--ktx-blue-light);
+  color: var(--ktx-blue);
+  font-weight: 800;
+}
+
+.step-item.active .step-num {
+  background: var(--ktx-blue);
+  color: var(--white);
+  font-weight: 800;
+}
+
+.step-arrow {
+  color: var(--gray-300);
+  font-size: 12px;
+}
+
+/* Route Display */
+.res-card-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.route-display {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.station-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.station-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ktx-blue);
+  margin-bottom: 2px;
+}
+
+.station-tag.arr {
+  color: var(--gray-600);
+}
+
+.st-name {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--gray-900);
+}
+
+.st-time {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gray-500);
+}
+
+.route-mid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 140px;
+}
+
+.duration-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gray-500);
+  background: var(--gray-100);
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.route-arrow-line {
+  width: 100%;
+  height: 2px;
+  background: var(--gray-200);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 4px 0;
+}
+
+.arrow-head {
+  position: absolute;
+  right: -2px;
+  top: -8px;
+  color: var(--gray-400);
+  font-size: 10px;
+}
+
+.date-tag {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-500);
+}
+
+.header-meta-box {
+  display: flex;
+  align-items: center;
+  gap: 16px;
   flex-wrap: wrap;
 }
 
-.car-label {
+.meta-pill {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 14px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xs);
+  min-width: 100px;
+}
+
+.meta-k {
+  font-size: 11px;
+  color: var(--gray-500);
+  margin-bottom: 2px;
+}
+
+.meta-v {
   font-size: 13px;
   font-weight: 700;
   color: var(--gray-800);
 }
 
-.car-tabs {
+.btn-change-journey {
+  padding: 10px 16px;
+  background: var(--white);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-xs);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-700);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-change-journey:hover {
+  border-color: var(--ktx-blue);
+  color: var(--ktx-blue);
+  background: var(--ktx-blue-light);
+}
+
+/* =========================================================
+   2. 메인 2단 구조 레이아웃
+   ========================================================= */
+.reservation-layout-grid {
+  display: grid;
+  grid-template-columns: 1fr 330px;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+/* =========================================================
+   호차 선택 페이지네이션 패널
+   ========================================================= */
+.formation-panel {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  margin-bottom: 20px;
+}
+
+.formation-header {
   display: flex;
-  gap: 6px;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--gray-100);
+  padding-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.formation-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
-.car-tab-btn {
-  padding: 6px 14px;
-  border-radius: var(--radius-xs);
-  background: var(--gray-50);
-  border: 1px solid var(--gray-200);
+.section-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--gray-900);
+  margin: 0;
+}
+
+.selected-car-badge {
   font-size: 12px;
-  font-weight: 600;
+  color: var(--gray-600);
+  background: var(--ktx-blue-light);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--ktx-blue-subtle);
+}
+
+.selected-car-badge strong {
+  color: var(--ktx-blue);
+  font-weight: 800;
+}
+
+/* 호차 그룹 선택 탭 세그먼트 (1~6호차 / 7~12호차 / 13~18호차) */
+.car-page-tabs {
+  display: flex;
+  background: var(--gray-100);
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid var(--gray-200);
+  gap: 3px;
+}
+
+.car-page-tab-btn {
+  padding: 6px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
   color: var(--gray-600);
   cursor: pointer;
   transition: all var(--transition-fast);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
-.car-subtext {
-  font-size: 10px;
+.car-page-tab-btn:hover {
+  color: var(--gray-900);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.car-page-tab-btn.active {
+  background: var(--ktx-blue);
+  color: var(--white);
+  box-shadow: 0 2px 6px rgba(0, 78, 162, 0.25);
+}
+
+.tab-seat-dot {
+  width: 5px;
+  height: 5px;
+  background: #f59e0b;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.car-page-tab-btn.active .tab-seat-dot {
+  background: #fef08a;
+}
+
+/* 페이지당 6개 호차 그리드 */
+.cars-paged-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.car-paged-card {
+  width: 100%;
+  height: 72px;
+  background: var(--white);
+  border: 1.5px solid var(--gray-200);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  position: relative;
+}
+
+.car-paged-card:hover {
+  border-color: var(--ktx-blue);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0, 78, 162, 0.12);
+}
+
+.car-paged-card.selected {
+  background: linear-gradient(135deg, #004ea2 0%, #003679 100%);
+  border-color: #002d66;
+  box-shadow: 0 4px 12px rgba(0, 78, 162, 0.25);
+  transform: translateY(-2px);
+}
+
+.car-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.car-no-badge {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--gray-900);
+}
+
+.car-paged-card.selected .car-no-badge {
+  color: var(--white);
+}
+
+.chosen-count-pill {
+  background: #f59e0b;
+  color: var(--white);
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+
+.car-spec-label {
+  font-size: 11px;
   color: var(--gray-500);
 }
 
-.car-tab-btn:hover {
-  background: var(--gray-100);
+.car-paged-card.selected .car-spec-label {
+  color: #bfdbfe;
 }
 
-.car-tab-btn.active {
-  background: var(--gray-900);
-  color: var(--white);
-  border-color: var(--gray-900);
+.car-status-tag {
+  font-size: 10px;
+  font-weight: 700;
 }
 
-.car-tab-btn.active .car-subtext {
-  color: var(--gray-300);
+.car-status-tag.ok {
+  color: #10b981;
 }
 
-/* Legend Bar */
-.seat-legend-bar {
-  display: flex;
-  justify-content: center;
-  gap: 24px;
-  margin-bottom: 20px;
+.car-paged-card.selected .car-status-tag.ok {
+  color: #a7f3d0;
+}
+
+/* =========================================================
+   객실 내부 좌석 배치도 카드 (Realistic Coach View)
+   ========================================================= */
+.coach-seatmap-card {
   background: var(--white);
-  padding: 10px 18px;
-  border-radius: var(--radius-xs);
   border: 1px solid var(--gray-200);
-  width: fit-content;
-  margin-left: auto;
-  margin-right: auto;
+  border-radius: var(--radius-md);
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.seatmap-top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--gray-100);
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.direction-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ktx-blue);
+  background: var(--ktx-blue-light);
+  padding: 4px 10px;
+  border-radius: 4px;
+}
+
+.dir-icon {
+  font-size: 10px;
+}
+
+.seatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .legend-item {
@@ -192,17 +502,16 @@
 .legend-box {
   width: 14px;
   height: 14px;
-  border-radius: 2px;
+  border-radius: 3px;
 }
 
 .legend-box.available {
   background: var(--white);
-  border: 1px solid var(--gray-400);
+  border: 1.5px solid var(--gray-300);
 }
 
 .legend-box.selected {
   background: var(--ktx-blue);
-  border: 1px solid var(--ktx-blue);
 }
 
 .legend-box.occupied {
@@ -210,207 +519,490 @@
   border: 1px solid var(--gray-300);
 }
 
-/* Coach */
-.train-coach-container {
-  background: var(--white);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--gray-300);
-  padding: 20px;
-  box-shadow: var(--shadow-sm);
-  margin-bottom: 24px;
+/* KTX 동체 모양 (Fuselage) */
+.coach-fuselage {
+  background: #f8fafc;
+  border: 2px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 20px 24px;
+  position: relative;
 }
 
-.coach-direction-bar {
-  text-align: center;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--gray-500);
-  padding: 6px 0;
-  background: var(--gray-100);
-  border-radius: var(--radius-xs);
-  margin-bottom: 16px;
-}
-
-.coach-amenity {
+/* 열 머리글 */
+.seatmap-columns-head {
   display: flex;
-  justify-content: space-around;
-  padding: 8px;
-  background: var(--gray-50);
-  border-radius: var(--radius-xs);
-  font-size: 11px;
-  color: var(--gray-500);
-  border: 1px dashed var(--gray-200);
-}
-
-.coach-amenity.top {
-  margin-bottom: 16px;
-}
-
-.coach-amenity.bottom {
-  margin-top: 16px;
-}
-
-.column-headers {
-  display: flex;
-  align-items: center;
   justify-content: center;
-  gap: 10px;
-  margin-bottom: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+  gap: 12px;
 }
 
-.col-char {
-  width: 40px;
+.col-pair-head {
+  display: flex;
+  gap: 10px;
+}
+
+.col-title {
+  width: 44px;
   text-align: center;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--gray-500);
 }
 
-.aisle-spacer {
-  width: 50px;
+.col-title.window {
+  color: var(--ktx-blue);
+}
+
+.aisle-title-space {
+  width: 42px;
   text-align: center;
-  font-size: 10px;
+  font-size: 11px;
+  font-weight: 700;
   color: var(--gray-400);
 }
 
-.seats-grid-area {
+/* Rows Container */
+.coach-rows-container {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 420px;
-  overflow-y: auto;
-  padding: 4px 0;
 }
 
-.seat-row {
+.coach-row {
   display: flex;
-  align-items: center;
   justify-content: center;
-  gap: 10px;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+}
+
+/* 창문 그래픽 */
+.window-mark {
+  width: 4px;
+  height: 28px;
+  background: #cbd5e1;
+  border-radius: 2px;
 }
 
 .seat-pair {
   display: flex;
-  gap: 8px;
+  gap: 10px;
 }
 
-.seat-unit {
-  width: 40px;
-  height: 38px;
+/* 모던 KTX 좌석 버튼 (44x42px 안락한 크기) */
+.modern-seat-btn {
+  width: 44px;
+  height: 42px;
   background: var(--white);
-  border: 1px solid var(--gray-300);
-  border-radius: var(--radius-xs);
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px 8px 4px 4px; /* 기차 의자 헤드레스트 형태 */
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all 0.15s ease;
+  position: relative;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-.seat-label {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--gray-700);
-}
-
-.seat-unit:hover:not(:disabled) {
+.modern-seat-btn:hover:not(:disabled) {
   border-color: var(--ktx-blue);
+  background: #eff6ff;
   color: var(--ktx-blue);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(0, 78, 162, 0.12);
 }
 
-.seat-unit.selected {
-  background: var(--ktx-blue);
-  border-color: var(--ktx-blue);
+.seat-id-label {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--gray-800);
 }
 
-.seat-unit.selected .seat-label {
+.modern-seat-btn.window-seat::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  width: 6px;
+  height: 2px;
+  background: #93c5fd;
+  border-radius: 1px;
+}
+
+/* Selected State */
+.modern-seat-btn.selected {
+  background: linear-gradient(135deg, #004ea2 0%, #003679 100%);
+  border-color: #002d66;
+  color: var(--white);
+  box-shadow: 0 3px 8px rgba(0, 78, 162, 0.35);
+  transform: translateY(-1px);
+}
+
+.modern-seat-btn.selected .seat-id-label {
   color: var(--white);
 }
 
-.seat-unit.occupied {
-  background: var(--gray-100);
-  border-color: var(--gray-200);
+.seat-check-mark {
+  position: absolute;
+  bottom: 2px;
+  font-size: 9px;
+  font-weight: 900;
+  color: #93c5fd;
+}
+
+/* Occupied / Soldout State */
+.modern-seat-btn.occupied {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
-.seat-unit.occupied .seat-label {
-  color: var(--gray-400);
+.modern-seat-btn.occupied .seat-id-label {
+  color: #94a3b8;
 }
 
-.aisle {
-  width: 50px;
+/* 통로 및 행 번호 배지 */
+.aisle-divider-box {
+  width: 42px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.row-number {
+.row-num-badge {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--gray-400);
+  background: #e2e8f0;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.coach-exit-foot {
+  text-align: center;
   font-size: 11px;
   font-weight: 700;
   color: var(--gray-400);
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px dashed #cbd5e1;
 }
 
-/* Floating Bottom Summary Bar */
-.booking-summary-bottom-bar {
-  background: var(--gray-900);
+/* =========================================================
+   우측 발권 및 결제 요약 카드
+   ========================================================= */
+.checkout-sidebar-area {
+  position: sticky;
+  top: 90px;
+}
+
+.ticket-checkout-card {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
-  padding: 16px 24px;
+  padding: 22px 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.checkout-card-header {
+  border-bottom: 1px solid var(--gray-100);
+  padding-bottom: 14px;
+}
+
+.card-sub-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ktx-blue);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.card-main-title {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--gray-900);
+  margin-bottom: 2px;
+}
+
+.card-gen-info {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+/* Section Blocks */
+.checkout-section-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.block-title-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: var(--white);
-  box-shadow: var(--shadow-md);
-  position: sticky;
-  bottom: 20px;
-  z-index: 100;
 }
 
-.summary-left {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
-
-.selection-info, .price-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.summary-left .label {
-  font-size: 11px;
-  color: var(--gray-400);
-}
-
-.seat-values {
-  font-size: 14px;
-  font-weight: 700;
-  color: #38bdf8;
-}
-
-.price-value {
-  font-size: 18px;
+.block-name {
+  font-size: 13px;
   font-weight: 800;
-  color: var(--white);
+  color: var(--gray-800);
 }
 
-.complete-book-btn {
+.status-tag {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.status-tag.pending {
+  background: #fef2f2;
+  color: #ef4444;
+}
+
+.status-tag.complete {
+  background: #ecfdf5;
+  color: #10b981;
+}
+
+/* Selected Seats Chips */
+.selected-seat-chips-box {
+  min-height: 48px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.seat-ticket-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   background: var(--ktx-blue);
   color: var(--white);
-  padding: 12px 24px;
-  border-radius: var(--radius-xs);
-  font-size: 14px;
-  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  box-shadow: 0 1px 3px rgba(0, 78, 162, 0.2);
+}
+
+.chip-car {
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+.chip-seat {
+  font-weight: 800;
+}
+
+.chip-remove-btn {
+  background: transparent;
+  border: none;
+  color: #bfdbfe;
+  font-size: 11px;
   cursor: pointer;
-  transition: background var(--transition-fast);
+  padding: 0 2px;
+  margin-left: 2px;
+  line-height: 1;
 }
 
-.complete-book-btn:hover:not(:disabled) {
-  background: var(--ktx-blue-dark);
+.chip-remove-btn:hover {
+  color: var(--white);
 }
 
-.complete-book-btn:disabled {
-  background: var(--gray-700);
-  color: var(--gray-500);
+.empty-seat-notice {
+  font-size: 11px;
+  color: var(--gray-400);
+  text-align: center;
+  width: 100%;
+}
+
+/* Payment Methods */
+.pay-methods-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pay-method-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: left;
+}
+
+.pay-method-btn:hover {
+  border-color: var(--ktx-blue);
+  background: var(--gray-50);
+}
+
+.pay-method-btn.active {
+  border-color: var(--ktx-blue);
+  background: var(--ktx-blue-light);
+}
+
+.pay-icon {
+  font-size: 14px;
+}
+
+.pay-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-800);
+}
+
+/* Fare Summary */
+.fare-summary-block {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+
+.fare-calc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.fare-k {
+  color: var(--gray-600);
+}
+
+.fare-v {
+  font-weight: 600;
+  color: var(--gray-800);
+}
+
+.fare-calc-divider {
+  height: 1px;
+  background: var(--gray-200);
+  margin: 8px 0;
+}
+
+.fare-calc-row.total-row {
+  margin-top: 2px;
+}
+
+.total-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--gray-900);
+}
+
+.total-price-num {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--ktx-blue);
+  letter-spacing: -0.3px;
+}
+
+/* Primary Checkout Button */
+.btn-checkout-primary {
+  width: 100%;
+  padding: 14px;
+  border-radius: 6px;
+  border: none;
+  font-size: 14px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+
+.btn-checkout-primary.ready {
+  background: linear-gradient(135deg, #004ea2 0%, #003679 100%);
+  color: var(--white);
+  box-shadow: 0 4px 14px rgba(0, 78, 162, 0.35);
+}
+
+.btn-checkout-primary.ready:hover {
+  background: linear-gradient(135deg, #003e82 0%, #00285a 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 78, 162, 0.45);
+}
+
+.btn-checkout-primary.disabled {
+  background: var(--gray-200);
+  color: var(--gray-400);
   cursor: not-allowed;
 }
+
+.btn-arrow {
+  font-size: 14px;
+  transition: transform var(--transition-fast);
+}
+
+.btn-checkout-primary.ready:hover .btn-arrow {
+  transform: translateX(3px);
+}
+
+/* Checkout Note */
+.checkout-guarantee-note {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--gray-500);
+  line-height: 1.4;
+  padding: 0 4px;
+}
+
+/* =========================================================
+   반응형 미디어 쿼리
+   ========================================================= */
+@media (max-width: 1080px) {
+  .reservation-layout-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .checkout-sidebar-area {
+    position: static;
+  }
+}
+
+@media (max-width: 768px) {
+  .res-card-main {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .route-display {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .header-meta-box {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 640px) {
+  .cars-paged-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
