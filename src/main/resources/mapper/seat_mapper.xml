@@ -54,7 +54,7 @@
     </select>
 
     <!-- 조건부 좌석 상태 변경 (동시성 제어: 현재 상태가 일치할 때만 변경 및 version 증가) -->
-    <update id="updateSeatStatusConditional">
+    <update id="updateSeatStatusConditional" parameterType="com.kedu.tago.seat.dto.SeatStatusUpdateDTO">
         UPDATE seat
         SET status = #{newStatus},
             version = version + 1

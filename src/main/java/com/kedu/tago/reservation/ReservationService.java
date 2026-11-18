@@ -9,6 +9,7 @@ import com.kedu.tago.schedule.ScheduleService;
 import com.kedu.tago.seat.SeatMapper;
 import com.kedu.tago.seat.SeatService;
 import com.kedu.tago.seat.dto.SeatDTO;
+import com.kedu.tago.seat.dto.SeatStatusUpdateDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -69,9 +70,15 @@ public class ReservationService {
             }
 
             // 2. 조건부 UPDATE 실행 (동시성 제어: WHERE status = 'AVAILABLE')
-            int updated = seatMapper.updateSeatStatusConditional(
-                    scheduleSeq, carNo, seatNo, "AVAILABLE", "HELD"
-            );
+            SeatStatusUpdateDTO updateDTO = SeatStatusUpdateDTO.builder()
+                    .scheduleSeq(scheduleSeq)
+                    .carNo(carNo)
+                    .seatNo(seatNo)
+                    .currentStatus("AVAILABLE")
+                    .newStatus("HELD")
+                    .build();
+
+            int updated = seatMapper.updateSeatStatusConditional(updateDTO);
 
             if (updated == 0) {
                 // 이미 다른 사용자가 선점하였거나 예약된 상태
