@@ -1,41 +1,88 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import QuickMenu from '../../components/QuickMenu/QuickMenu';
+import client from '../Api/client';
 import './SchedulePage.css';
 
-const STATION_OPTIONS = ['서울', '용산', '광명', '대전', '동대구', '부산', '광주송정', '강릉', '포항'];
+const DEFAULT_STATIONS = ['서울', '용산', '광명', '대전', '동대구', '부산', '광주송정', '강릉', '포항'];
 
 function normalizeDateInput(dateStr) {
-  if (!dateStr) return '2026-11-16';
+  if (!dateStr) return '';
   const match = String(dateStr).match(/(\d{4}-\d{2}-\d{2})/);
-  return match ? match[1] : '2026-11-16';
+  return match ? match[1] : '';
 }
 
 function formatDateWithDay(dateStr) {
-  const normalized = normalizeDateInput(dateStr);
+  const normalized = normalizeDateInput(dateStr) || '2026-11-16';
   const [y, m, d] = normalized.split('-').map(Number);
   const days = ['일', '월', '화', '수', '목', '금', '토'];
   const dateObj = new Date(y, m - 1, d);
   return `${normalized} (${days[dateObj.getDay()]})`;
 }
 
+function formatTimeHHMM(timestamp) {
+  if (!timestamp) return '--:--';
+  const dateObj = new Date(timestamp);
+  if (Number.isNaN(dateObj.getTime())) return '--:--';
+  const hh = String(dateObj.getHours()).padStart(2, '0');
+  const mm = String(dateObj.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+function calcDurationText(depTimestamp, arrTimestamp) {
+  if (!depTimestamp || !arrTimestamp) return '-';
+  const dep = new Date(depTimestamp).getTime();
+  const arr = new Date(arrTimestamp).getTime();
+  if (Number.isNaN(dep) || Number.isNaN(arr) || arr <= dep) return '-';
+  const totalMinutes = Math.round((arr - dep) / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return hours > 0 ? `${hours}시간 ${minutes}분` : `${minutes}분`;
+}
+
+function mapScheduleItem(item) {
+  const trainNoStr = String(item.trainno ?? '').padStart(3, '0');
+  const availableCount = item.availableSeats ?? 0;
+
+  return {
+    id: item.schedule_seq,
+    trainNo: trainNoStr,
+    name: `KTX ${trainNoStr}`,
+    type: item.vehiclekndnm || 'KTX',
+    depStationName: item.depStationName || item.depplacename || '-',
+    arrStationName: item.arrStationName || item.arrplacename || '-',
+    depTime: formatTimeHHMM(item.depplandtime),
+    arrTime: formatTimeHHMM(item.arrplandtime),
+    duration: calcDurationText(item.depplandtime, item.arrplandtime),
+    generalPrice: Number(item.standard_price || 0).toLocaleString(),
+    generalStatus: availableCount > 0 ? '예매가능' : '매진',
+    availableSeats: availableCount,
+    depDateRaw: item.depplandtime ? normalizeDateInput(item.depplandtime) : '',
+  };
+}
+
 export default function SchedulePage() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const [stationOptions, setStationOptions] = useState(DEFAULT_STATIONS);
   const [tripType, setTripType] = useState(location.state?.tripType || '편도');
-  const [depStation, setDepStation] = useState(location.state?.departureStation || '서울');
-  const [arrStation, setArrStation] = useState(location.state?.arrivalStation || '부산');
+  const [depStation, setDepStation] = useState(location.state?.departureStation || '');
+  const [arrStation, setArrStation] = useState(location.state?.arrivalStation || '');
   const [currentDate, setCurrentDate] = useState(() => normalizeDateInput(location.state?.departureDate));
-  const [returnDate, setReturnDate] = useState(() => normalizeDateInput(location.state?.returnDate || '2026-11-17'));
+  const [returnDate, setReturnDate] = useState(() => normalizeDateInput(location.state?.returnDate) || '2026-11-17');
   const [passengers, setPassengers] = useState(() => location.state?.passengerDetail || { adult: 1 });
   const [isPassengerOpen, setIsPassengerOpen] = useState(false);
   const passengerRef = useRef(null);
 
   const targetTrainName = location.state?.targetTrainName || null;
   const [selectedFilter, setSelectedFilter] = useState('ALL');
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -49,25 +96,37 @@ export default function SchedulePage() {
     };
   }, []);
 
+  useEffect(() => {
+    client
+      .get('/station')
+      .then((res) => {
+        if (Array.isArray(res.data) && res.data.length > 0) {
+          const names = Array.from(
+            new Set(res.data.map((st) => st.nodename).filter(Boolean))
+          );
+          if (names.length > 0) {
+            setStationOptions(names);
+          }
+        }
+      })
+      .catch(() => {
+        // 백엔드 미연결 시 기본 역 목록 유지
+      });
+  }, []);
+
   const passengerSummaryText = `어른 ${passengers.adult}명`;
 
   const handleDepartureStationChange = (newDep) => {
     setDepStation(newDep);
-    if (arrStation === newDep) {
-      const fallback = STATION_OPTIONS.find((st) => st !== newDep) || '부산';
-      setArrivalStationSafe(fallback);
+    if (newDep && arrStation === newDep) {
+      setArrStation('');
     }
-  };
-
-  const setArrivalStationSafe = (nextArr) => {
-    setArrStation(nextArr);
   };
 
   const handleArrivalStationChange = (newArr) => {
     setArrStation(newArr);
-    if (depStation === newArr) {
-      const fallback = STATION_OPTIONS.find((st) => st !== newArr) || '서울';
-      setDepStation(fallback);
+    if (newArr && depStation === newArr) {
+      setDepStation('');
     }
   };
 
@@ -100,19 +159,7 @@ export default function SchedulePage() {
         return [];
       }
     }
-    return [
-      {
-        id: 'fav-1',
-        name: 'KTX 001',
-        type: 'KTX',
-        depTime: '05:15',
-        arrTime: '07:42',
-        duration: '2시간 27분',
-        depStation: '서울',
-        arrStation: '부산',
-        price: '59,800',
-      }
-    ];
+    return [];
   });
 
   const handleToggleFavorite = (train) => {
@@ -129,8 +176,8 @@ export default function SchedulePage() {
           depTime: train.depTime,
           arrTime: train.arrTime,
           duration: train.duration,
-          depStation,
-          arrStation,
+          depStation: train.depStationName,
+          arrStation: train.arrStationName,
           price: train.generalPrice,
         };
         next = [...prev, newFav];
@@ -140,49 +187,112 @@ export default function SchedulePage() {
     });
   };
 
-  const [scheduleList, setScheduleList] = useState([
-    {
-      id: 1,
-      trainNo: '001',
-      name: 'KTX 001',
-      type: 'KTX',
-      depTime: '05:15',
-      arrTime: '07:42',
-      duration: '2시간 27분',
-      generalPrice: '59,800',
-      generalStatus: '예매가능',
+  const [scheduleList, setScheduleList] = useState([]);
+
+  const fetchSchedules = useCallback(
+    async ({ dep, arr, date, filter, targetPage }) => {
+      setIsLoading(true);
+      try {
+        const params = {
+          filter,
+          page: targetPage,
+          size: 10,
+        };
+        if (dep) params.depStation = dep;
+        if (arr) params.arrStation = arr;
+        if (date) params.date = date;
+
+        const res = await client.get('/schedule', { params });
+        const data = res.data || {};
+        const rows = Array.isArray(data.schedules) ? data.schedules.map(mapScheduleItem) : [];
+
+        setScheduleList(rows);
+        setTotalCount(data.totalCount ?? rows.length);
+        setTotalPages(data.totalPages ?? 1);
+      } catch (err) {
+        setScheduleList([]);
+        setTotalCount(0);
+        setTotalPages(0);
+      } finally {
+        setIsLoading(false);
+      }
     },
-  ]);
+    []
+  );
+
+  useEffect(() => {
+    fetchSchedules({
+      dep: depStation,
+      arr: arrStation,
+      date: currentDate,
+      filter: selectedFilter,
+      targetPage: page,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFilter, page, fetchSchedules]);
 
   const handleSearchSchedule = () => {
     setIsPassengerOpen(false);
-    // 추후 GET /api/schedule 연동 시 depStation, arrStation, currentDate 조건으로 재조회
+    if (page !== 1) {
+      setPage(1);
+    } else {
+      fetchSchedules({
+        dep: depStation,
+        arr: arrStation,
+        date: currentDate,
+        filter: selectedFilter,
+        targetPage: 1,
+      });
+    }
   };
 
-  const filteredList = scheduleList.filter((item) => {
-    if (selectedFilter === 'AVAILABLE') return item.generalStatus === '예매가능';
-    if (selectedFilter === 'MORNING') {
-      const hour = parseInt(item.depTime.split(':')[0], 10);
-      return hour < 12;
+  const handleFilterChange = (nextFilter) => {
+    setSelectedFilter(nextFilter);
+    setPage(1);
+  };
+
+  const handleSyncTagoSchedules = async () => {
+    try {
+      await client.post('/admin/sync/master');
+      const stationRes = await client.get('/station');
+      if (Array.isArray(stationRes.data) && stationRes.data.length > 0) {
+        const names = Array.from(
+          new Set(stationRes.data.map((st) => st.nodename).filter(Boolean))
+        );
+        if (names.length > 0) {
+          setStationOptions(names);
+        }
+      }
+
+      const res = await client.post('/admin/sync/schedules/range');
+      const results = Array.isArray(res.data) ? res.data : [];
+      const summary = results.map((r) => r.message).filter(Boolean).join('\n');
+      alert(summary || '국토교통부(TAGO) 역 마스터 및 3일치 일정 동기화가 완료되었습니다.');
+      fetchSchedules({
+        dep: depStation,
+        arr: arrStation,
+        date: currentDate,
+        filter: selectedFilter,
+        targetPage: 1,
+      });
+      setPage(1);
+    } catch (err) {
+      alert('TAGO API 일정 동기화에 실패했습니다. 서버 로그 및 TAGO_SERVICE_KEY를 확인해 주세요.');
     }
-    if (selectedFilter === 'AFTERNOON') {
-      const hour = parseInt(item.depTime.split(':')[0], 10);
-      return hour >= 12;
-    }
-    return true;
-  });
+  };
 
   const handleSelectTrain = (train) => {
     navigate('/reservation', {
       state: {
+        scheduleSeq: train.id,
         trainName: train.name,
         trainType: 'KTX',
         depTime: train.depTime,
         arrTime: train.arrTime,
         duration: train.duration,
-        depStation,
-        arrStation,
-        depDate: formatDateWithDay(currentDate),
+        depStation: train.depStationName,
+        arrStation: train.arrStationName,
+        depDate: formatDateWithDay(train.depDateRaw || currentDate),
         returnDate: tripType === '왕복' ? formatDateWithDay(returnDate) : null,
         tripType,
         passenger: passengerSummaryText,
@@ -228,7 +338,8 @@ export default function SchedulePage() {
                   onChange={(e) => handleDepartureStationChange(e.target.value)}
                   className="schedule-select"
                 >
-                  {STATION_OPTIONS.map((station) => (
+                  <option value="">전체</option>
+                  {stationOptions.map((station) => (
                     <option key={station} value={station}>{station}</option>
                   ))}
                 </select>
@@ -254,7 +365,8 @@ export default function SchedulePage() {
                   onChange={(e) => handleArrivalStationChange(e.target.value)}
                   className="schedule-select"
                 >
-                  {STATION_OPTIONS.map((station) => (
+                  <option value="">전체</option>
+                  {stationOptions.map((station) => (
                     <option key={station} value={station}>{station}</option>
                   ))}
                 </select>
@@ -389,28 +501,28 @@ export default function SchedulePage() {
             <button
               type="button"
               className={`filter-btn ${selectedFilter === 'ALL' ? 'active' : ''}`}
-              onClick={() => setSelectedFilter('ALL')}
+              onClick={() => handleFilterChange('ALL')}
             >
-              전체 열차 ({scheduleList.length})
+              전체 열차 ({totalCount})
             </button>
             <button
               type="button"
               className={`filter-btn ${selectedFilter === 'AVAILABLE' ? 'active' : ''}`}
-              onClick={() => setSelectedFilter('AVAILABLE')}
+              onClick={() => handleFilterChange('AVAILABLE')}
             >
               예매 가능만
             </button>
             <button
               type="button"
               className={`filter-btn ${selectedFilter === 'MORNING' ? 'active' : ''}`}
-              onClick={() => setSelectedFilter('MORNING')}
+              onClick={() => handleFilterChange('MORNING')}
             >
               오전 출발 (~12:00)
             </button>
             <button
               type="button"
               className={`filter-btn ${selectedFilter === 'AFTERNOON' ? 'active' : ''}`}
-              onClick={() => setSelectedFilter('AFTERNOON')}
+              onClick={() => handleFilterChange('AFTERNOON')}
             >
               오후 출발 (12:00~)
             </button>
@@ -434,8 +546,12 @@ export default function SchedulePage() {
         </div>
 
         <div className="schedule-list">
-          {filteredList.length > 0 ? (
-            filteredList.map((item) => {
+          {isLoading ? (
+            <div className="schedule-empty-box">
+              <p>KTX 운행 일정을 불러오는 중입니다...</p>
+            </div>
+          ) : scheduleList.length > 0 ? (
+            scheduleList.map((item) => {
               const isGeneralSoldout = item.generalStatus === '매진';
               const isTarget = targetTrainName === item.name;
 
@@ -452,12 +568,12 @@ export default function SchedulePage() {
                   <div className="col-time">
                     <div className="time-block">
                       <span className="time-text dep">{item.depTime}</span>
-                      <span className="station-text">{depStation}</span>
+                      <span className="station-text">{item.depStationName}</span>
                     </div>
                     <div className="time-arrow">➔</div>
                     <div className="time-block">
                       <span className="time-text arr">{item.arrTime}</span>
-                      <span className="station-text">{arrStation}</span>
+                      <span className="station-text">{item.arrStationName}</span>
                     </div>
                   </div>
 
@@ -503,12 +619,46 @@ export default function SchedulePage() {
           )}
         </div>
 
+        {totalPages > 1 && (
+          <div className="schedule-pagination" style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '24px' }}>
+            <button
+              type="button"
+              className="filter-btn"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              이전
+            </button>
+            <span style={{ display: 'flex', alignItems: 'center', fontSize: '13px', fontWeight: 700 }}>
+              {page} / {totalPages}
+            </span>
+            <button
+              type="button"
+              className="filter-btn"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              다음
+            </button>
+          </div>
+        )}
+
         <div className="schedule-notice-box">
           <h4>TAGO KTX 승차권 예매 안내</h4>
           <ul>
             <li>TAGO는 KTX(20량 편성, 전 차량 일반실) 직통 열차를 기준으로 실시간 좌석 배정 및 예매를 제공합니다.</li>
             <li>[좌석선택 →] 버튼을 누르면 1호차부터 18호차까지 원하는 좌석을 직접 지정하여 결제하실 수 있습니다.</li>
           </ul>
+        </div>
+
+        <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            className="filter-btn"
+            onClick={handleSyncTagoSchedules}
+          >
+            [테스트] 국토교통부 3일치 일정 동기화
+          </button>
         </div>
       </main>
 
