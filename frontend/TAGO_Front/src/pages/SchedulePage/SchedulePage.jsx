@@ -175,6 +175,7 @@ export default function SchedulePage() {
   const handleSelectTrain = (train) => {
     navigate('/reservation', {
       state: {
+        scheduleSeq: train.scheduleSeq || train.id || 1,
         trainName: train.name,
         trainType: 'KTX',
         depTime: train.depTime,

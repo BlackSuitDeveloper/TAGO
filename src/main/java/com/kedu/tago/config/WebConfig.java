@@ -29,6 +29,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/station",
                         "/api/schedule/**",
                         "/api/seat/**",
+                        "/api/queue/**",
                         "/admin/sync/**"
                 );
     }
