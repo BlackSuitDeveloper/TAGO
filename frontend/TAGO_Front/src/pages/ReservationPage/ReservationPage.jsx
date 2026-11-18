@@ -94,7 +94,7 @@ export default function ReservationPage() {
     let isMounted = true;
     const fetchSeats = async () => {
       try {
-        const res = await client.get(`/api/seat`, {
+        const res = await client.get(`/seat`, {
           params: {
             scheduleSeq: bookingInfo.scheduleSeq,
             carNo: selectedCarNo,
@@ -199,7 +199,7 @@ export default function ReservationPage() {
       const seatNoList = selectedSeats.map((s) => s.seatId);
 
       // 1. 좌석 선점 (POST /api/reservation)
-      const resHold = await client.post('/api/reservation', {
+      const resHold = await client.post('/reservation', {
         scheduleSeq: bookingInfo.scheduleSeq,
         carNo: selectedCarNo,
         seatList: seatNoList,
@@ -209,7 +209,7 @@ export default function ReservationPage() {
       const reservationId = resHold.data.reservationId || resHold.data.reservationSeq;
 
       // 2. 결제 및 발권 확정 (POST /api/payment)
-      const resPay = await client.post('/api/payment', {
+      const resPay = await client.post('/payment', {
         reservationId: reservationId,
         payMethod: paymentMethod === 'card' ? 'CARD' : paymentMethod === 'easy' ? 'EASY' : 'TRANSFER',
         totalPrice: totalPrice,
