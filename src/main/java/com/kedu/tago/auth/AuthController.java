@@ -14,7 +14,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
-//
+
 //    private JwtUtil jwt;
 //    private MemberService mServ;
 //    public AuthController(JwtUtil jwt, MemberService mServ) {
