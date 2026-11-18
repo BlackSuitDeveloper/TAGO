@@ -6,9 +6,12 @@ import com.kedu.tago.seat.dto.SeatResponseDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.util.Collections;
-import java.util.List;
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 @Slf4j
 @Service
@@ -16,6 +19,9 @@ import java.util.List;
 public class SeatService {
 
     private final SeatMapper seatMapper;
+
+    // scheduleSeq -> SseEmitter 리스트 관리
+    private final Map<Long, List<SseEmitter>> sseEmitters = new ConcurrentHashMap<>();
 
     /**
      * 특정 일정의 좌석 목록 및 호차 요약 조회
@@ -57,12 +63,59 @@ public class SeatService {
                 : (int) seatList.stream().filter(s -> "AVAILABLE".equals(s.getStatus())).count();
 
         return SeatResponseDTO.builder()
-                .scheduleSeq(scheduleSeq)
-                .carNo(targetCarNo)
-                .totalSeats(totalSeats)
-                .availableSeats(availableSeats)
-                .carSummaryList(carSummaryList)
-                .seatList(seatList)
-                .build();
+                    .scheduleSeq(scheduleSeq)
+                    .carNo(targetCarNo)
+                    .totalSeats(totalSeats)
+                    .availableSeats(availableSeats)
+                    .carSummaryList(carSummaryList)
+                    .seatList(seatList)
+                    .build();
+    }
+
+    /**
+     * 실시간 좌석 상태 SSE 연결 생성
+     */
+    public SseEmitter subscribeSeatStream(Long scheduleSeq) {
+        SseEmitter emitter = new SseEmitter(60 * 1000L * 30); // 30분 타임아웃
+        List<SseEmitter> list = sseEmitters.computeIfAbsent(scheduleSeq, k -> new CopyOnWriteArrayList<>());
+        list.add(emitter);
+
+        emitter.onCompletion(() -> list.remove(emitter));
+        emitter.onTimeout(() -> list.remove(emitter));
+        emitter.onError(e -> list.remove(emitter));
+
+        try {
+            // 초기 연결 확인 이벤트 발송
+            emitter.send(SseEmitter.event()
+                    .name("INIT")
+                    .data(Map.of("message", "SSE connected for scheduleSeq " + scheduleSeq)));
+        } catch (IOException e) {
+            list.remove(emitter);
+        }
+
+        return emitter;
+    }
+
+    /**
+     * 좌석 상태 변경 시 해당 일정 구독자들에게 SSE 브로드캐스트
+     */
+    public void broadcastSeatStatusChange(Long scheduleSeq, Integer carNo, String seatNo, String newStatus) {
+        List<SseEmitter> list = sseEmitters.get(scheduleSeq);
+        if (list == null || list.isEmpty()) return;
+
+        Map<String, Object> payload = Map.of(
+                "scheduleSeq", scheduleSeq,
+                "carNo", carNo,
+                "seatNo", seatNo,
+                "status", newStatus
+        );
+
+        for (SseEmitter emitter : list) {
+            try {
+                emitter.send(SseEmitter.event().name("SEAT_UPDATE").data(payload));
+            } catch (IOException e) {
+                list.remove(emitter);
+            }
+        }
     }
 }

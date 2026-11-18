@@ -4,15 +4,35 @@ import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import QuickMenu from '../../components/QuickMenu/QuickMenu';
 import client from '../Api/client';
+import useWishStore from '../../store/useWishStore';
 import './MainPage.css';
+
+function getLocalDateYMD(offsetDays = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 export default function MainPage() {
   const quickStations = ['서울', '용산', '광명', '대전', '동대구', '부산', '광주송정', '강릉'];
+  const todayStr = getLocalDateYMD(0);
   const [tripType, setTripType] = useState('편도');
   const [departureStation, setDepartureStation] = useState('서울');
   const [arrivalStation, setArrivalStation] = useState('부산');
-  const [departureDate, setDepartureDate] = useState('2026-11-16');
+  const [departureDate, setDepartureDate] = useState(todayStr);
+  const [returnDate, setReturnDate] = useState(() => getLocalDateYMD(1));
   const navigate = useNavigate();
+
+  const handleDepartureDateChange = (nextDate) => {
+    const safeDate = nextDate && nextDate < todayStr ? todayStr : nextDate;
+    setDepartureDate(safeDate);
+    if (safeDate && returnDate && returnDate < safeDate) {
+      setReturnDate(safeDate);
+    }
+  };
 
   const [passengers, setPassengers] = useState({
     adult: 1,
@@ -72,6 +92,7 @@ export default function MainPage() {
         departureStation,
         arrivalStation,
         departureDate,
+        returnDate: tripType === '왕복' ? returnDate : null,
         passengerCount: passengerSummaryText,
         passengerDetail: passengers,
         tripType,
@@ -92,6 +113,7 @@ export default function MainPage() {
     const formattedDate = formatDepartureDate(departureDate);
     navigate('/reservation', {
       state: {
+        scheduleSeq: train.scheduleSeq || train.id || 1,
         trainName: train.name,
         trainType: 'KTX',
         depTime: train.depTime,
@@ -100,6 +122,8 @@ export default function MainPage() {
         depStation: departureStation,
         arrStation: arrivalStation,
         depDate: formattedDate,
+        returnDate: tripType === '왕복' ? formatDepartureDate(returnDate) : null,
+        tripType,
         passenger: passengerSummaryText,
         passengerDetail: passengers,
         seatType: '일반실',
@@ -108,42 +132,12 @@ export default function MainPage() {
     });
   };
 
-  const [favorites, setFavorites] = useState([
-    {
-      scheduleSeq: 1,
-      name: 'KTX 001',
-      type: 'KTX',
-      depTime: '05:15',
-      arrTime: '07:42',
-      duration: '2시간 27분',
-      depStation: '서울',
-      arrStation: '부산',
-      price: '59,800',
-    }
-  ]);
+  // 찜하기 중앙 스토어 연동 (메인·시각표·마이페이지 공통)
+  const { fetchWishList, toggleWish, isWish } = useWishStore();
 
   useEffect(() => {
-    client.get('/api/favorite')
-      .then((res) => {
-        if (Array.isArray(res.data)) {
-          setFavorites(res.data);
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  const handleToggleFavorite = (train) => {
-    const scheduleSeq = train.scheduleSeq || train.id;
-    const isFav = favorites.some((f) => f.name === train.name);
-
-    if (isFav) {
-      client.delete(`/api/favorite/${scheduleSeq}`).catch(() => {});
-      setFavorites(favorites.filter((f) => f.name !== train.name));
-    } else {
-      client.post('/api/favorite', { scheduleSeq }).catch(() => {});
-      setFavorites([...favorites, train]);
-    }
-  };
+    fetchWishList();
+  }, [fetchWishList]);
 
   const [previewTrains, setPreviewTrains] = useState([
     {
@@ -266,7 +260,8 @@ export default function MainPage() {
                 <input 
                   type="date" 
                   value={departureDate} 
-                  onChange={(e) => setDepartureDate(e.target.value)}
+                  min={todayStr}
+                  onChange={(e) => handleDepartureDateChange(e.target.value)}
                   className="date-input"
                 />
               </div>
@@ -353,7 +348,13 @@ export default function MainPage() {
                 <div className="input-group">
                   <span className="input-label">귀가일</span>
                   <div className="input-field-box">
-                    <input type="date" defaultValue="2026-11-17" className="date-input" />
+                    <input
+                      type="date"
+                      value={returnDate}
+                      min={departureDate || todayStr}
+                      onChange={(e) => setReturnDate(e.target.value)}
+                      className="date-input"
+                    />
                   </div>
                 </div>
                 <div className="input-group">
@@ -426,12 +427,12 @@ export default function MainPage() {
                     <div className="card-btn-group">
                       <button 
                         type="button" 
-                        className={`btn-favorite-heart ${favorites.some((f) => f.name === train.name) ? 'active' : ''}`}
-                        onClick={() => handleToggleFavorite(train)}
-                        title={favorites.some((f) => f.name === train.name) ? '찜 해제' : '열차 찜하기'}
+                        className={`btn-favorite-heart ${isWish(train.scheduleSeq || train.id) ? 'active' : ''}`}
+                        onClick={() => toggleWish(train.scheduleSeq || train.id)}
+                        title={isWish(train.scheduleSeq || train.id) ? '찜 해제' : '열차 찜하기'}
                         aria-label="열차 찜하기"
                       >
-                        {favorites.some((f) => f.name === train.name) ? '♥' : '♡'}
+                        {isWish(train.scheduleSeq || train.id) ? '♥' : '♡'}
                       </button>
                       <button 
                         type="button" 

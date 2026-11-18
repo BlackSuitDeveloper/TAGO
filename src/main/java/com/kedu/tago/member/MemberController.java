@@ -1,6 +1,6 @@
 package com.kedu.tago.member;
 
-import com.auth0.jwt.interfaces.DecodedJWT;
+import com.kedu.tago.auth.dto.AuthLoginRequestDTO;
 import com.kedu.tago.common.utils.JwtUtil;
 import com.kedu.tago.member.dto.MemberProfileResponseDTO;
 import com.kedu.tago.member.dto.MemberSignupRequestDTO;
@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/member")
@@ -20,6 +21,20 @@ public class MemberController {
     MemberController(MemberService mServ, JwtUtil jwt) {
         this.mServ = mServ;
         this.jwt = jwt;
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody AuthLoginRequestDTO dto) {
+        System.out.println(dto.getId() + " : " + dto.getPw());
+        if (mServ.isMember(dto.getId(), dto.getPw())) {
+            String token = jwt.createToken(dto.getId());
+            return ResponseEntity.ok(Map.of(
+                    "token", token,
+                    "id", dto.getId()
+            ));
+        }
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("아이디 또는 비밀번호가 올바르지 않습니다.");
     }
 
     // 회원가입
@@ -45,18 +60,18 @@ public class MemberController {
     // 회원 정보 수정
     @PutMapping
     public ResponseEntity<String> updateMember(@RequestBody MemberUpdateRequestDTO dto, HttpServletRequest request) {
-            String id = (String) request.getAttribute("id");
-            dto.setId(id);
-            mServ.updateMember(dto);
-            return ResponseEntity.ok("수정 완료");
+        String id = (String) request.getAttribute("id");
+        dto.setId(id);
+        mServ.updateMember(dto);
+        return ResponseEntity.ok("수정 완료");
     }
 
     // 회원 탈퇴
     @DeleteMapping
     public ResponseEntity<String> deleteId(HttpServletRequest request) {
-            String id = (String) request.getAttribute("id");
-            mServ.deleteId(id);
-            return ResponseEntity.ok("탈퇴 완료");
-        }
+        String id = (String) request.getAttribute("id");
+        mServ.deleteId(id);
+        return ResponseEntity.ok("탈퇴 완료");
     }
+}
 

@@ -20,4 +20,6 @@ public interface MemberMapper {
     int updateMember(MemberUpdateRequestDTO dto);
 
     int deleteId(@Param("id") String id);
+
+    String getPasswordById(String id);
 }

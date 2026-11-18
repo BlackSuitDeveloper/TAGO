@@ -1,8 +1,26 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import useAuthStore from '../../store/useAuthStore';
 import './Header.css';
 
 export default function Header({ showTopBar = true, simple = false, isLoggedIn = false }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const token = useAuthStore((state) => state.token);
+  const userId = useAuthStore((state) => state.id);
+  const logout = useAuthStore((state) => state.logout);
+
+  const loggedIn = isLoggedIn || Boolean(token || sessionStorage.getItem('token'));
+  const currentId = userId || sessionStorage.getItem('id');
+
+  const handleLogout = (e) => {
+    e.preventDefault();
+    logout();
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('id');
+    localStorage.removeItem('token');
+    alert('로그아웃되었습니다.');
+    navigate('/');
+  };
 
   return (
     <>
@@ -13,9 +31,19 @@ export default function Header({ showTopBar = true, simple = false, isLoggedIn =
               <span>TAGO KTX 고속철도 통합 예매 서비스</span>
             </div>
             <div className="top-bar-right">
-              <Link to="/login">로그인</Link>
-              <span className="divider">/</span>
-              <Link to="/signup">회원가입</Link>
+              {loggedIn ? (
+                <>
+                  <Link to="/mypage">{currentId ? `${currentId}님` : '마이페이지'}</Link>
+                  <span className="divider">/</span>
+                  <a href="#logout" onClick={handleLogout}>로그아웃</a>
+                </>
+              ) : (
+                <>
+                  <Link to="/login">로그인</Link>
+                  <span className="divider">/</span>
+                  <Link to="/signup">회원가입</Link>
+                </>
+              )}
               <span className="divider">/</span>
               <a href="#support">고객센터 1544-7788</a>
               <span className="divider">/</span>
@@ -47,8 +75,10 @@ export default function Header({ showTopBar = true, simple = false, isLoggedIn =
               </nav>
 
               <div className="member-menu">
-                {isLoggedIn ? (
-                  <Link to="/" className="btn-auth logout">로그아웃</Link>
+                {loggedIn ? (
+                  <button type="button" onClick={handleLogout} className="btn-auth logout" style={{ border: 'none', cursor: 'pointer' }}>
+                    로그아웃
+                  </button>
                 ) : (
                   <>
                     <Link to="/login" className="btn-auth login">로그인</Link>

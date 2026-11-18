@@ -103,13 +103,20 @@ public class MasterSyncService {
             return 0;
         }
 
+        java.util.Set<String> targetStationNames = new java.util.HashSet<>();
+        for (TagoRouteConfig.RoutePair route : routeConfig.getTargetRoutes()) {
+            targetStationNames.add(route.getDepStationName());
+            targetStationNames.add(route.getArrStationName());
+        }
+
         Map<String, TagoStationDTO> uniqueByNodeName = new LinkedHashMap<>();
         Map<String, TagoStationDTO> uniqueByNodeId = new LinkedHashMap<>();
 
         for (TagoCityDTO city : cities) {
             List<TagoStationDTO> cityStations = tagoApiClient.fetchStationsByCity(city.getCitycode(), city.getCityname());
             for (TagoStationDTO st : cityStations) {
-                if (st.getNodeid().length() <= 10
+                if (targetStationNames.contains(st.getNodename())
+                        && st.getNodeid().length() <= 10
                         && !uniqueByNodeName.containsKey(st.getNodename())
                         && !uniqueByNodeId.containsKey(st.getNodeid())) {
                     uniqueByNodeName.put(st.getNodename(), st);

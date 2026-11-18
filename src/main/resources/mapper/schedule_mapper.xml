@@ -15,6 +15,28 @@
             <if test="date != null and date != ''">
                 AND DATE(s.depplandtime) = CAST(#{date} AS DATE)
             </if>
+            <if test="keyword != null and keyword != ''">
+                AND (
+                    ds.nodename ILIKE CONCAT('%', #{keyword}, '%')
+                    OR as2.nodename ILIKE CONCAT('%', #{keyword}, '%')
+                    OR CAST(s.trainno AS TEXT) LIKE CONCAT('%', #{keyword}, '%')
+                )
+            </if>
+            <if test="normalizedFilter == 'AVAILABLE'">
+                AND s.status = 'SCHEDULED'
+                AND s.booking_open_at &lt;= NOW()
+                AND EXISTS (
+                    SELECT 1 FROM seat st
+                    WHERE st.schedule_seq = s.schedule_seq
+                      AND st.status = 'AVAILABLE'
+                )
+            </if>
+            <if test="normalizedFilter == 'MORNING'">
+                AND EXTRACT(HOUR FROM s.depplandtime) &lt; 12
+            </if>
+            <if test="normalizedFilter == 'AFTERNOON'">
+                AND EXTRACT(HOUR FROM s.depplandtime) &gt;= 12
+            </if>
         </where>
     </sql>
 

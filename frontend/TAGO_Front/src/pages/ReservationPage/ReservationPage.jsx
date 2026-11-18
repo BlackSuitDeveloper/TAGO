@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import QuickMenu from '../../components/QuickMenu/QuickMenu';
+import client from '../Api/client';
 import './ReservationPage.css';
 
 const KTX_CARS = [
@@ -32,7 +33,13 @@ export default function ReservationPage() {
 
   const bookingInfo = useMemo(() => {
     const state = location.state || {};
+    const rawPrice = state.price ?? state.train?.price;
+    const parsedPrice = rawPrice
+      ? parseInt(String(rawPrice).replace(/[^0-9]/g, ''), 10)
+      : 59800;
+
     return {
+      scheduleSeq: state.scheduleSeq || state.train?.scheduleSeq || 1,
       trainName: state.trainName || state.train?.name || 'KTX 001',
       trainType: 'KTX',
       depTime: state.depTime || state.train?.depTime || '05:15',
@@ -41,8 +48,10 @@ export default function ReservationPage() {
       depStation: state.depStation || '서울',
       arrStation: state.arrStation || '부산',
       depDate: state.depDate || '2026-11-16 (월)',
+      returnDate: state.returnDate || null,
+      tripType: state.tripType || '편도',
       passenger: state.passenger || state.passengerCount || '어른 1명',
-      unitPrice: 59800,
+      unitPrice: Number.isNaN(parsedPrice) || parsedPrice <= 0 ? 59800 : parsedPrice,
     };
   }, [location.state]);
 
@@ -79,12 +88,77 @@ export default function ReservationPage() {
     setSelectedCarNo(carNo);
   };
 
-  const [selectedSeats, setSelectedSeats] = useState([]);
+  const isRoundTrip = bookingInfo.tripType === '왕복';
+  const [activeLeg, setActiveLeg] = useState('outbound'); // 'outbound' | 'return'
+  const [outboundSeats, setOutboundSeats] = useState([]);
+  const [returnSeats, setReturnSeats] = useState([]);
+  const selectedSeats = activeLeg === 'outbound' ? outboundSeats : returnSeats;
   const [paymentMethod, setPaymentMethod] = useState('card');
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const [occupiedSeatsByCar, setOccupiedSeatsByCar] = useState({
     1: ['1A', '1B'],
   });
+
+  // 호차 변경 또는 스케줄 변경 시 백엔드 좌석 목록(GET /api/seat) 실시간 연동
+  useEffect(() => {
+    let isMounted = true;
+    const fetchSeats = async () => {
+      try {
+        const res = await client.get(`/seat`, {
+          params: {
+            scheduleSeq: bookingInfo.scheduleSeq,
+            carNo: selectedCarNo,
+          },
+        });
+        if (isMounted && res.data && res.data.seatList) {
+          const occupied = res.data.seatList
+            .filter((s) => s.status !== 'AVAILABLE')
+            .map((s) => s.seatNo);
+          setOccupiedSeatsByCar((prev) => ({
+            ...prev,
+            [selectedCarNo]: occupied,
+          }));
+        }
+      } catch (err) {
+        console.warn('좌석 상태 조회 실패 (서버 연결 대기 또는 Mock 유지):', err.message);
+      }
+    };
+
+    fetchSeats();
+
+    // SSE 실시간 좌석 스트림 연결 (GET /api/seat/stream)
+    let eventSource = null;
+    try {
+      eventSource = new EventSource(
+        `http://localhost:80/api/seat/stream?scheduleSeq=${bookingInfo.scheduleSeq}`
+      );
+      eventSource.addEventListener('SEAT_UPDATE', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data && data.carNo && data.seatNo) {
+            setOccupiedSeatsByCar((prev) => {
+              const current = prev[data.carNo] || [];
+              if (data.status === 'AVAILABLE') {
+                return { ...prev, [data.carNo]: current.filter((no) => no !== data.seatNo) };
+              } else {
+                return { ...prev, [data.carNo]: Array.from(new Set([...current, data.seatNo])) };
+              }
+            });
+          }
+        } catch (parseErr) {
+          console.error('SSE 파싱 에러:', parseErr);
+        }
+      });
+    } catch (sseErr) {
+      console.warn('SSE 연결 대기:', sseErr.message);
+    }
+
+    return () => {
+      isMounted = false;
+      if (eventSource) eventSource.close();
+    };
+  }, [bookingInfo.scheduleSeq, selectedCarNo]);
 
   const currentCarOccupied = occupiedSeatsByCar[selectedCarNo] || [];
 
@@ -100,55 +174,97 @@ export default function ReservationPage() {
   const handleSeatClick = (seatId) => {
     if (currentCarOccupied.includes(seatId)) return;
 
-    const existingIndex = selectedSeats.findIndex(
+    const currentSeats = activeLeg === 'outbound' ? outboundSeats : returnSeats;
+    const setCurrentSeats = activeLeg === 'outbound' ? setOutboundSeats : setReturnSeats;
+    const legLabel = activeLeg === 'outbound' ? '가는 편' : '오는 편';
+
+    const existingIndex = currentSeats.findIndex(
       (s) => s.carNo === selectedCarNo && s.seatId === seatId
     );
 
     if (existingIndex > -1) {
-      setSelectedSeats(selectedSeats.filter((_, idx) => idx !== existingIndex));
+      setCurrentSeats(currentSeats.filter((_, idx) => idx !== existingIndex));
     } else {
-      if (selectedSeats.length >= targetSeatCount) {
-        alert(`선택하신 승객 인원(${targetSeatCount}명)에 맞춰 최대 ${targetSeatCount}석까지만 선택할 수 있습니다.`);
+      if (currentSeats.length >= targetSeatCount) {
+        alert(`${legLabel}은 선택하신 승객 인원(${targetSeatCount}명)에 맞춰 최대 ${targetSeatCount}석까지만 선택할 수 있습니다.`);
         return;
       }
-      setSelectedSeats([...selectedSeats, { carNo: selectedCarNo, seatId }]);
+      setCurrentSeats([...currentSeats, { carNo: selectedCarNo, seatId }]);
     }
   };
 
-  const handleRemoveSeat = (carNo, seatId) => {
-    setSelectedSeats(selectedSeats.filter((s) => !(s.carNo === carNo && s.seatId === seatId)));
+  const handleRemoveSeat = (carNo, seatId, leg = activeLeg) => {
+    if (leg === 'return') {
+      setReturnSeats((prev) => prev.filter((s) => !(s.carNo === carNo && s.seatId === seatId)));
+    } else {
+      setOutboundSeats((prev) => prev.filter((s) => !(s.carNo === carNo && s.seatId === seatId)));
+    }
   };
 
-  const isSelectionComplete = selectedSeats.length === targetSeatCount;
-  const totalPrice = selectedSeats.length * bookingInfo.unitPrice;
+  const isOutboundComplete = outboundSeats.length === targetSeatCount;
+  const isReturnComplete = !isRoundTrip || returnSeats.length === targetSeatCount;
+  const isSelectionComplete = isOutboundComplete && isReturnComplete;
+  const totalSelectedSeatCount = outboundSeats.length + (isRoundTrip ? returnSeats.length : 0);
+  const totalPrice = totalSelectedSeatCount * bookingInfo.unitPrice;
 
-  const handleFinalPayment = () => {
+  // 최종 결제 및 발권 확정 (POST /api/reservation 선점 -> POST /api/payment 확정)
+  const handleFinalPayment = async () => {
     if (!isSelectionComplete) {
-      alert(`좌석을 모두 선택해 주세요. (현재 ${selectedSeats.length}/${targetSeatCount}석 선택됨)`);
+      if (!isOutboundComplete) {
+        alert(`가는 편 좌석을 모두 선택해 주세요. (현재 ${outboundSeats.length}/${targetSeatCount}석 선택됨)`);
+      } else if (isRoundTrip && !isReturnComplete) {
+        setActiveLeg('return');
+        alert(`오는 편 좌석을 모두 선택해 주세요. (현재 ${returnSeats.length}/${targetSeatCount}석 선택됨)`);
+      }
       return;
     }
 
-    const seatString = selectedSeats.map((s) => `${s.carNo}호차 ${s.seatId}`).join(', ');
-    const paymentName =
-      paymentMethod === 'card'
-        ? '신용/체크카드'
-        : paymentMethod === 'easy'
-        ? '간편결제 (카카오/네이버/토스)'
-        : '실시간 계좌이체';
+    if (isProcessing) return;
+    setIsProcessing(true);
 
-    alert(
-      `[KTX 승차권 결제 및 발권 완료]\n\n` +
-      `• 열차: ${bookingInfo.trainName} (KTX 직통)\n` +
-      `• 구간: ${bookingInfo.depStation} ➔ ${bookingInfo.arrStation}\n` +
-      `• 일시: ${bookingInfo.depDate} | 출발 ${bookingInfo.depTime} ➔ 도착 ${bookingInfo.arrTime}\n` +
-      `• 승객: ${bookingInfo.passenger} (총 ${targetSeatCount}명)\n` +
-      `• 지정 좌석: ${seatString}\n` +
-      `• 결제 수단: ${paymentName}\n` +
-      `• 총 결제금액: ${totalPrice.toLocaleString()}원\n\n` +
-      `승차권 발권이 정상 처리되었습니다.\n마이페이지(승차권 확인)로 이동합니다.`
-    );
+    try {
+      const seatNoList = outboundSeats.map((s) => s.seatId);
+      const outboundCarNo = outboundSeats[0]?.carNo || selectedCarNo;
 
-    navigate('/mypage');
+      // 1. 좌석 선점 (POST /api/reservation)
+      const resHold = await client.post('/reservation', {
+        scheduleSeq: bookingInfo.scheduleSeq,
+        carNo: outboundCarNo,
+        seatList: seatNoList,
+        count: seatNoList.length,
+      });
+
+      const reservationId = resHold.data.reservationId || resHold.data.reservationSeq;
+
+      // 2. 결제 및 발권 확정 (POST /api/payment)
+      const resPay = await client.post('/payment', {
+        reservationId: reservationId,
+        payMethod: paymentMethod === 'card' ? 'CARD' : paymentMethod === 'easy' ? 'EASY' : 'TRANSFER',
+        totalPrice: totalPrice,
+      });
+
+      const ticketNumber = resPay.data.ticketNumber || '1029-3847-5690-11';
+      const outboundSeatString = outboundSeats.map((s) => `${s.carNo}호차 ${s.seatId}`).join(', ');
+      const returnSeatString = returnSeats.map((s) => `${s.carNo}호차 ${s.seatId}`).join(', ');
+
+      alert(
+        `[KTX 승차권 결제 및 발권 완료]\n\n` +
+        `• 승차권 번호: ${ticketNumber}\n` +
+        `• 열차: ${bookingInfo.trainName} (KTX · ${bookingInfo.tripType})\n` +
+        `• 가는 편 (${bookingInfo.depStation} ➔ ${bookingInfo.arrStation}): ${outboundSeatString}\n` +
+        (isRoundTrip ? `• 오는 편 (${bookingInfo.arrStation} ➔ ${bookingInfo.depStation}): ${returnSeatString}\n` : '') +
+        `• 결제 금액: ${totalPrice.toLocaleString()}원\n\n` +
+        `승차권이 정상적으로 발권되었습니다. 마이페이지로 이동합니다.`
+      );
+
+      navigate('/mypage');
+    } catch (err) {
+      console.error('예매/결제 실패:', err);
+      const errMsg = err.response?.data?.message || err.response?.data || '좌석 선점 또는 결제 처리 중 오류가 발생했습니다.';
+      alert(`[예매 실패]\n${errMsg}`);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -209,8 +325,10 @@ export default function ReservationPage() {
                 <strong className="meta-v">{bookingInfo.passenger}</strong>
               </div>
               <div className="meta-pill">
-                <span className="meta-k">좌석 등급</span>
-                <strong className="meta-v">일반실 (59,800원)</strong>
+                <span className="meta-k">여정 / 좌석 등급</span>
+                <strong className="meta-v">
+                  {bookingInfo.tripType} · 일반실 ({bookingInfo.unitPrice.toLocaleString()}원)
+                </strong>
               </div>
               <button 
                 type="button" 
@@ -225,10 +343,52 @@ export default function ReservationPage() {
 
         <div className="reservation-layout-grid">
           <div className="train-coach-section">
+            {isRoundTrip && (
+              <div className="round-trip-leg-switcher">
+                <button
+                  type="button"
+                  className={`leg-switch-card ${activeLeg === 'outbound' ? 'active' : ''} ${isOutboundComplete ? 'done' : ''}`}
+                  onClick={() => setActiveLeg('outbound')}
+                >
+                  <div className="leg-card-top">
+                    <span className="leg-badge">가는 편</span>
+                    <span className={`leg-progress ${isOutboundComplete ? 'complete' : ''}`}>
+                      {isOutboundComplete ? '✓ 선택 완료' : `${outboundSeats.length}/${targetSeatCount}석`}
+                    </span>
+                  </div>
+                  <strong className="leg-route">
+                    {bookingInfo.depStation} ➔ {bookingInfo.arrStation}
+                  </strong>
+                  <span className="leg-date">{bookingInfo.depDate}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`leg-switch-card ${activeLeg === 'return' ? 'active' : ''} ${isReturnComplete ? 'done' : ''}`}
+                  onClick={() => setActiveLeg('return')}
+                >
+                  <div className="leg-card-top">
+                    <span className="leg-badge return">오는 편</span>
+                    <span className={`leg-progress ${isReturnComplete ? 'complete' : ''}`}>
+                      {isReturnComplete ? '✓ 선택 완료' : `${returnSeats.length}/${targetSeatCount}석`}
+                    </span>
+                  </div>
+                  <strong className="leg-route">
+                    {bookingInfo.arrStation} ➔ {bookingInfo.depStation}
+                  </strong>
+                  <span className="leg-date">{bookingInfo.returnDate || '귀가일 선택됨'}</span>
+                </button>
+              </div>
+            )}
+
             <div className="formation-panel">
               <div className="formation-header">
                 <div className="formation-title-group">
-                  <h3 className="section-title">좌석 선택</h3>
+                  <h3 className="section-title">
+                    {isRoundTrip
+                      ? `${activeLeg === 'outbound' ? '가는 편' : '오는 편'} 좌석 선택`
+                      : '좌석 선택'}
+                  </h3>
                   <span className="selected-car-badge">
                     현재 선택: <strong>{currentCar.carNo}호차</strong> (일반실 {currentCar.seats}석)
                   </span>
@@ -290,7 +450,9 @@ export default function ReservationPage() {
               <div className="seatmap-top-bar">
                 <div className="direction-indicator">
                   <span className="dir-icon">▲</span>
-                  <span>열차 진행 방향 (부산 방면)</span>
+                  <span>
+                    열차 진행 방향 ({activeLeg === 'outbound' ? bookingInfo.arrStation : bookingInfo.depStation} 방면)
+                  </span>
                 </div>
 
                 <div className="seatmap-legend">
@@ -435,24 +597,26 @@ export default function ReservationPage() {
 
               <div className="checkout-section-block">
                 <div className="block-title-row">
-                  <span className="block-name">지정 좌석 ({targetSeatCount}석)</span>
-                  <span className={`status-tag ${isSelectionComplete ? 'complete' : 'pending'}`}>
-                    {isSelectionComplete
+                  <span className="block-name">
+                    {isRoundTrip ? `가는 편 지정 좌석 (${targetSeatCount}석)` : `지정 좌석 (${targetSeatCount}석)`}
+                  </span>
+                  <span className={`status-tag ${isOutboundComplete ? 'complete' : 'pending'}`}>
+                    {isOutboundComplete
                       ? '선택 완료'
-                      : `${selectedSeats.length}/${targetSeatCount}석 선택 중`}
+                      : `${outboundSeats.length}/${targetSeatCount}석 선택 중`}
                   </span>
                 </div>
 
                 <div className="selected-seat-chips-box">
-                  {selectedSeats.length > 0 ? (
-                    selectedSeats.map((s) => (
-                      <div key={`${s.carNo}-${s.seatId}`} className="seat-ticket-chip">
+                  {outboundSeats.length > 0 ? (
+                    outboundSeats.map((s) => (
+                      <div key={`out-${s.carNo}-${s.seatId}`} className="seat-ticket-chip">
                         <span className="chip-car">{s.carNo}호차</span>
                         <strong className="chip-seat">{s.seatId}석</strong>
                         <button
                           type="button"
                           className="chip-remove-btn"
-                          onClick={() => handleRemoveSeat(s.carNo, s.seatId)}
+                          onClick={() => handleRemoveSeat(s.carNo, s.seatId, 'outbound')}
                           title="좌석 선택 취소"
                         >
                           ✕
@@ -466,6 +630,52 @@ export default function ReservationPage() {
                   )}
                 </div>
               </div>
+
+              {isRoundTrip && (
+                <div className="checkout-section-block">
+                  <div className="block-title-row">
+                    <span className="block-name">오는 편 지정 좌석 ({targetSeatCount}석)</span>
+                    <span className={`status-tag ${isReturnComplete ? 'complete' : 'pending'}`}>
+                      {isReturnComplete
+                        ? '선택 완료'
+                        : `${returnSeats.length}/${targetSeatCount}석 선택 중`}
+                    </span>
+                  </div>
+
+                  <div className="selected-seat-chips-box">
+                    {returnSeats.length > 0 ? (
+                      returnSeats.map((s) => (
+                        <div key={`ret-${s.carNo}-${s.seatId}`} className="seat-ticket-chip">
+                          <span className="chip-car">{s.carNo}호차</span>
+                          <strong className="chip-seat">{s.seatId}석</strong>
+                          <button
+                            type="button"
+                            className="chip-remove-btn"
+                            onClick={() => handleRemoveSeat(s.carNo, s.seatId, 'return')}
+                            title="좌석 선택 취소"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="empty-seat-notice">
+                        {activeLeg === 'return'
+                          ? '좌측 객실 배치도에서 오는 편 좌석을 선택해 주세요.'
+                          : (
+                            <button
+                              type="button"
+                              className="btn-switch-return-inline"
+                              onClick={() => setActiveLeg('return')}
+                            >
+                              오는 편 좌석 선택하러 가기 →
+                            </button>
+                          )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="checkout-section-block">
                 <span className="block-name">결제 수단 선택</span>
@@ -503,12 +713,20 @@ export default function ReservationPage() {
                   <span className="fare-v">{bookingInfo.unitPrice.toLocaleString()}원</span>
                 </div>
                 <div className="fare-calc-row">
-                  <span className="fare-k">예매 승객 ({targetSeatCount}명)</span>
-                  <span className="fare-v">× {selectedSeats.length}석</span>
+                  <span className="fare-k">
+                    {isRoundTrip ? `가는 편 (${targetSeatCount}명)` : `예매 승객 (${targetSeatCount}명)`}
+                  </span>
+                  <span className="fare-v">× {outboundSeats.length}석</span>
                 </div>
+                {isRoundTrip && (
+                  <div className="fare-calc-row">
+                    <span className="fare-k">오는 편 ({targetSeatCount}명)</span>
+                    <span className="fare-v">× {returnSeats.length}석</span>
+                  </div>
+                )}
                 <div className="fare-calc-divider"></div>
                 <div className="fare-calc-row total-row">
-                  <span className="total-label">총 결제 금액</span>
+                  <span className="total-label">총 결제 금액 ({bookingInfo.tripType})</span>
                   <strong className="total-price-num">{totalPrice.toLocaleString()}원</strong>
                 </div>
               </div>
@@ -524,8 +742,12 @@ export default function ReservationPage() {
                     <span>{totalPrice.toLocaleString()}원 결제 및 발권 완료</span>
                     <span className="btn-arrow">→</span>
                   </>
+                ) : !isOutboundComplete ? (
+                  <span>
+                    {isRoundTrip ? '가는 편 ' : ''}좌석 {targetSeatCount - outboundSeats.length}석을 더 선택해 주세요
+                  </span>
                 ) : (
-                  <span>좌석 {targetSeatCount - selectedSeats.length}석을 더 선택해 주세요</span>
+                  <span>오는 편 좌석 {targetSeatCount - returnSeats.length}석을 더 선택해 주세요</span>
                 )}
               </button>
 

@@ -20,15 +20,15 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addInterceptor(authInterceptor)
                 .addPathPatterns("/**")
                 .excludePathPatterns(
+                        "/error",
                         "/actuator/**",
-                        "/api/ping",
-                        "/api/member",
-                        "/api/member/check-id",
-                        "/api/login",
-                        "/api/auth/login",
-                        "/api/station",
-                        "/api/schedule/**",
-                        "/api/seat/**",
+                        "/ping",
+                        "/member/checkId",
+                        "/member/login",
+                        "/login",
+                        "/station",
+                        "/schedule/**",
+                        "/seat/**",
                         "/admin/sync/**"
                 );
     }

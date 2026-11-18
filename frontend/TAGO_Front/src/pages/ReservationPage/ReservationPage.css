@@ -1006,3 +1006,91 @@
   }
 }
 
+
+/* 왕복 여정(가는 편 / 오는 편) 좌석 선택 전환 UI */
+.round-trip-leg-switcher {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.leg-switch-card {
+  background: var(--white);
+  border: 2px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all var(--transition-fast);
+}
+
+.leg-switch-card:hover {
+  border-color: var(--ktx-blue);
+}
+
+.leg-switch-card.active {
+  border-color: var(--ktx-blue);
+  background: var(--ktx-blue-light);
+  box-shadow: 0 4px 12px rgba(0, 78, 162, 0.12);
+}
+
+.leg-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.leg-badge {
+  background: var(--ktx-blue);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.leg-badge.return {
+  background: var(--gray-800);
+}
+
+.leg-progress {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-600);
+}
+
+.leg-progress.complete {
+  color: #15803d;
+}
+
+.leg-route {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--gray-900);
+}
+
+.leg-date {
+  font-size: 12px;
+  color: var(--gray-600);
+}
+
+.btn-switch-return-inline {
+  background: var(--ktx-blue-light);
+  color: var(--ktx-blue);
+  border: 1px solid var(--ktx-blue);
+  border-radius: var(--radius-xs);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-switch-return-inline:hover {
+  background: var(--ktx-blue);
+  color: var(--white);
+}

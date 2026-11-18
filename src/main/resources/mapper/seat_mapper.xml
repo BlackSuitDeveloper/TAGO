@@ -7,6 +7,7 @@
     <!-- 특정 일정 및 호차의 좌석 목록 조회 -->
     <select id="selectSeatList" resultType="com.kedu.tago.seat.dto.SeatDTO">
         SELECT
+            seat_seq AS seatSeq,
             schedule_seq AS scheduleSeq,
             car_no AS carNo,
             seat_no AS seatNo,
@@ -34,5 +35,41 @@
         GROUP BY car_no
         ORDER BY car_no ASC
     </select>
+
+    <!-- 특정 좌석 단건 조회 -->
+    <select id="selectSeat" resultType="com.kedu.tago.seat.dto.SeatDTO">
+        SELECT
+            seat_seq AS seatSeq,
+            schedule_seq AS scheduleSeq,
+            car_no AS carNo,
+            seat_no AS seatNo,
+            seat_grade AS seatGrade,
+            status,
+            version
+        FROM seat
+        WHERE schedule_seq = #{scheduleSeq}
+          AND car_no = #{carNo}
+          AND seat_no = #{seatNo}
+        LIMIT 1
+    </select>
+
+    <!-- 조건부 좌석 상태 변경 (동시성 제어: 현재 상태가 일치할 때만 변경 및 version 증가) -->
+    <update id="updateSeatStatusConditional" parameterType="com.kedu.tago.seat.dto.SeatStatusUpdateDTO">
+        UPDATE seat
+        SET status = #{newStatus},
+            version = version + 1
+        WHERE schedule_seq = #{scheduleSeq}
+          AND car_no = #{carNo}
+          AND seat_no = #{seatNo}
+          AND status = #{currentStatus}
+    </update>
+
+    <!-- seatSeq 기준 좌석 상태 변경 -->
+    <update id="updateSeatStatusBySeq">
+        UPDATE seat
+        SET status = #{newStatus},
+            version = version + 1
+        WHERE seat_seq = #{seatSeq}
+    </update>
 
 </mapper>

@@ -1,5 +1,6 @@
 package com.kedu.tago.member;
 
+import com.kedu.tago.common.utils.Bcrypt;
 import com.kedu.tago.member.dto.MemberProfileResponseDTO;
 import com.kedu.tago.member.dto.MemberSignupRequestDTO;
 import com.kedu.tago.member.dto.MemberUpdateRequestDTO;
@@ -9,14 +10,20 @@ import org.springframework.stereotype.Service;
 public class MemberService {
 
     private final MemberMapper memberMapper;
+    private final Bcrypt bcrypt;
 
-    public MemberService(MemberMapper memberMapper) {
+    public MemberService(MemberMapper memberMapper, Bcrypt bcrypt) {
         this.memberMapper = memberMapper;
+        this.bcrypt = bcrypt;
     }
 
     // 로그인
-    public boolean isMember(String id, String pw) {
-        return memberMapper.isMember(id, pw) > 0;
+    public boolean isMember(String id, String rawPw) {
+        String encodedPw = memberMapper.getPasswordById(id);
+        if (encodedPw == null) {
+            return false;
+        }
+        return bcrypt.checkPassword(rawPw, encodedPw);
     }
 
     // 아이디 중복 체크
@@ -26,6 +33,8 @@ public class MemberService {
 
     // 회원가입
     public int insertMember(MemberSignupRequestDTO dto) {
+        String encoedPw = bcrypt.hashPassword(dto.getPw());
+        dto.setPw(encoedPw);
         return memberMapper.insertMember(dto);
     }
 

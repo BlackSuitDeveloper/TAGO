@@ -55,9 +55,11 @@ public class TagoSyncController {
 
     @PostMapping("/schedules/range")
     public ResponseEntity<List<SyncResultDTO>> syncSchedulesByRange(
-            @RequestParam("startDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam("endDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        List<SyncResultDTO> results = scheduleSyncService.syncSchedulesByDateRange(startDate, endDate);
+            @RequestParam(value = "startDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(value = "endDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        LocalDate start = startDate != null ? startDate : LocalDate.now();
+        LocalDate end = endDate != null ? endDate : start.plusDays(2); // 기본 3일치
+        List<SyncResultDTO> results = scheduleSyncService.syncSchedulesByDateRange(start, end);
         return ResponseEntity.ok(results);
     }
 
