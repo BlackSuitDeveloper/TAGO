@@ -23,14 +23,13 @@ public class WebConfig implements WebMvcConfigurer {
                         "/error",
                         "/actuator/**",
                         "/ping",
-                        "/member",
                         "/member/checkId",
+                        "/member/login",
                         "/login",
                         "/station",
                         "/schedule/**",
                         "/seat/**",
-                        "/admin/sync/**",
-                        "/member/login"
+                        "/admin/sync/**"
                 );
     }
 
