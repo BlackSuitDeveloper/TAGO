@@ -9,7 +9,9 @@ public class ScheduleSearchRequestDTO {
     private String arrStation;
     private String depNodeId;
     private String arrNodeId;
-    private String date; // YYYY-MM-DD (선택)
+    private String date;
+    private String keyword;
+    private String filter = "ALL";
     private int page = 1;
     private int size = 10;
 
@@ -19,6 +21,10 @@ public class ScheduleSearchRequestDTO {
 
     public String getEffectiveArrStation() {
         return (arrStation != null && !arrStation.isBlank()) ? arrStation : arrNodeId;
+    }
+
+    public String getNormalizedFilter() {
+        return (filter != null && !filter.isBlank()) ? filter.toUpperCase() : "ALL";
     }
 
     public int getSafePage() {
