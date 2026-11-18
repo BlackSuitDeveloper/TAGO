@@ -7,6 +7,8 @@ import client from '../Api/client';
 import useWishStore from '../../store/useWishStore';
 import './MainPage.css';
 
+const DEFAULT_STATIONS = ['서울', '용산', '부산', '목포', '여수EXPO', '진주', '포항', '광주송정'];
+
 function getLocalDateYMD(offsetDays = 0) {
   const d = new Date();
   d.setDate(d.getDate() + offsetDays);
@@ -16,19 +18,69 @@ function getLocalDateYMD(offsetDays = 0) {
   return `${y}-${m}-${day}`;
 }
 
+function formatLocalDateYMD(timestamp) {
+  if (!timestamp) return '';
+  const d = new Date(timestamp);
+  if (Number.isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function formatTimeHHMM(timestamp) {
+  if (!timestamp) return '--:--';
+  const d = new Date(timestamp);
+  if (Number.isNaN(d.getTime())) return '--:--';
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function calcDurationText(depTs, arrTs) {
+  if (!depTs || !arrTs) return '-';
+  const dep = new Date(depTs).getTime();
+  const arr = new Date(arrTs).getTime();
+  if (Number.isNaN(dep) || Number.isNaN(arr) || arr <= dep) return '-';
+  const mins = Math.round((arr - dep) / 60000);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h > 0 ? `${h}시간 ${m}분` : `${m}분`;
+}
+
+function mapPreviewSchedule(item) {
+  const trainNoStr = String(item.trainno ?? '').padStart(3, '0');
+  const availableCount = item.availableSeats ?? 0;
+  return {
+    id: item.schedule_seq,
+    scheduleSeq: item.schedule_seq,
+    name: `KTX ${trainNoStr}`,
+    type: item.vehiclekndnm || 'KTX',
+    depStationName: item.depStationName || item.depplacename || '-',
+    arrStationName: item.arrStationName || item.arrplacename || '-',
+    depTime: formatTimeHHMM(item.depplandtime),
+    arrTime: formatTimeHHMM(item.arrplandtime),
+    depDateRaw: formatLocalDateYMD(item.depplandtime),
+    duration: calcDurationText(item.depplandtime, item.arrplandtime),
+    price: Number(item.standard_price || 0).toLocaleString(),
+    status: availableCount > 0 ? '예매가능' : '매진',
+  };
+}
+
 export default function MainPage() {
-  const quickStations = ['서울', '용산', '광명', '대전', '동대구', '부산', '광주송정', '강릉'];
   const todayStr = getLocalDateYMD(0);
+  const [stationOptions, setStationOptions] = useState(DEFAULT_STATIONS);
   const [tripType, setTripType] = useState('편도');
   const [departureStation, setDepartureStation] = useState('서울');
   const [arrivalStation, setArrivalStation] = useState('부산');
   const [departureDate, setDepartureDate] = useState(todayStr);
   const [returnDate, setReturnDate] = useState(() => getLocalDateYMD(1));
+  const [hasSelectedCondition, setHasSelectedCondition] = useState(false);
+  const [isLoadingTrains, setIsLoadingTrains] = useState(false);
   const navigate = useNavigate();
 
   const handleDepartureDateChange = (nextDate) => {
     const safeDate = nextDate && nextDate < todayStr ? todayStr : nextDate;
     setDepartureDate(safeDate);
+    setHasSelectedCondition(true);
     if (safeDate && returnDate && returnDate < safeDate) {
       setReturnDate(safeDate);
     }
@@ -74,9 +126,19 @@ export default function MainPage() {
 
   const handleDepartureStationChange = (newDep) => {
     setDepartureStation(newDep);
+    setHasSelectedCondition(true);
     if (arrivalStation === newDep) {
-      const fallback = quickStations.find((st) => st !== newDep) || '부산';
+      const fallback = stationOptions.find((st) => st !== newDep) || '부산';
       setArrivalStation(fallback);
+    }
+  };
+
+  const handleArrivalStationChange = (newArr) => {
+    setArrivalStation(newArr);
+    setHasSelectedCondition(true);
+    if (departureStation === newArr) {
+      const fallback = stationOptions.find((st) => st !== newArr) || '서울';
+      setDepartureStation(fallback);
     }
   };
 
@@ -84,6 +146,7 @@ export default function MainPage() {
     const temp = departureStation;
     setDepartureStation(arrivalStation);
     setArrivalStation(temp);
+    setHasSelectedCondition(true);
   };
 
   const handleSearch = () => {
@@ -110,7 +173,7 @@ export default function MainPage() {
   };
 
   const handleGoToScheduleBooking = (train) => {
-    const formattedDate = formatDepartureDate(departureDate);
+    const formattedDate = formatDepartureDate(train.depDateRaw || departureDate);
     navigate('/reservation', {
       state: {
         scheduleSeq: train.scheduleSeq || train.id || 1,
@@ -119,8 +182,8 @@ export default function MainPage() {
         depTime: train.depTime,
         arrTime: train.arrTime,
         duration: train.duration,
-        depStation: departureStation,
-        arrStation: arrivalStation,
+        depStation: train.depStationName || departureStation,
+        arrStation: train.arrStationName || arrivalStation,
         depDate: formattedDate,
         returnDate: tripType === '왕복' ? formatDepartureDate(returnDate) : null,
         tripType,
@@ -139,19 +202,74 @@ export default function MainPage() {
     fetchWishList();
   }, [fetchWishList]);
 
-  const [previewTrains, setPreviewTrains] = useState([
-    {
-      id: 1,
-      scheduleSeq: 1,
-      name: 'KTX 001',
-      type: 'KTX',
-      depTime: '05:15',
-      arrTime: '07:42',
-      duration: '2시간 27분',
-      price: '59,800',
-      status: '예매가능',
-    },
-  ]);
+  useEffect(() => {
+    client
+      .get('/station')
+      .then((res) => {
+        if (Array.isArray(res.data) && res.data.length > 0) {
+          const names = Array.from(new Set(res.data.map((st) => st.nodename).filter(Boolean)));
+          if (names.length > 0) {
+            setStationOptions(names);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const [previewTrains, setPreviewTrains] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadPreviewSchedules = async () => {
+      setIsLoadingTrains(true);
+      try {
+        let rows = [];
+        if (hasSelectedCondition) {
+          const res = await client.get('/schedule', {
+            params: {
+              depStation: departureStation,
+              arrStation: arrivalStation,
+              date: departureDate,
+              page: 1,
+              size: 5,
+            },
+          });
+          rows = Array.isArray(res.data?.schedules) ? res.data.schedules.map(mapPreviewSchedule) : [];
+        } else {
+          // 기본: 현재 시각 기준 가장 최신(곧 출발하는) 스케줄 5개
+          const res = await client.get('/schedule', {
+            params: { page: 1, size: 5, upcoming: true },
+          });
+          rows = Array.isArray(res.data?.schedules) ? res.data.schedules.map(mapPreviewSchedule) : [];
+          if (rows.length === 0) {
+            const fallbackRes = await client.get('/schedule', {
+              params: { page: 1, size: 5 },
+            });
+            rows = Array.isArray(fallbackRes.data?.schedules)
+              ? fallbackRes.data.schedules.map(mapPreviewSchedule)
+              : [];
+          }
+        }
+
+        if (!cancelled) {
+          setPreviewTrains(rows.slice(0, 5));
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setPreviewTrains([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingTrains(false);
+        }
+      }
+    };
+
+    loadPreviewSchedules();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasSelectedCondition, departureStation, arrivalStation, departureDate]);
 
   return (
     <div className="main-page-wrapper">
@@ -187,14 +305,14 @@ export default function MainPage() {
 
             <div className="station-quick-select">
               <span className="quick-label">주요 정차역</span>
-              {quickStations
+              {stationOptions
                 .filter((st) => st !== departureStation)
                 .map((st) => (
                   <button
                     type="button"
                     key={st}
-                    className={`chip-btn ${arrivalStation === st ? 'selected' : ''}`}
-                    onClick={() => setArrivalStation(st)}
+                    className={`chip-btn ${hasSelectedCondition && arrivalStation === st ? 'selected' : ''}`}
+                    onClick={() => handleArrivalStationChange(st)}
                   >
                     {st}
                   </button>
@@ -211,14 +329,9 @@ export default function MainPage() {
                   onChange={(e) => handleDepartureStationChange(e.target.value)}
                   className="station-select"
                 >
-                  <option value="서울">서울</option>
-                  <option value="용산">용산</option>
-                  <option value="광명">광명</option>
-                  <option value="대전">대전</option>
-                  <option value="동대구">동대구</option>
-                  <option value="부산">부산</option>
-                  <option value="광주송정">광주송정</option>
-                  <option value="강릉">강릉</option>
+                  {stationOptions.map((st) => (
+                    <option key={st} value={st}>{st}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -239,17 +352,12 @@ export default function MainPage() {
               <div className="input-field-box">
                 <select 
                   value={arrivalStation} 
-                  onChange={(e) => setArrivalStation(e.target.value)}
+                  onChange={(e) => handleArrivalStationChange(e.target.value)}
                   className="station-select"
                 >
-                  <option value="부산">부산</option>
-                  <option value="동대구">동대구</option>
-                  <option value="대전">대전</option>
-                  <option value="광주송정">광주송정</option>
-                  <option value="강릉">강릉</option>
-                  <option value="포항">포항</option>
-                  <option value="서울">서울</option>
-                  <option value="용산">용산</option>
+                  {stationOptions.map((st) => (
+                    <option key={st} value={st}>{st}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -379,7 +487,11 @@ export default function MainPage() {
           <div className="section-head">
             <div>
               <h2>실시간 KTX 운행 현황</h2>
-              <p className="section-subtitle">{departureStation} ➔ {arrivalStation} 구간의 주요 배차 현황입니다.</p>
+              <p className="section-subtitle">
+                {hasSelectedCondition
+                  ? `${departureStation} ➔ ${arrivalStation} (${departureDate}) 구간의 주요 배차 현황입니다. (최대 5건)`
+                  : '현재 시각 기준 곧 출발하는 최신 KTX 열차 5편성입니다.'}
+              </p>
             </div>
             <button 
               type="button" 
@@ -391,7 +503,11 @@ export default function MainPage() {
           </div>
           
           <div className="preview-trains-grid">
-            {previewTrains && previewTrains.length > 0 ? (
+            {isLoadingTrains ? (
+              <div className="empty-train-message">
+                <p>실시간 KTX 운행 정보를 불러오는 중입니다...</p>
+              </div>
+            ) : previewTrains && previewTrains.length > 0 ? (
               previewTrains.map((train) => (
                 <div key={train.id} className="preview-train-card">
                   <div className="card-top">
@@ -407,7 +523,7 @@ export default function MainPage() {
                   <div className="card-time-row">
                     <div className="time-col">
                       <span className="time-val">{train.depTime}</span>
-                      <span className="station-name">{departureStation}</span>
+                      <span className="station-name">{train.depStationName}</span>
                     </div>
                     <div className="arrow-col">
                       <span className="duration-text">{train.duration}</span>
@@ -415,7 +531,7 @@ export default function MainPage() {
                     </div>
                     <div className="time-col">
                       <span className="time-val">{train.arrTime}</span>
-                      <span className="station-name">{arrivalStation}</span>
+                      <span className="station-name">{train.arrStationName}</span>
                     </div>
                   </div>
 
