@@ -21,6 +21,7 @@ public class WishListController {
 
     @PostMapping("/{scheduleSeq}")
     public int addWish(@PathVariable Long scheduleSeq, HttpServletRequest request) {
+        System.out.println(scheduleSeq + " : " + request.getAttribute(("id")));
         String memberId = (String) request.getAttribute("id");
         return wishListService.addWish(memberId, scheduleSeq);
     }

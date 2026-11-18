@@ -27,6 +27,7 @@ public class MemberController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody AuthLoginRequestDTO dto) {
+        System.out.println(dto.getId() + " : " + dto.getPw());
         if (mServ.isMember(dto.getId(), dto.getPw())) {
             String token = jwt.createToken(dto.getId());
             return ResponseEntity.ok(Map.of(
