@@ -4,6 +4,7 @@ import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import QuickMenu from '../../components/QuickMenu/QuickMenu';
 import client from '../Api/client';
+import useWishStore from '../../store/useWishStore';
 import './MainPage.css';
 
 export default function MainPage() {
@@ -108,42 +109,12 @@ export default function MainPage() {
     });
   };
 
-  const [favorites, setFavorites] = useState([
-    {
-      scheduleSeq: 1,
-      name: 'KTX 001',
-      type: 'KTX',
-      depTime: '05:15',
-      arrTime: '07:42',
-      duration: '2시간 27분',
-      depStation: '서울',
-      arrStation: '부산',
-      price: '59,800',
-    }
-  ]);
+  // 찜하기 중앙 스토어 연동 (메인·시각표·마이페이지 공통)
+  const { fetchWishList, toggleWish, isWish } = useWishStore();
 
   useEffect(() => {
-    client.get('/api/favorite')
-      .then((res) => {
-        if (Array.isArray(res.data)) {
-          setFavorites(res.data);
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  const handleToggleFavorite = (train) => {
-    const scheduleSeq = train.scheduleSeq || train.id;
-    const isFav = favorites.some((f) => f.name === train.name);
-
-    if (isFav) {
-      client.delete(`/api/favorite/${scheduleSeq}`).catch(() => {});
-      setFavorites(favorites.filter((f) => f.name !== train.name));
-    } else {
-      client.post('/api/favorite', { scheduleSeq }).catch(() => {});
-      setFavorites([...favorites, train]);
-    }
-  };
+    fetchWishList();
+  }, [fetchWishList]);
 
   const [previewTrains, setPreviewTrains] = useState([
     {
@@ -426,12 +397,12 @@ export default function MainPage() {
                     <div className="card-btn-group">
                       <button 
                         type="button" 
-                        className={`btn-favorite-heart ${favorites.some((f) => f.name === train.name) ? 'active' : ''}`}
-                        onClick={() => handleToggleFavorite(train)}
-                        title={favorites.some((f) => f.name === train.name) ? '찜 해제' : '열차 찜하기'}
+                        className={`btn-favorite-heart ${isWish(train.scheduleSeq || train.id) ? 'active' : ''}`}
+                        onClick={() => toggleWish(train.scheduleSeq || train.id)}
+                        title={isWish(train.scheduleSeq || train.id) ? '찜 해제' : '열차 찜하기'}
                         aria-label="열차 찜하기"
                       >
-                        {favorites.some((f) => f.name === train.name) ? '♥' : '♡'}
+                        {isWish(train.scheduleSeq || train.id) ? '♥' : '♡'}
                       </button>
                       <button 
                         type="button" 
