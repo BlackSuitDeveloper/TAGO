@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.kedu.tago.payment.PaymentMapper">
+
+    <insert id="insertPayment" parameterType="com.kedu.tago.payment.dto.PaymentDTO"
+            useGeneratedKeys="true" keyProperty="paymentSeq" keyColumn="payment_seq">
+        INSERT INTO payment (
+            reservation_seq,
+            order_id,
+            payment_key,
+            amount,
+            status,
+            requested_at,
+            approved_at
+        )
+        VALUES (
+            #{reservationSeq},
+            #{orderId},
+            #{paymentKey},
+            #{amount},
+            #{status},
+            #{requestedAt},
+            #{approvedAt}
+        )
+    </insert>
+
+    <select id="selectPaymentByReservationSeq" resultType="com.kedu.tago.payment.dto.PaymentDTO">
+        SELECT
+            payment_seq AS paymentSeq,
+            reservation_seq AS reservationSeq,
+            order_id AS orderId,
+            payment_key AS paymentKey,
+            amount,
+            status,
+            fail_reason AS failReason,
+            requested_at AS requestedAt,
+            approved_at AS approvedAt,
+            cancelled_at AS cancelledAt
+        FROM payment
+        WHERE reservation_seq = #{reservationSeq}
+        ORDER BY requested_at DESC
+        LIMIT 1
+    </select>
+
+    <update id="updatePaymentStatus">
+        UPDATE payment
+        SET status = #{status},
+            fail_reason = #{failReason},
+            cancelled_at = CASE WHEN #{status} = 'CANCELLED' THEN NOW() ELSE cancelled_at END
+        WHERE payment_seq = #{paymentSeq}
+    </update>
+
+</mapper>
