@@ -2,6 +2,7 @@ package com.kedu.tago.seat;
 
 import com.kedu.tago.seat.dto.CarSummaryDTO;
 import com.kedu.tago.seat.dto.SeatDTO;
+import com.kedu.tago.seat.dto.SeatStatusUpdateDTO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -16,13 +17,7 @@ public interface SeatMapper {
 
     SeatDTO selectSeat(@Param("scheduleSeq") Long scheduleSeq, @Param("carNo") Integer carNo, @Param("seatNo") String seatNo);
 
-    int updateSeatStatusConditional(
-            @Param("scheduleSeq") Long scheduleSeq,
-            @Param("carNo") Integer carNo,
-            @Param("seatNo") String seatNo,
-            @Param("currentStatus") String currentStatus,
-            @Param("newStatus") String newStatus
-    );
+    int updateSeatStatusConditional(SeatStatusUpdateDTO dto);
 
     int updateSeatStatusBySeq(@Param("seatSeq") Long seatSeq, @Param("newStatus") String newStatus);
 }

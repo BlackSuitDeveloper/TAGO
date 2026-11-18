@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import QuickMenu from '../../components/QuickMenu/QuickMenu';
+import useWishStore from '../../store/useWishStore';
 import './SchedulePage.css';
 
 const STATION_OPTIONS = ['서울', '용산', '광명', '대전', '동대구', '부산', '광주송정', '강릉', '포항'];
@@ -91,54 +92,12 @@ export default function SchedulePage() {
     });
   };
 
-  const [favorites, setFavorites] = useState(() => {
-    const saved = localStorage.getItem('tago_favorite_trains');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return [];
-      }
-    }
-    return [
-      {
-        id: 'fav-1',
-        name: 'KTX 001',
-        type: 'KTX',
-        depTime: '05:15',
-        arrTime: '07:42',
-        duration: '2시간 27분',
-        depStation: '서울',
-        arrStation: '부산',
-        price: '59,800',
-      }
-    ];
-  });
+  // 찜하기 중앙 스토어 연동 (메인·시각표·마이페이지 공통)
+  const { fetchWishList, toggleWish, isWish } = useWishStore();
 
-  const handleToggleFavorite = (train) => {
-    setFavorites((prev) => {
-      const exists = prev.some((item) => item.name === train.name);
-      let next;
-      if (exists) {
-        next = prev.filter((item) => item.name !== train.name);
-      } else {
-        const newFav = {
-          id: `fav-${Date.now()}`,
-          name: train.name,
-          type: 'KTX',
-          depTime: train.depTime,
-          arrTime: train.arrTime,
-          duration: train.duration,
-          depStation,
-          arrStation,
-          price: train.generalPrice,
-        };
-        next = [...prev, newFav];
-      }
-      localStorage.setItem('tago_favorite_trains', JSON.stringify(next));
-      return next;
-    });
-  };
+  useEffect(() => {
+    fetchWishList();
+  }, [fetchWishList]);
 
   const [scheduleList, setScheduleList] = useState([
     {
@@ -469,12 +428,12 @@ export default function SchedulePage() {
                   <div className="col-class-single">
                     <button 
                       type="button" 
-                      className={`btn-schedule-favorite ${favorites.some((f) => f.name === item.name) ? 'active' : ''}`}
-                      onClick={() => handleToggleFavorite(item)}
-                      title={favorites.some((f) => f.name === item.name) ? '찜 해제' : '열차 찜하기'}
+                      className={`btn-schedule-favorite ${isWish(item.scheduleSeq || item.id) ? 'active' : ''}`}
+                      onClick={() => toggleWish(item.scheduleSeq || item.id)}
+                      title={isWish(item.scheduleSeq || item.id) ? '찜 해제' : '열차 찜하기'}
                       aria-label="열차 찜하기"
                     >
-                      {favorites.some((f) => f.name === item.name) ? '♥' : '♡'}
+                      {isWish(item.scheduleSeq || item.id) ? '♥' : '♡'}
                     </button>
                     <button 
                       type="button" 
