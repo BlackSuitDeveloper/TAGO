@@ -1,11 +1,9 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import client from '../Api/client';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import './SignupPage.css';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
@@ -88,7 +86,7 @@ export default function SignupPage() {
     }
 
     try {
-      const response = await axios.get(`${API_BASE_URL}/member/checkId`, {
+      const response = await client.get('/member/checkId', {
         params: { id: userId },
       });
 
@@ -145,14 +143,14 @@ export default function SignupPage() {
         id: currentId,
         pw: formData.password,
         name: formData.name,
-        phone: formData.phone,
+        phone: formData.phone.replace(/[^0-9]/g, ''),
         email: formData.email,
         zipcode: formData.postcode,
         address1: formData.address,
         address2: formData.detailAddress,
       };
 
-      const response = await axios.post(`${API_BASE_URL}/member`, payload);
+      const response = await client.post('/member', payload);
 
       if (response.status === 200 && Number(response.data) === 1) {
         alert(`[회원가입 완료]\n${formData.name}님, 회원가입이 성공적으로 완료되었습니다.\n로그인 페이지로 이동합니다.`);

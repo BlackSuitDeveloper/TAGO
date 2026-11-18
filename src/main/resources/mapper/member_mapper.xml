@@ -5,23 +5,21 @@
 <mapper namespace="com.kedu.tago.member.MemberMapper">
 
     <!--로그인-->
-    <select id="isMember" resultType="int">
-        select count(*)
-        from member
-        where id = #{id}
-        and pw = #{pw}
+    <select id="getPasswordById" resultType="String">
+        select pw from member
+        where member_id = #{id}
     </select>
 
     <!--아이디 중복 체크-->
     <select id="checkId" parameterType="string" resultType="int">
         select count(*) from
-        member where id = #{id}
+        member where member_id = #{id}
     </select>
 
     <!-- 회원가입-->
     <insert id="insertMember" parameterType="com.kedu.tago.member.dto.MemberSignupRequestDTO">
         insert into member
-        (id, pw, name, phone, email, zipcode, address1, address2)
+        (member_id, pw, name, phone, email, zipcode, address1, address2)
         values
         (#{id}, #{pw}, #{name}, #{phone}, #{email}, #{zipcode}, #{address1}, #{address2})
     </insert>
@@ -29,9 +27,9 @@
     <!--회원 정보 조회-->
     <select id="selectMember" parameterType="string"
             resultType="com.kedu.tago.member.dto.MemberProfileResponseDTO">
-        select id, name, phone, email, zipcode, address1, address2, created_at
+        select member_id as id, name, phone, email, zipcode, address1, address2, created_at
         from member
-        where id = #{id}
+        where member_id = #{id}
     </select>
 
     <!--회원 정보 수정-->
@@ -43,13 +41,13 @@
         zipcode = #{zipcode},
         address1 = #{address1},
         address2 = #{address2}
-        where id = #{id}
+        where member_id = #{id}
     </update>
 
     <!--회원 탈퇴-->
     <delete id="deleteId" parameterType="string">
         delete from member
-        where id = #{id}
+        where member_id = #{id}
     </delete>
 
 </mapper>

@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import client from '../Api/client';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import QuickMenu from '../../components/QuickMenu/QuickMenu';
@@ -105,17 +106,58 @@ export default function MyPage() {
   };
 
   const [originalUserInfo, setOriginalUserInfo] = useState({
-    userId: 'user_tago',
-    name: '홍길동',
-    email: 'hong@tago.kr',
-    phone: '010-1234-5678',
-    postcode: '04320',
-    address: '서울특별시 중구 청파로 432',
-    detailAddress: '1201호',
+    userId: '',
+    name: '',
+    email: '',
+    phone: '',
+    postcode: '',
+    address: '',
+    detailAddress: '',
   });
 
   const [editUserInfo, setEditUserInfo] = useState({ ...originalUserInfo });
   const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    const token = sessionStorage.getItem('token');
+    if (!token) {
+      alert('로그인이 필요한 서비스입니다.');
+      navigate('/login');
+      return;
+    }
+
+    const fetchProfile = async () => {
+      try {
+        // GET /api/member/mypage
+        const response = await client.get('/member/mypage');
+        // console.log('마이페이지 응답 데이터:', response.data);
+        if (response.data) {
+          const data = response.data;
+          const loadedInfo = {
+            userId: data.id || data.member_id || '',
+            name: data.name || '',
+            email: data.email || '',
+            phone: data.phone || '',
+            postcode: data.zipcode || '',
+            address: data.address1 || '',
+            detailAddress: data.address2 || '',
+          };
+          setOriginalUserInfo(loadedInfo);
+          setEditUserInfo(loadedInfo);
+        }
+      } catch (error) {
+        console.error('마이페이지 정보 조회 실패:', error);
+        if (error.response?.status === 401) {
+          alert('로그인 세션이 만료되었습니다. 다시 로그인해 주세요.');
+          sessionStorage.removeItem('token');
+          sessionStorage.removeItem('id');
+          navigate('/login');
+        }
+      }
+    };
+
+    fetchProfile();
+  }, [navigate]);
 
   const [emailAuthStep, setEmailAuthStep] = useState(1);
   const [authCodeInput, setAuthCodeInput] = useState('');
@@ -138,11 +180,26 @@ export default function MyPage() {
     setIsEditing(false);
   };
 
-  const handleSaveProfile = (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
-    setOriginalUserInfo({ ...editUserInfo });
-    setIsEditing(false);
-    alert('회원 정보가 성공적으로 수정되었습니다.');
+    try {
+      // PUT /api/member
+      await client.put('/member', {
+        name: editUserInfo.name,
+        email: editUserInfo.email,
+        phone: editUserInfo.phone.replace(/[^0-9]/g, ''),
+        zipcode: editUserInfo.postcode,
+        address1: editUserInfo.address,
+        address2: editUserInfo.detailAddress,
+      });
+
+      setOriginalUserInfo({ ...editUserInfo });
+      setIsEditing(false);
+      alert('회원 정보가 성공적으로 수정되었습니다.');
+    } catch (error) {
+      console.error('회원 정보 수정 에러:', error);
+      alert('회원 정보 수정에 실패했습니다. 다시 시도해 주세요.');
+    }
   };
 
   const handleOpenKakaoPostcode = () => {

@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import client from '../Api/client';
+import useAuthStore from '../../store/useAuthStore';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import './LoginPage.css';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 export default function LoginPage() {
   const [userId, setUserId] = useState(() => localStorage.getItem('savedUserId') || '');
@@ -13,6 +12,7 @@ export default function LoginPage() {
   const [saveId, setSaveId] = useState(() => Boolean(localStorage.getItem('savedUserId')));
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const login = useAuthStore((state) => state.login);
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
@@ -23,8 +23,8 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      // POST /auth/login - 요청 데이터: id, pw (AuthDTO)
-      const response = await axios.post(`${API_BASE_URL}/auth/login`, {
+      // POST /member/login - baseURL("http://localhost:80/api")과 합쳐져 /api/member/login 으로 전송
+      const response = await client.post('/member/login', {
         id: userId,
         pw: password,
       });
@@ -35,6 +35,7 @@ export default function LoginPage() {
       const loggedInId = data.id || userId;
 
       if (token) {
+        login({ token, id: loggedInId });
         localStorage.setItem('token', token);
       }
       localStorage.setItem('userId', loggedInId);
