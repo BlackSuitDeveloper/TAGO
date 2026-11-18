@@ -25,7 +25,6 @@ bin/
 out/
 !**/src/main/**/out/
 !**/src/test/**/out/
-application.properties
 project-71dd55bd-6788-4af8-a17-d9f849005f61.json
 .env
 

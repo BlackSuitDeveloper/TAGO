@@ -10,15 +10,12 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/station")
+@RequestMapping("/station")
 @RequiredArgsConstructor
 public class StationController {
 
     private final StationService stationService;
 
-    /**
-     * 역 목록 조회 (GET /api/station)
-     */
     @GetMapping
     public ResponseEntity<List<StationResponseDTO>> getStationList() {
         return ResponseEntity.ok(stationService.getStationList());

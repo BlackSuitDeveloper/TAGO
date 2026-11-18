@@ -6,13 +6,19 @@
 
     <select id="selectStationList" resultType="com.kedu.tago.station.dto.StationResponseDTO">
         SELECT
-            nodeid,
-            nodename,
-            citycode,
-            cityname,
-            node_address
-        FROM station
-        ORDER BY nodename ASC
+            st.nodeid,
+            st.nodename,
+            st.citycode,
+            st.cityname,
+            st.node_address
+        FROM station st
+        WHERE EXISTS (
+            SELECT 1
+            FROM schedule sc
+            WHERE sc.depplacename = st.nodeid
+               OR sc.arrplacename = st.nodeid
+        )
+        ORDER BY st.nodename ASC
     </select>
 
 </mapper>

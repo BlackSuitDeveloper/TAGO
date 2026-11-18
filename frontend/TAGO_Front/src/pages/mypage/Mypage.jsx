@@ -4,6 +4,7 @@ import client from '../Api/client';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import QuickMenu from '../../components/QuickMenu/QuickMenu';
+import useWishStore from '../../store/useWishStore';
 import './MyPage.css';
 
 export default function MyPage() {
@@ -31,36 +32,59 @@ export default function MyPage() {
     alert('승차권 예매가 취소되었습니다.');
   };
 
-  const [favorites, setFavorites] = useState(() => {
-    const saved = localStorage.getItem('tago_favorite_trains');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return [];
-      }
-    }
-    return [
-      {
-        id: 'fav-1',
-        name: 'KTX 001',
-        type: 'KTX',
-        depTime: '05:15',
-        arrTime: '07:42',
-        duration: '2시간 27분',
-        depStation: '서울',
-        arrStation: '부산',
-        price: '59,800',
-      }
-    ];
-  });
+  // 찜하기 중앙 스토어 연동 (메인·시각표·마이페이지 공통)
+  const { wishList, fetchWishList, toggleWish, isWish } = useWishStore();
 
-  const handleRemoveFavorite = (trainName) => {
-    setFavorites((prev) => {
-      const next = prev.filter((item) => item.name !== trainName);
-      localStorage.setItem('tago_favorite_trains', JSON.stringify(next));
-      return next;
-    });
+  useEffect(() => {
+    fetchWishList();
+  }, [fetchWishList]);
+
+  // 화면 표시용 KTX 열차 목록 (찜된 번호만 필터링되어 자동 표시)
+  const allTrains = [
+    {
+      id: 1,
+      scheduleSeq: 1,
+      name: 'KTX 001',
+      type: 'KTX',
+      depTime: '05:15',
+      arrTime: '07:42',
+      duration: '2시간 27분',
+      depStation: '서울',
+      arrStation: '부산',
+      price: '59,800',
+    },
+    {
+      id: 2,
+      scheduleSeq: 2,
+      name: 'KTX 002',
+      type: 'KTX',
+      depTime: '06:00',
+      arrTime: '08:35',
+      duration: '2시간 35분',
+      depStation: '서울',
+      arrStation: '부산',
+      price: '59,800',
+    },
+    {
+      id: 3,
+      scheduleSeq: 3,
+      name: 'KTX 003',
+      type: 'KTX',
+      depTime: '07:00',
+      arrTime: '09:40',
+      duration: '2시간 40분',
+      depStation: '서울',
+      arrStation: '부산',
+      price: '59,800',
+    },
+  ];
+
+  // ⭐️ 백엔드에서 받아온 찜 목록 번호(wishList)와 일치하는 열차만 자동으로 마이페이지에 표시!
+  const favorites = allTrains.filter((train) => isWish(train.scheduleSeq || train.id));
+
+  // 마이페이지 찜 삭제 클릭 시 백엔드 DELETE 및 화면 즉시 갱신
+  const handleRemoveFavorite = (scheduleSeq) => {
+    toggleWish(scheduleSeq);
   };
 
   const handleBookFavoriteTrain = (fav) => {
@@ -441,7 +465,7 @@ export default function MyPage() {
                             <button 
                               type="button" 
                               className="btn-fav-remove"
-                              onClick={() => handleRemoveFavorite(train.name)}
+                              onClick={() => handleRemoveFavorite(train.scheduleSeq || train.id)}
                               title="관심 열차 목록에서 삭제"
                             >
                               찜 삭제

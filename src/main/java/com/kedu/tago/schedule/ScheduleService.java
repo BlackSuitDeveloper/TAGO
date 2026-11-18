@@ -14,10 +14,6 @@ public class ScheduleService {
 
     private final ScheduleMapper scheduleMapper;
 
-    public List<ScheduleResponseDTO> getListBySchedule() {
-        return scheduleMapper.selectScheduleList(new ScheduleSearchRequestDTO());
-    }
-
     public SchedulePageResponseDTO getScheduleList(ScheduleSearchRequestDTO searchDTO) {
         int page = searchDTO.getSafePage();
         int size = searchDTO.getSafeSize();

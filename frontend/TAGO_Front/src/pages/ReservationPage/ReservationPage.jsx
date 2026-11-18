@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import QuickMenu from '../../components/QuickMenu/QuickMenu';
+import client from '../Api/client';
 import './ReservationPage.css';
 
 const KTX_CARS = [
@@ -33,6 +34,7 @@ export default function ReservationPage() {
   const bookingInfo = useMemo(() => {
     const state = location.state || {};
     return {
+      scheduleSeq: state.scheduleSeq || state.train?.scheduleSeq || 1,
       trainName: state.trainName || state.train?.name || 'KTX 001',
       trainType: 'KTX',
       depTime: state.depTime || state.train?.depTime || '05:15',
@@ -81,10 +83,71 @@ export default function ReservationPage() {
 
   const [selectedSeats, setSelectedSeats] = useState([]);
   const [paymentMethod, setPaymentMethod] = useState('card');
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const [occupiedSeatsByCar, setOccupiedSeatsByCar] = useState({
     1: ['1A', '1B'],
   });
+
+  // 호차 변경 또는 스케줄 변경 시 백엔드 좌석 목록(GET /api/seat) 실시간 연동
+  useEffect(() => {
+    let isMounted = true;
+    const fetchSeats = async () => {
+      try {
+        const res = await client.get(`/api/seat`, {
+          params: {
+            scheduleSeq: bookingInfo.scheduleSeq,
+            carNo: selectedCarNo,
+          },
+        });
+        if (isMounted && res.data && res.data.seatList) {
+          const occupied = res.data.seatList
+            .filter((s) => s.status !== 'AVAILABLE')
+            .map((s) => s.seatNo);
+          setOccupiedSeatsByCar((prev) => ({
+            ...prev,
+            [selectedCarNo]: occupied,
+          }));
+        }
+      } catch (err) {
+        console.warn('좌석 상태 조회 실패 (서버 연결 대기 또는 Mock 유지):', err.message);
+      }
+    };
+
+    fetchSeats();
+
+    // SSE 실시간 좌석 스트림 연결 (GET /api/seat/stream)
+    let eventSource = null;
+    try {
+      eventSource = new EventSource(
+        `http://localhost:80/api/seat/stream?scheduleSeq=${bookingInfo.scheduleSeq}`
+      );
+      eventSource.addEventListener('SEAT_UPDATE', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data && data.carNo && data.seatNo) {
+            setOccupiedSeatsByCar((prev) => {
+              const current = prev[data.carNo] || [];
+              if (data.status === 'AVAILABLE') {
+                return { ...prev, [data.carNo]: current.filter((no) => no !== data.seatNo) };
+              } else {
+                return { ...prev, [data.carNo]: Array.from(new Set([...current, data.seatNo])) };
+              }
+            });
+          }
+        } catch (parseErr) {
+          console.error('SSE 파싱 에러:', parseErr);
+        }
+      });
+    } catch (sseErr) {
+      console.warn('SSE 연결 대기:', sseErr.message);
+    }
+
+    return () => {
+      isMounted = false;
+      if (eventSource) eventSource.close();
+    };
+  }, [bookingInfo.scheduleSeq, selectedCarNo]);
 
   const currentCarOccupied = occupiedSeatsByCar[selectedCarNo] || [];
 
@@ -122,33 +185,57 @@ export default function ReservationPage() {
   const isSelectionComplete = selectedSeats.length === targetSeatCount;
   const totalPrice = selectedSeats.length * bookingInfo.unitPrice;
 
-  const handleFinalPayment = () => {
+  // 최종 결제 및 발권 확정 (POST /api/reservation 선점 -> POST /api/payment 확정)
+  const handleFinalPayment = async () => {
     if (!isSelectionComplete) {
       alert(`좌석을 모두 선택해 주세요. (현재 ${selectedSeats.length}/${targetSeatCount}석 선택됨)`);
       return;
     }
 
-    const seatString = selectedSeats.map((s) => `${s.carNo}호차 ${s.seatId}`).join(', ');
-    const paymentName =
-      paymentMethod === 'card'
-        ? '신용/체크카드'
-        : paymentMethod === 'easy'
-        ? '간편결제 (카카오/네이버/토스)'
-        : '실시간 계좌이체';
+    if (isProcessing) return;
+    setIsProcessing(true);
 
-    alert(
-      `[KTX 승차권 결제 및 발권 완료]\n\n` +
-      `• 열차: ${bookingInfo.trainName} (KTX 직통)\n` +
-      `• 구간: ${bookingInfo.depStation} ➔ ${bookingInfo.arrStation}\n` +
-      `• 일시: ${bookingInfo.depDate} | 출발 ${bookingInfo.depTime} ➔ 도착 ${bookingInfo.arrTime}\n` +
-      `• 승객: ${bookingInfo.passenger} (총 ${targetSeatCount}명)\n` +
-      `• 지정 좌석: ${seatString}\n` +
-      `• 결제 수단: ${paymentName}\n` +
-      `• 총 결제금액: ${totalPrice.toLocaleString()}원\n\n` +
-      `승차권 발권이 정상 처리되었습니다.\n마이페이지(승차권 확인)로 이동합니다.`
-    );
+    try {
+      const seatNoList = selectedSeats.map((s) => s.seatId);
 
-    navigate('/mypage');
+      // 1. 좌석 선점 (POST /api/reservation)
+      const resHold = await client.post('/api/reservation', {
+        scheduleSeq: bookingInfo.scheduleSeq,
+        carNo: selectedCarNo,
+        seatList: seatNoList,
+        count: seatNoList.length,
+      });
+
+      const reservationId = resHold.data.reservationId || resHold.data.reservationSeq;
+
+      // 2. 결제 및 발권 확정 (POST /api/payment)
+      const resPay = await client.post('/api/payment', {
+        reservationId: reservationId,
+        payMethod: paymentMethod === 'card' ? 'CARD' : paymentMethod === 'easy' ? 'EASY' : 'TRANSFER',
+        totalPrice: totalPrice,
+      });
+
+      const ticketNumber = resPay.data.ticketNumber || '1029-3847-5690-11';
+      const seatString = selectedSeats.map((s) => `${s.carNo}호차 ${s.seatId}`).join(', ');
+
+      alert(
+        `[KTX 승차권 결제 및 발권 완료]\n\n` +
+        `• 승차권 번호: ${ticketNumber}\n` +
+        `• 열차: ${bookingInfo.trainName} (KTX)\n` +
+        `• 구간: ${bookingInfo.depStation} ➔ ${bookingInfo.arrStation}\n` +
+        `• 지정 좌석: ${seatString}\n` +
+        `• 결제 금액: ${totalPrice.toLocaleString()}원\n\n` +
+        `승차권이 정상적으로 발권되었습니다. 마이페이지로 이동합니다.`
+      );
+
+      navigate('/mypage');
+    } catch (err) {
+      console.error('예매/결제 실패:', err);
+      const errMsg = err.response?.data?.message || err.response?.data || '좌석 선점 또는 결제 처리 중 오류가 발생했습니다.';
+      alert(`[예매 실패]\n${errMsg}`);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (

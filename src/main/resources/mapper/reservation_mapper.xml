@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.kedu.tago.reservation.ReservationMapper">
+
+    <insert id="insertReservation" parameterType="com.kedu.tago.reservation.dto.ReservationDTO"
+            useGeneratedKeys="true" keyProperty="reservationSeq" keyColumn="reservation_seq">
+        INSERT INTO reservation (
+            member_id,
+            schedule_seq,
+            seat_seq,
+            status,
+            total_price,
+            reserved_at,
+            expires_at
+        )
+        VALUES (
+            #{memberId},
+            #{scheduleSeq},
+            #{seatSeq},
+            #{status},
+            #{totalPrice},
+            #{reservedAt},
+            #{expiresAt}
+        )
+    </insert>
+
+    <select id="selectReservationById" resultType="com.kedu.tago.reservation.dto.ReservationDTO">
+        SELECT
+            reservation_seq AS reservationSeq,
+            member_id AS memberId,
+            schedule_seq AS scheduleSeq,
+            seat_seq AS seatSeq,
+            status,
+            total_price AS totalPrice,
+            reserved_at AS reservedAt,
+            expires_at AS expiresAt,
+            confirmed_at AS confirmedAt,
+            cancelled_at AS cancelledAt,
+            cancel_reason AS cancelReason
+        FROM reservation
+        WHERE reservation_seq = #{reservationSeq}
+    </select>
+
+    <update id="updateReservationStatus">
+        UPDATE reservation
+        SET status = #{status},
+            cancelled_at = NOW(),
+            cancel_reason = #{cancelReason}
+        WHERE reservation_seq = #{reservationSeq}
+    </update>
+
+    <update id="confirmReservation">
+        UPDATE reservation
+        SET status = 'CONFIRMED',
+            confirmed_at = NOW()
+        WHERE reservation_seq = #{reservationSeq}
+    </update>
+
+    <!-- TTL 만료된 선점(HELD) 예약 목록 조회 -->
+    <select id="selectExpiredHeldReservations" resultType="com.kedu.tago.reservation.dto.ReservationDTO">
+        SELECT
+            reservation_seq AS reservationSeq,
+            member_id AS memberId,
+            schedule_seq AS scheduleSeq,
+            seat_seq AS seatSeq,
+            status,
+            total_price AS totalPrice,
+            reserved_at AS reservedAt,
+            expires_at AS expiresAt
+        FROM reservation
+        WHERE status = 'HELD'
+          AND expires_at &lt; NOW()
+    </select>
+
+    <!-- 내 예매 내역 조회 (MA001) -->
+    <select id="selectMyReservations" resultType="com.kedu.tago.reservation.dto.MyTicketResponseDTO">
+        SELECT
+            r.reservation_seq AS reservationSeq,
+            r.schedule_seq AS scheduleSeq,
+            s.trainno,
+            t.vehiclekndnm,
+            ds.nodename AS depStation,
+            as2.nodename AS arrStation,
+            s.depplandtime,
+            s.arrplandtime,
+            st.car_no AS carNo,
+            st.seat_no AS seatNo,
+            st.seat_grade AS seatGrade,
+            r.total_price AS totalPrice,
+            r.status,
+            p.order_id AS ticketNumber,
+            r.reserved_at AS reservedAt,
+            r.expires_at AS expiresAt,
+            r.confirmed_at AS confirmedAt
+        FROM reservation r
+        JOIN schedule s ON r.schedule_seq = s.schedule_seq
+        LEFT JOIN train t ON s.trainno = t.trainno
+        LEFT JOIN station ds ON s.depplacename = ds.nodeid
+        LEFT JOIN station as2 ON s.arrplacename = as2.nodeid
+        JOIN seat st ON r.seat_seq = st.seat_seq
+        LEFT JOIN payment p ON r.reservation_seq = p.reservation_seq AND p.status = 'APPROVED'
+        WHERE r.member_id = #{memberId}
+        ORDER BY r.reserved_at DESC
+    </select>
+
+</mapper>
