@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
-@RequestMapping("/api/seat")
+@RequestMapping("/seat")
 @RequiredArgsConstructor
 public class SeatController {
 
