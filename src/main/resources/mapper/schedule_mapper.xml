@@ -15,6 +15,9 @@
             <if test="date != null and date != ''">
                 AND DATE(s.depplandtime) = CAST(#{date} AS DATE)
             </if>
+            <if test="upcoming != null and upcoming">
+                AND s.depplandtime &gt;= NOW()
+            </if>
             <if test="keyword != null and keyword != ''">
                 AND (
                     ds.nodename ILIKE CONCAT('%', #{keyword}, '%')

@@ -12,6 +12,7 @@ public class ScheduleSearchRequestDTO {
     private String date;
     private String keyword;
     private String filter = "ALL";
+    private Boolean upcoming;
     private int page = 1;
     private int size = 10;
 
