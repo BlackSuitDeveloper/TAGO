@@ -1,5 +1,7 @@
 package com.kedu.tago.reservation;
 
+import com.kedu.tago.common.exception.ErrorCode;
+import com.kedu.tago.common.exception.ApiException;
 import com.kedu.tago.reservation.dto.MyTicketResponseDTO;
 import com.kedu.tago.reservation.dto.ReservationDTO;
 import com.kedu.tago.reservation.dto.ReservationRequestDTO;
@@ -12,11 +14,9 @@ import com.kedu.tago.seat.dto.SeatDTO;
 import com.kedu.tago.sync.service.SeatTemplateGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -45,13 +45,13 @@ public class ReservationService {
         List<String> seatList = request.getSeatList();
 
         if (scheduleSeq == null || carNo == null || seatList == null || seatList.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "운행 정보, 호차 및 좌석을 선택해 주세요.");
+            throw new ApiException(ErrorCode.SEAT_NOT_SELECTED);
         }
 
         // 운행 일정 확인 및 요금 계산
         ScheduleResponseDTO schedule = scheduleService.getScheduleDetail(scheduleSeq);
         if (schedule == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 운행 일정입니다.");
+            throw new ApiException(ErrorCode.SCHEDULE_NOT_FOUND);
         }
 
         int unitPrice = (schedule.getStandard_price() != null && schedule.getStandard_price() > 0)
@@ -67,7 +67,7 @@ public class ReservationService {
             // 1. 고정 좌석 템플릿 검증 (존재하지 않는 호차/좌석 번호 차단)
             SeatTemplateGenerator.SeatTemplateItem templateSeat = seatTemplateGenerator.findTemplateSeat(carNo, seatNo);
             if (templateSeat == null) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "호차 " + carNo + ", 좌석 " + seatNo + " 정보를 찾을 수 없습니다.");
+                throw new ApiException(ErrorCode.SEAT_NOT_FOUND, "호차 " + carNo + ", 좌석 " + seatNo + " 정보를 찾을 수 없습니다.");
             }
 
             // 2. 점유 좌석 INSERT 시도 (UNIQUE(schedule_seq, car_no, seat_no) + ON CONFLICT DO NOTHING 동시성 제어)
@@ -81,7 +81,7 @@ public class ReservationService {
             int inserted = seatMapper.insertOccupiedSeat(seatToInsert);
             if (inserted == 0 || seatToInsert.getSeatSeq() == null) {
                 // 이미 다른 사용자가 선점하였거나 예약된 상태
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "좌석 " + seatNo + "은(는) 이미 선택되었거나 예약이 진행 중입니다.");
+                throw new ApiException(ErrorCode.SEAT_ALREADY_TAKEN, "좌석 " + seatNo + "은(는) 이미 선택되었거나 예약이 진행 중입니다.");
             }
 
             // 3. reservation 레코드 생성
@@ -125,15 +125,15 @@ public class ReservationService {
     public void cancelReservation(Long reservationSeq, String memberId) {
         ReservationDTO reservation = reservationMapper.selectReservationById(reservationSeq);
         if (reservation == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "예매 내역을 찾을 수 없습니다.");
+            throw new ApiException(ErrorCode.RESERVATION_NOT_FOUND);
         }
 
         if (memberId != null && !memberId.equals(reservation.getMemberId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인의 예매만 취소할 수 있습니다.");
+            throw new ApiException(ErrorCode.NOT_RESOURCE_OWNER, "본인의 예매만 취소할 수 있습니다.");
         }
 
         if ("CANCELLED".equals(reservation.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "이미 취소된 예매입니다.");
+            throw new ApiException(ErrorCode.RESERVATION_ALREADY_CANCELLED);
         }
 
         // 1. 예약 상태 취소로 변경 (chk_res_cancel_reason: USER_CANCEL, TTL_EXPIRED, PAYMENT_FAILED)

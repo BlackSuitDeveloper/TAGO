@@ -54,6 +54,31 @@
 - **인증 방식**: JWT 기반 인증
 - **인증 헤더**: `Authorization: Bearer <JWT_TOKEN>`
 
+#### 📦 공통 응답 형식
+
+모든 API(실시간 좌석 스트림 `/seat/stream` 제외)는 아래 세 가지 중 하나로 응답하며, 값이 없는 필드는 생략된다.
+
+| 구분 | 형식 | 설명 |
+|---|---|---|
+| 일반 | `{ "success": true, "data": {...}, "message": "..." }` | `data`, `message` 는 있을 때만 |
+| 목록 | `{ "success": true, "data": [...], "totalCount": 120 }` | `totalCount` 는 조건에 맞는 전체 건수 |
+| 에러 | `{ "success": false, "status": 409, "code": 4003, "message": "..." }` | `status` 는 HTTP 상태 코드, `code` 는 아래 에러 코드 |
+
+- 서버: 성공은 `ResWrapper.ok / done / list`, 에러는 `throw new ApiException(ErrorCode.XXX)` 를 던지면 `GlobalExceptionHandler` 가 위 형식으로 바꾼다. 상황별 문구가 필요하면 `new ApiException(ErrorCode.XXX, "문구")`.
+
+#### 🔢 에러 코드
+
+번호는 종류별 대역으로 나눈다. 전체 목록은 `ErrorCode.java` 에 있고, 새 에러는 해당 대역에 추가한다.
+
+| 대역 | 종류 | 예 |
+|---|---|---|
+| 1000번대 | 공통 (요청 형식, 경로, 데이터 충돌) | 1000 요청 형식 오류, 1002 경로 없음 |
+| 2000번대 | 인증 / 인가 | 2000 로그인 필요, 2001 토큰 오류, 2004 관리자 전용, 2005 본인 것만 가능 |
+| 3000번대 | 회원 / 이메일 인증 | 3010 인증번호 불일치, 3020 비밀번호 길이 |
+| 4000번대 | 운행 / 좌석 | 4000 운행 일정 없음, 4003 이미 선택된 좌석 |
+| 5000번대 | 예매 / 결제 | 5000 예매 내역 없음, 5011 선점 시간 만료 |
+| 9000번대 | 서버 | 9000 내부 오류 |
+
 #### 👤 회원 (Member)
 
 | Method | Endpoint | 설명 | 인증 |

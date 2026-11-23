@@ -1,5 +1,6 @@
 package com.kedu.tago.sync.controller;
 
+import com.kedu.tago.common.response.ResWrapper;
 import com.kedu.tago.sync.config.TagoRouteConfig;
 import com.kedu.tago.sync.dto.SyncResultDTO;
 import com.kedu.tago.sync.service.MasterSyncService;
@@ -7,7 +8,6 @@ import com.kedu.tago.sync.service.ScheduleSyncService;
 import com.kedu.tago.sync.service.SeatTemplateGenerator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -32,40 +32,41 @@ public class TagoSyncController {
     private final TagoRouteConfig routeConfig;
 
     @PostMapping("/master")
-    public ResponseEntity<SyncResultDTO> syncMasterData() {
-        SyncResultDTO result = masterSyncService.syncAllMasterData();
-        return ResponseEntity.ok(result);
+    public ResWrapper<SyncResultDTO> syncMasterData() {
+        return ResWrapper.ok(masterSyncService.syncAllMasterData());
     }
 
     @PostMapping("/mock")
-    public ResponseEntity<SyncResultDTO> syncMockSampleData() {
-        SyncResultDTO result = scheduleSyncService.insertMockSampleData();
-        return ResponseEntity.ok(result);
+    public ResWrapper<SyncResultDTO> syncMockSampleData() {
+        return ResWrapper.ok(scheduleSyncService.insertMockSampleData());
     }
 
     @PostMapping("/schedules")
-    public ResponseEntity<SyncResultDTO> syncSchedulesByDate(
+    public ResWrapper<SyncResultDTO> syncSchedulesByDate(
             @RequestParam(value = "date", required = false) String date) {
+
         String targetDate = (date == null || date.isBlank())
                 ? LocalDate.now().format(DATE_FMT)
                 : date.replaceAll("[^0-9]", "");
-        SyncResultDTO result = scheduleSyncService.syncSchedulesByDate(targetDate);
-        return ResponseEntity.ok(result);
+
+        return ResWrapper.ok(scheduleSyncService.syncSchedulesByDate(targetDate));
     }
 
     @PostMapping("/schedules/range")
-    public ResponseEntity<List<SyncResultDTO>> syncSchedulesByRange(
+    public ResWrapper<List<SyncResultDTO>> syncSchedulesByRange(
             @RequestParam(value = "startDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(value = "endDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+
         LocalDate start = startDate != null ? startDate : LocalDate.now();
         LocalDate end = endDate != null ? endDate : start.plusDays(2); // 기본 3일치
-        List<SyncResultDTO> results = scheduleSyncService.syncSchedulesByDateRange(start, end);
-        return ResponseEntity.ok(results);
+
+        return ResWrapper.list(scheduleSyncService.syncSchedulesByDateRange(start, end));
     }
 
     @GetMapping("/status")
-    public ResponseEntity<Map<String, Object>> getSyncStatus() {
+    public ResWrapper<Map<String, Object>> getSyncStatus() {
         Map<String, String> cachedStations = masterSyncService.getStationNameToIdCache();
+
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("cachedStationCount", cachedStations.size());
         body.put("designatedRouteCount", routeConfig.getTargetRoutes().size());
@@ -75,6 +76,6 @@ public class TagoSyncController {
                 "seatGrade", SeatTemplateGenerator.GRADE_STANDARD,
                 "totalSeatsPerSchedule", SeatTemplateGenerator.TOTAL_KTX_SEATS
         ));
-        return ResponseEntity.ok(body);
+        return ResWrapper.ok(body);
     }
 }

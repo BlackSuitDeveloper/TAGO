@@ -47,13 +47,13 @@ public class AuthInterceptor implements HandlerInterceptor {
             } catch (Exception e) {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setContentType("application/json;charset=UTF-8");
-                response.getWriter().write("{\"message\":\"유효하지 않거나 만료된 토큰입니다.\"}");
+                response.getWriter().write("{\"success\":false,\"status\":401,\"code\":2001,\"message\":\"유효하지 않거나 만료된 토큰입니다.\"}");
                 return false;
             }
         } else {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write("{\"message\":\"로그인이 필요합니다.\"}");
+            response.getWriter().write("{\"success\":false,\"status\":401,\"code\":2000,\"message\":\"로그인이 필요합니다.\"}");
             return false;
         }
     }
