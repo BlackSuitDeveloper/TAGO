@@ -54,7 +54,7 @@ function loadUpcoming() {
   inflight = client
     .get('/schedule', { params: { page: 1, size: 5, upcoming: true } })
     .then((res) => {
-      const rows = Array.isArray(res.data?.schedules) ? res.data.schedules : [];
+      const rows = Array.isArray(res.data) ? res.data : [];
       return rows.map(toItem).filter((it) => it && it.from && it.to);
     })
     .catch(() => []) // 실패해도 조용히 숨긴다. 같은 60초 동안은 다시 부르지 않는다.

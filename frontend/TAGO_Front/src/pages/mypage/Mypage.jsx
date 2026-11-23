@@ -452,7 +452,7 @@ export default function MyPage() {
   const handleSendEmailAuth = async () => {
     try {
       const res = await client.post('/member/password/send-code');
-      notify.success(res.data?.message || `회원님의 가입 이메일(${originalUserInfo.email})로 6자리 인증번호가 발송되었습니다.`);
+      notify.success(res.message || `회원님의 가입 이메일(${originalUserInfo.email})로 6자리 인증번호가 발송되었습니다.`);
       setEmailAuthStep(2);
     } catch (err) {
       console.error(err);
@@ -467,7 +467,7 @@ export default function MyPage() {
     }
     try {
       const res = await client.post('/member/password/verify', { code: authCodeInput.trim() });
-      notify.success(res.data?.message || '이메일 본인인증이 완료되었습니다. 새로운 비밀번호를 설정해 주세요.');
+      notify.success(res.message || '이메일 본인인증이 완료되었습니다. 새로운 비밀번호를 설정해 주세요.');
       setIsEmailVerified(true);
       setEmailAuthStep(3);
     } catch (err) {
@@ -493,7 +493,7 @@ export default function MyPage() {
 
     try {
       const res = await client.put('/member/password', { newPassword });
-      notify.success(res.data?.message || '비밀번호가 성공적으로 변경되었습니다. 다음 로그인부터 적용됩니다.');
+      notify.success(res.message || '비밀번호가 성공적으로 변경되었습니다. 다음 로그인부터 적용됩니다.');
       setNewPassword('');
       setConfirmNewPassword('');
       setAuthCodeInput('');

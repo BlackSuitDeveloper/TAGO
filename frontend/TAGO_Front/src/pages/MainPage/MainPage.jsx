@@ -427,20 +427,18 @@ export default function MainPage() {
               size: 5,
             },
           });
-          rows = Array.isArray(res.data?.schedules) ? res.data.schedules.map(mapPreviewSchedule) : [];
+          rows = Array.isArray(res.data) ? res.data.map(mapPreviewSchedule) : [];
         } else {
           // 기본: 현재 시각 기준 가장 최신(곧 출발하는) 스케줄 5개
           const res = await client.get('/schedule', {
             params: { page: 1, size: 5, upcoming: true },
           });
-          rows = Array.isArray(res.data?.schedules) ? res.data.schedules.map(mapPreviewSchedule) : [];
+          rows = Array.isArray(res.data) ? res.data.map(mapPreviewSchedule) : [];
           if (rows.length === 0) {
             const fallbackRes = await client.get('/schedule', {
               params: { page: 1, size: 5 },
             });
-            rows = Array.isArray(fallbackRes.data?.schedules)
-              ? fallbackRes.data.schedules.map(mapPreviewSchedule)
-              : [];
+            rows = Array.isArray(fallbackRes.data) ? fallbackRes.data.map(mapPreviewSchedule) : [];
           }
         }
 

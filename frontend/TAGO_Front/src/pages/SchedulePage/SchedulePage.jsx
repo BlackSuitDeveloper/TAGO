@@ -209,12 +209,12 @@ export default function SchedulePage() {
         if (date) params.date = date;
 
         const res = await client.get('/schedule', { params });
-        const data = res.data || {};
-        const rows = Array.isArray(data.schedules) ? data.schedules.map(mapScheduleItem) : [];
+        const rows = Array.isArray(res.data) ? res.data.map(mapScheduleItem) : [];
+        const total = res.totalCount ?? rows.length;
 
         setScheduleList(rows);
-        setTotalCount(data.totalCount ?? rows.length);
-        setTotalPages(data.totalPages ?? 1);
+        setTotalCount(total);
+        setTotalPages(Math.ceil(total / params.size));
       } catch (err) {
         setScheduleList([]);
         setTotalCount(0);

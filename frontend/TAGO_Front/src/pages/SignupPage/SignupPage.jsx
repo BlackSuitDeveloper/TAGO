@@ -119,9 +119,8 @@ export default function SignupPage() {
         params: { id: userId },
       });
 
-      const count = Number(response.data);
-
-      if (count === 0) {
+      // data: 사용 가능한 아이디면 true
+      if (response.data === true) {
         notify.success('사용 가능한 아이디입니다.');
         setIsIdChecked(true);
         setCheckedId(userId);
@@ -182,7 +181,7 @@ export default function SignupPage() {
 
       const response = await client.post('/member', payload);
 
-      if (response.status === 200 && Number(response.data) === 1) {
+      if (response.status === 200) {
         await dialog.alert(`${formData.name}님, 회원가입이 성공적으로 완료되었습니다.\n로그인 페이지로 이동합니다.`, {
           title: '회원가입 완료',
           tone: 'success',
