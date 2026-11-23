@@ -6,7 +6,6 @@ import com.kedu.tago.sync.dao.MasterSyncDAO;
 import com.kedu.tago.sync.dto.SyncResultDTO;
 import com.kedu.tago.sync.dto.TagoCityDTO;
 import com.kedu.tago.sync.dto.TagoStationDTO;
-import com.kedu.tago.sync.dto.TagoTrainScheduleDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

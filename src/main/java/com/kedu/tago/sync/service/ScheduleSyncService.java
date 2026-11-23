@@ -166,10 +166,6 @@ public class ScheduleSyncService {
                 .build();
     }
 
-    public int batchInsertSeatsForSchedule(long scheduleSeq) {
-        return scheduleSyncDAO.batchInsertSeats(scheduleSeq, seatTemplateGenerator.getKtxSeatTemplate());
-    }
-
     /**
      * 테스트/검증용 임의의 KTX 마스터(station, train) 및 운행 일정(schedule) + 좌석(935석) 샘플 데이터 적재
      */

@@ -8,7 +8,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 공공데이터(TAGO) 조회 대상 KTX 노선 쌍, KTX 1세대 1~46호기 마스터 배정, 미제공 필드 보정 규칙 설정.
@@ -150,12 +149,6 @@ public class TagoRouteConfig {
             Map.entry("부전", "부산광역시 부산진구 부전로 181")
     );
 
-    private static final Set<String> HONAM_STATIONS = Set.of("광주송정", "목포", "익산", "정읍", "나주", "공주", "서대전", "논산");
-    private static final Set<String> JEOLLA_STATIONS = Set.of("여수EXPO", "여수엑스포", "여천", "순천", "전주", "남원", "곡성", "구례구");
-    private static final Set<String> GANGNEUNG_STATIONS = Set.of("강릉", "평창", "진부", "정동진", "묵호", "동해", "만종", "횡성", "둔내");
-    private static final Set<String> GYEONGJEON_STATIONS = Set.of("진주", "마산", "창원", "창원중앙", "진영");
-    private static final Set<String> DONGHAE_STATIONS = Set.of("포항");
-    private static final Set<String> JUNGANG_STATIONS = Set.of("안동", "영주", "풍기", "단양", "제천", "원주");
 
     public List<RoutePair> getTargetRoutes() {
         return TARGET_ROUTES;
@@ -173,25 +166,4 @@ public class TagoRouteConfig {
         return cleanCity + " " + cleanNode + "역";
     }
 
-    /**
-     * 출발역-도착역 기준으로 노선명(train.line_category) 자동 판별
-     */
-    public String resolveLineCategory(String depStationName, String arrStationName) {
-        for (RoutePair pair : TARGET_ROUTES) {
-            if (pair.getDepStationName().equals(depStationName) && pair.getArrStationName().equals(arrStationName)) {
-                return pair.getLineCategory();
-            }
-        }
-        if (isAnyIn(depStationName, arrStationName, JEOLLA_STATIONS)) return "전라선";
-        if (isAnyIn(depStationName, arrStationName, HONAM_STATIONS)) return "호남선";
-        if (isAnyIn(depStationName, arrStationName, GANGNEUNG_STATIONS)) return "강릉선";
-        if (isAnyIn(depStationName, arrStationName, GYEONGJEON_STATIONS)) return "경전선";
-        if (isAnyIn(depStationName, arrStationName, DONGHAE_STATIONS)) return "동해선";
-        if (isAnyIn(depStationName, arrStationName, JUNGANG_STATIONS)) return "중앙선";
-        return "경부선";
-    }
-
-    private boolean isAnyIn(String dep, String arr, Set<String> targetSet) {
-        return (dep != null && targetSet.contains(dep)) || (arr != null && targetSet.contains(arr));
-    }
 }

@@ -1,14 +1,12 @@
 package com.kedu.tago.sync.dao;
 
 import com.kedu.tago.sync.dto.ScheduleInsertDTO;
-import com.kedu.tago.sync.service.SeatTemplateGenerator;
 import lombok.RequiredArgsConstructor;
 import org.apache.ibatis.session.SqlSession;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -63,18 +61,4 @@ public class ScheduleSyncDAO {
         return dto.getScheduleSeq();
     }
 
-    /**
-     * 신규 생성된 schedule_seq에 대해 1~18호차 총 935석(모두 STANDARD) 좌석을 MyBatis <foreach>로 일괄 적재
-     */
-    public int batchInsertSeats(long scheduleSeq, List<SeatTemplateGenerator.SeatTemplateItem> template) {
-        if (template == null || template.isEmpty()) {
-            return 0;
-        }
-        Map<String, Object> params = new HashMap<>();
-        params.put("scheduleSeq", scheduleSeq);
-        params.put("seats", template);
-
-        mybatis.insert("ScheduleSync.batchInsertSeats", params);
-        return template.size();
-    }
 }

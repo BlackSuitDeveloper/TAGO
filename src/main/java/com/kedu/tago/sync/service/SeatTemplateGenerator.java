@@ -74,13 +74,6 @@ public class SeatTemplateGenerator {
         this.ktxSeatTemplate = Collections.unmodifiableList(items);
     }
 
-    /**
-     * 불변(Immutable) 935석 KTX 좌석 템플릿 반환
-     */
-    public List<SeatTemplateItem> getKtxSeatTemplate() {
-        return ktxSeatTemplate;
-    }
-
     public int[] getCarSeatCounts() {
         return CAR_SEAT_COUNTS;
     }

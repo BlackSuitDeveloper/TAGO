@@ -40,13 +40,4 @@
         )
     </insert>
 
-    <insert id="batchInsertSeats" parameterType="map">
-        INSERT INTO seat (schedule_seq, car_no, seat_no, seat_grade, version)
-        VALUES
-        <foreach collection="seats" item="seat" separator=",">
-            (#{scheduleSeq}, #{seat.carNo}, #{seat.seatNo}, #{seat.seatGrade}, 0)
-        </foreach>
-        ON CONFLICT (schedule_seq, car_no, seat_no) DO NOTHING
-    </insert>
-
 </mapper>
