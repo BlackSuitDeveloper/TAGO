@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Date;
 
+/** JWT 발급·검증 유틸 */
 @Component
 public class JwtUtil {
 
@@ -29,6 +30,7 @@ public class JwtUtil {
         this.jwt = JWT.require(algo).build();
     }
 
+    /** JWT 발급 */
     public String createToken(String id, Role role) {
         return JWT
                 .create()
@@ -39,11 +41,12 @@ public class JwtUtil {
                 .sign(this.algo);
     }
 
-    /** 토큰에 담긴 권한. 없거나 모르는 값(예전 토큰의 guest 등)이면 USER */
+    /** 토큰의 권한 (없거나 모르는 값이면 USER) */
     public static Role roleOf(DecodedJWT token) {
         return Role.from(token.getClaim("role").asString());
     }
 
+    /** JWT 검증 */
     public DecodedJWT verifyToken(String token) {
         return jwt.verify(token);
     }

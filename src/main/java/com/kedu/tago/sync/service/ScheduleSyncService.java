@@ -20,9 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 동적 운행 일정(schedule) 및 회차별 좌석(seat, 1~18호차 935석) 동기화 서비스.
- */
+/** 운행 일정(schedule) 동기화 서비스 */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -41,6 +39,7 @@ public class ScheduleSyncService {
     @Value("${tago.sync.sliding-window-days:3}")
     private int slidingWindowDays;
 
+    /** 매일 새벽 3시 슬라이딩 윈도우 기준 일정 동기화 */
     @Scheduled(cron = "${tago.sync.cron:0 0 3 * * *}")
     public void scheduledDailySlidingWindowSync() {
         String targetDate = LocalDate.now().plusDays(slidingWindowDays).format(DATE_FMT);
@@ -49,6 +48,7 @@ public class ScheduleSyncService {
         log.info("[ScheduleSync] 일간 슬라이딩 윈도우 배치 완료 - {}", result.getMessage());
     }
 
+    /** 기간 내 일자별 운행 일정 동기화 */
     public List<SyncResultDTO> syncSchedulesByDateRange(LocalDate startDate, LocalDate endDate) {
         List<SyncResultDTO> results = new ArrayList<>();
         LocalDate cursor = startDate;
@@ -59,6 +59,7 @@ public class ScheduleSyncService {
         return results;
     }
 
+    /** 특정 일자(yyyyMMdd)의 운행 일정 동기화 */
     @Transactional
     public SyncResultDTO syncSchedulesByDate(String targetDateYmd) {
         if (!tagoApiClient.isServiceKeyConfigured()) {
@@ -94,7 +95,7 @@ public class ScheduleSyncService {
 
             List<TagoTrainScheduleDTO> apiSchedules = tagoApiClient.fetchKtxSchedules(depNodeId, arrNodeId, targetDateYmd);
             for (TagoTrainScheduleDTO dto : apiSchedules) {
-                // TAGO 원본 열차번호를 해당 노선에 배정된 KTX 1세대 1~46호기(trainno 1~46)로 매핑
+                // TAGO 열차번호를 노선에 배정된 KTX 1~46호기로 매핑
                 int mappedUnitNo = routeConfig.mapToKtxUnitNo(dto.getTrainno(), route.getLineCategory());
                 dto.setTrainno(mappedUnitNo);
                 collectedSchedules.add(dto);
@@ -166,9 +167,7 @@ public class ScheduleSyncService {
                 .build();
     }
 
-    /**
-     * 테스트/검증용 임의의 KTX 마스터(station, train) 및 운행 일정(schedule) + 좌석(935석) 샘플 데이터 적재
-     */
+    /** 테스트용 KTX 마스터 및 운행 일정 샘플 데이터 적재 */
     @Transactional
     public SyncResultDTO insertMockSampleData() {
         List<com.kedu.tago.sync.dto.TagoStationDTO> mockStations = List.of(

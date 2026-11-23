@@ -18,12 +18,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * 공공데이터포털(TAGO) 열차정보 API 호출 클라이언트.
- * - RestClient 사용
- * - URI.create() 직접 주입 및 인코딩 상태 감지로 ServiceKey 이중 인코딩 방지
- * - KTX 차량종류 코드(trainGradeCode=00) 단독 조회
- */
+/** 공공데이터포털(TAGO) 열차정보 API 호출 클라이언트 */
 @Slf4j
 @Component
 public class TagoApiClient {
@@ -47,15 +42,12 @@ public class TagoApiClient {
         this.encodedServiceKey = normalizeServiceKey(serviceKey);
     }
 
+    /** ServiceKey 설정 여부 */
     public boolean isServiceKeyConfigured() {
         return encodedServiceKey != null && !encodedServiceKey.isBlank();
     }
 
-    /**
-     * 공공데이터포털 ServiceKey 이중 인코딩 방지 정규화.
-     * - 이미 '%'가 포함된 Encoding 키면 그대로 사용
-     * - Decoding 키면 UTF-8 URL 인코딩 1회 수행 후 URI.create()에 직접 전달
-     */
+    // 이중 인코딩 방지: 이미 '%' 포함이면 그대로, 아니면 1회 URL 인코딩
     private String normalizeServiceKey(String rawKey) {
         if (rawKey == null || rawKey.isBlank()) {
             return "";
@@ -67,9 +59,7 @@ public class TagoApiClient {
         return URLEncoder.encode(trimmed, StandardCharsets.UTF_8);
     }
 
-    /**
-     * 1. 시/도 코드 목록 조회 (GetCtyCodeList)
-     */
+    /** 시/도 코드 목록 조회 (GetCtyCodeList) */
     public List<TagoCityDTO> fetchCityCodes() {
         String url = String.format(
                 "%s/GetCtyCodeList?serviceKey=%s&_type=json&numOfRows=100&pageNo=1",
@@ -94,9 +84,7 @@ public class TagoApiClient {
         return cities;
     }
 
-    /**
-     * 2. 시/도별 기차역 목록 조회 (GetCtyAcctoTrainSttnList)
-     */
+    /** 시/도별 기차역 목록 조회 (GetCtyAcctoTrainSttnList) */
     public List<TagoStationDTO> fetchStationsByCity(String citycode, String cityname) {
         String url = String.format(
                 "%s/GetCtyAcctoTrainSttnList?serviceKey=%s&_type=json&numOfRows=500&pageNo=1&cityCode=%s",
@@ -124,10 +112,7 @@ public class TagoApiClient {
         return stations;
     }
 
-    /**
-     * 3. 출/도착지 기반 KTX 열차 운행 일정 조회 (GetStrtpntAlocFndTrainInfo)
-     * - trainGradeCode=00 (KTX) 고정 호출
-     */
+    /** 출/도착지 기반 KTX(trainGradeCode=00) 운행 일정 조회 (GetStrtpntAlocFndTrainInfo) */
     public List<TagoTrainScheduleDTO> fetchKtxSchedules(String depPlaceId, String arrPlaceId, String depPlandTime) {
         String url = String.format(
                 "%s/GetStrtpntAlocFndTrainInfo?serviceKey=%s&_type=json&numOfRows=500&pageNo=1&depPlaceId=%s&arrPlaceId=%s&depPlandTime=%s&trainGradeCode=%s",
@@ -155,7 +140,7 @@ public class TagoApiClient {
             String arrTime = node.path("arrplandtime").asText("").trim();
             int adultcharge = node.path("adultcharge").asInt(0);
 
-            // KTX 계열 열차만 허용 (도메인 제약: vehiclekndnm = 'KTX')
+            // KTX 열차만 허용
             if (trainno > 0 && isKtxGrade(traingradename) && depTime.length() >= 12 && arrTime.length() >= 12) {
                 schedules.add(TagoTrainScheduleDTO.builder()
                         .trainno(trainno)
@@ -177,7 +162,7 @@ public class TagoApiClient {
         if (gradeName == null || gradeName.isBlank()) {
             return false;
         }
-        // 순수 KTX(KTX-1, 18호차 935석 규격)만 유지 (KTX-산천, KTX-이음 등 제외)
+        // 순수 KTX(KTX-1, 18호차 935석)만 유지 (KTX-산천, KTX-이음 등 제외)
         return "KTX".equalsIgnoreCase(gradeName.trim());
     }
 

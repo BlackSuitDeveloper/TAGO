@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** 회원 권한(ROLE) 조회와 매퍼 SQL 검증 (DB 없이) */
+/** 회원 권한 조회와 매퍼 SQL 검증 */
 class MemberRoleTest {
 
     private final MemberMapper mapper = mock(MemberMapper.class);

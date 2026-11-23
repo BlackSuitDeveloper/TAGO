@@ -20,9 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * 정적 마스터 데이터(station, train) 적재 및 역 정보(nodename <-> nodeid) 인메모리 캐시 서비스.
- */
+/** 마스터 데이터(station, train) 적재 및 역 이름-ID 캐시 서비스 */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -34,15 +32,17 @@ public class MasterSyncService {
     private final TagoApiClient tagoApiClient;
     private final TagoRouteConfig routeConfig;
 
-    // nodename -> nodeid 캐시 (schedule 적재 시 FK 매핑용)
+    // 역 이름 -> 역 ID 캐시
     private final Map<String, String> stationNameToIdCache = new ConcurrentHashMap<>();
-    // nodeid -> nodename 캐시
+    // 역 ID -> 역 이름 캐시
     private final Map<String, String> stationIdToNameCache = new ConcurrentHashMap<>();
 
+    /** station 테이블 비어 있는지 확인 */
     public boolean isStationTableEmpty() {
         return masterSyncDAO.countStations() == 0;
     }
 
+    /** DB 기준으로 역 캐시 재로드 */
     public void refreshStationCacheFromDb() {
         Map<String, String> nameToId = masterSyncDAO.findAllStationNameToIdMap();
         Map<String, String> idToName = new LinkedHashMap<>();
@@ -56,6 +56,7 @@ public class MasterSyncService {
         log.info("[MasterSync] 역 캐시 로드 완료: 총 {}개 역 캐싱됨", stationNameToIdCache.size());
     }
 
+    /** 역 이름으로 역 ID 조회 */
     public String getNodeIdByStationName(String nodename) {
         if (nodename == null) {
             return null;
@@ -66,6 +67,7 @@ public class MasterSyncService {
         return stationNameToIdCache.get(nodename.trim());
     }
 
+    /** 역 이름-ID 캐시 복사본 조회 */
     public Map<String, String> getStationNameToIdCache() {
         if (stationNameToIdCache.isEmpty()) {
             refreshStationCacheFromDb();
@@ -73,6 +75,7 @@ public class MasterSyncService {
         return Map.copyOf(stationNameToIdCache);
     }
 
+    /** 역과 열차 마스터 전체 동기화 */
     @Transactional
     public SyncResultDTO syncAllMasterData() {
         int stationCount = syncStationsFromTago();
@@ -89,6 +92,7 @@ public class MasterSyncService {
                 .build();
     }
 
+    /** TAGO API에서 대상 노선의 역 정보 동기화 */
     @Transactional
     public int syncStationsFromTago() {
         if (!tagoApiClient.isServiceKeyConfigured()) {
@@ -130,12 +134,14 @@ public class MasterSyncService {
         return upserted;
     }
 
+    /** 지정 노선의 KTX 열차 마스터 동기화 */
     @Transactional
     public int syncTrainsFromDesignatedRoutes() {
-        // KTX 1세대 1호기 ~ 46호기(trainno 1 ~ 46) 고정 마스터 적재
+        // KTX 1~46호기 고정 마스터 적재
         return upsertKtxTrains(routeConfig.getFixedKtxUnitLineMap());
     }
 
+    /** KTX 열차 마스터 upsert */
     @Transactional
     public int upsertKtxTrains(Map<Integer, String> trainLineMap) {
         int upserted = masterSyncDAO.batchUpsertKtxTrains(trainLineMap);
@@ -145,6 +151,7 @@ public class MasterSyncService {
         return upserted;
     }
 
+    /** 샘플 역 데이터 upsert */
     @Transactional
     public int upsertMockStations(List<TagoStationDTO> stations) {
         return masterSyncDAO.batchUpsertStations(stations);

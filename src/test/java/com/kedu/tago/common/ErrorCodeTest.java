@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/** ErrorCode 번호 대역·기본 문구 검증 */
 class ErrorCodeTest {
 
     @Test

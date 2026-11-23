@@ -8,13 +8,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * KTX 1~18호차 고정 좌석 템플릿 생성기.
- * - 도메인 규칙: 1~18호차, 전 좌석 일반석(STANDARD, 가격 통일), 총 좌석 수 935석 (실제 KTX-1 편성과 동일)
- * - 호차별 좌석 분포:
- *   1호차(56석), 2호차(35석), 3호차(46석), 4호차(50석), 5호차(55석),
- *   6~17호차(각 56석 × 12량 = 672석), 18호차(21석) => 총합 935석
- */
+/** KTX 1~18호차 고정 좌석 템플릿 (전 좌석 일반석, 총 935석) */
 @Component
 public class SeatTemplateGenerator {
 
@@ -24,9 +18,7 @@ public class SeatTemplateGenerator {
 
     private static final char[] SEAT_COLUMNS = {'A', 'B', 'C', 'D'};
 
-    /**
-     * 1호차 ~ 18호차별 좌석 수 정의 (합계: 56 + 35 + 46 + 50 + 55 + 672 + 21 = 935석)
-     */
+    // 호차별 좌석 수 (합계 935석)
     private static final int[] CAR_SEAT_COUNTS = {
             56, // 1호차
             35, // 2호차
@@ -74,10 +66,12 @@ public class SeatTemplateGenerator {
         this.ktxSeatTemplate = Collections.unmodifiableList(items);
     }
 
+    /** 호차별 좌석 수 조회 */
     public int[] getCarSeatCounts() {
         return CAR_SEAT_COUNTS;
     }
 
+    /** 호차의 좌석 목록 조회 */
     public List<SeatTemplateItem> getSeatsByCarNo(int carNo) {
         if (carNo < 1 || carNo > CAR_SEAT_COUNTS.length) {
             return Collections.emptyList();
@@ -91,6 +85,7 @@ public class SeatTemplateGenerator {
         return result;
     }
 
+    /** 호차와 좌석 번호로 템플릿 좌석 조회 (없으면 null) */
     public SeatTemplateItem findTemplateSeat(int carNo, String seatNo) {
         if (seatNo == null) return null;
         for (SeatTemplateItem item : ktxSeatTemplate) {

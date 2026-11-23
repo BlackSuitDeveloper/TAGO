@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/** 운행 시간표 조회 API */
 @RestController
 @RequestMapping("/schedule")
 @RequiredArgsConstructor
@@ -21,12 +22,13 @@ public class ScheduleController {
 
     private final ScheduleService scheduleService;
 
-    /** 운행 시간표 목록 (page, size 로 페이징). data = 현재 페이지 목록, totalCount = 조건에 맞는 전체 건수 */
+    /** 운행 시간표 목록 페이징 조회 (GET /api/schedule) */
     @GetMapping
     public ResWrapper<List<ScheduleResponseDTO>> getSchedules(@ModelAttribute ScheduleSearchRequestDTO searchDTO) {
         return ResWrapper.list(scheduleService.getScheduleList(searchDTO));
     }
 
+    /** 운행 시간표 상세 조회 (GET /api/schedule/{scheduleSeq}) */
     @GetMapping("/{scheduleSeq}")
     public ResWrapper<ScheduleResponseDTO> getScheduleDetail(@PathVariable Long scheduleSeq) {
         ScheduleResponseDTO detail = scheduleService.getScheduleDetail(scheduleSeq);

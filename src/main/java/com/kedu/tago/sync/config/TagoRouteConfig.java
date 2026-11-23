@@ -9,9 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 공공데이터(TAGO) 조회 대상 KTX 노선 쌍, KTX 1세대 1~46호기 마스터 배정, 미제공 필드 보정 규칙 설정.
- */
+/** 공공데이터(TAGO) 조회 대상 노선, KTX 1~46호기 노선 배정, 미제공 필드 보정 규칙 */
 @Component
 public class TagoRouteConfig {
 
@@ -20,20 +18,13 @@ public class TagoRouteConfig {
     @Getter
     @AllArgsConstructor
     public static class RoutePair {
-        private final String depStationName; // 출발역명 (station.nodename 매핑)
-        private final String arrStationName; // 도착역명 (station.nodename 매핑)
+        private final String depStationName; // 출발역명 (station.nodename)
+        private final String arrStationName; // 도착역명 (station.nodename)
         private final String lineCategory;   // 노선 분류 (train.line_category)
-        private final int fallbackFare;      // TAGO adultcharge=0 응답 시 보정용 기본 일반석 요금
+        private final int fallbackFare;      // adultcharge=0 응답 시 쓸 기본 일반석 요금
     }
 
-    /**
-     * KTX 1세대 1호기 ~ 46호기(trainno 1 ~ 46)의 노선별 고정 배정 맵
-     * - 1 ~ 25호기 (25대): 경부선
-     * - 26 ~ 33호기 (8대): 호남선
-     * - 34 ~ 39호기 (6대): 전라선
-     * - 40 ~ 43호기 (4대): 경전선
-     * - 44 ~ 46호기 (3대): 동해선
-     */
+    /** KTX 1~46호기 노선 배정 (경부 1~25, 호남 26~33, 전라 34~39, 경전 40~43, 동해 44~46) */
     private static final Map<Integer, String> KTX_UNIT_LINE_MAP;
 
     static {
@@ -46,13 +37,12 @@ public class TagoRouteConfig {
         KTX_UNIT_LINE_MAP = Collections.unmodifiableMap(map);
     }
 
+    /** KTX 호기별 노선 배정 맵 */
     public Map<Integer, String> getFixedKtxUnitLineMap() {
         return KTX_UNIT_LINE_MAP;
     }
 
-    /**
-     * TAGO API의 원본 열차번호(rawTrainNo)를 해당 노선(lineCategory)에 배정된 KTX 1~46호기 번호로 매핑
-     */
+    /** TAGO 원본 열차번호를 노선에 배정된 KTX 호기 번호로 매핑 */
     public int mapToKtxUnitNo(int rawTrainNo, String lineCategory) {
         int positiveNo = Math.max(1, rawTrainNo);
         if (lineCategory == null) {
@@ -67,35 +57,25 @@ public class TagoRouteConfig {
         };
     }
 
-    /**
-     * 조회 대상 KTX 1세대 노선당 대표 시종착 구간 (상·하행 총 10개 구간 상수 관리)
-     * 중간 경유역 중복 적재를 방지하기 위해 각 노선의 시발역 ↔ 종착역만 1:1로 정의합니다.
-     */
+    // 중간 경유역 중복 적재를 막기 위해 노선별 시발역과 종착역만 상·하행으로 정의
     private static final List<RoutePair> TARGET_ROUTES = List.of(
-            // 1. 경부선 시종착 (서울 ↔ 부산)
             new RoutePair("서울", "부산", "경부선", 59800),
             new RoutePair("부산", "서울", "경부선", 59800),
 
-            // 2. 호남선 시종착 (용산 ↔ 목포)
             new RoutePair("용산", "목포", "호남선", 52800),
             new RoutePair("목포", "용산", "호남선", 52800),
 
-            // 3. 전라선 시종착 (용산 ↔ 여수EXPO)
             new RoutePair("용산", "여수EXPO", "전라선", 47500),
             new RoutePair("여수EXPO", "용산", "전라선", 47500),
 
-            // 4. 경전선 시종착 (서울 ↔ 진주)
             new RoutePair("서울", "진주", "경전선", 57600),
             new RoutePair("진주", "서울", "경전선", 57600),
 
-            // 5. 동해선 시종착 (서울 ↔ 포항)
             new RoutePair("서울", "포항", "동해선", 53600),
             new RoutePair("포항", "서울", "동해선", 53600)
     );
 
-    /**
-     * 주요 기차역 상세 주소 매핑 (TAGO API에서 제공하지 않는 station.node_address 보정용)
-     */
+    /** 주요 역 주소 (TAGO 미제공 station.node_address 보정용) */
     private static final Map<String, String> STATION_ADDRESS_MAP = Map.ofEntries(
             Map.entry("서울", "서울특별시 용산구 한강대로 405"),
             Map.entry("용산", "서울특별시 용산구 한강대로23길 55"),
@@ -150,13 +130,12 @@ public class TagoRouteConfig {
     );
 
 
+    /** 조회 대상 노선 목록 */
     public List<RoutePair> getTargetRoutes() {
         return TARGET_ROUTES;
     }
 
-    /**
-     * 역 이름과 시/도 이름으로 역 주소(station.node_address) 보정
-     */
+    /** 역 이름과 시/도 이름으로 역 주소 보정 */
     public String resolveStationAddress(String nodename, String cityname) {
         if (nodename != null && STATION_ADDRESS_MAP.containsKey(nodename.trim())) {
             return STATION_ADDRESS_MAP.get(nodename.trim());

@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+/** 대기열 API */
 @RestController
 @RequestMapping("/queue")
 @RequiredArgsConstructor
@@ -15,9 +16,7 @@ public class QueueController {
 
     private final QueueService queueService;
 
-    /**
-     * 대기열 진입 POST /api/queue
-     */
+    /** 대기열 진입 (POST /api/queue) */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ResWrapper<QueueResponseDTO> enterQueue(@RequestBody QueueRequestDTO requestDTO, HttpServletRequest request) {
@@ -25,9 +24,7 @@ public class QueueController {
         return ResWrapper.ok(queueService.enterQueue(requestDTO.getScheduleSeq(), memberId));
     }
 
-    /**
-     * 대기열 순번 확인 GET /api/queue/{queueToken}
-     */
+    /** 대기열 순번 확인 (GET /api/queue/{queueToken}) */
     @GetMapping("/{queueToken}")
     public ResWrapper<QueueResponseDTO> getQueueRank(@PathVariable String queueToken) {
         return ResWrapper.ok(queueService.checkQueueRank(queueToken));

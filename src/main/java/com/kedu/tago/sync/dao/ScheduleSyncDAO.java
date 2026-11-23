@@ -9,19 +9,14 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * 동적 운행 일정(schedule) 및 회차별 좌석(seat) MyBatis 기반 DB 접근 객체 (DAO).
- * SQL문은 src/main/resources/mapper/schedule_sync_mapper.xml 에 정의되어 있습니다.
- */
+/** 운행 일정(schedule) 동기화 DAO (SQL: mapper/schedule_sync_mapper.xml) */
 @Repository
 @RequiredArgsConstructor
 public class ScheduleSyncDAO {
 
     private final SqlSession sqlSession;
 
-    /**
-     * 동일 열차/출발역/도착역/출발시각 일정 존재 여부 확인 (멱등성 보장)
-     */
+    /** 동일 열차/출발역/도착역/출발시각 일정 존재 여부 (멱등성 보장) */
     public boolean existsSchedule(int trainno, String depNodeId, String arrNodeId, LocalDateTime depTime) {
         Map<String, Object> params = new HashMap<>();
         params.put("trainno", trainno);
@@ -33,9 +28,7 @@ public class ScheduleSyncDAO {
         return Boolean.TRUE.equals(exists);
     }
 
-    /**
-     * 신규 schedule INSERT 및 useGeneratedKeys로 생성된 schedule_seq 반환
-     */
+    /** 일정 INSERT 후 생성된 schedule_seq 반환 */
     public Long insertScheduleAndReturnSeq(
             int trainno,
             String depNodeId,

@@ -22,7 +22,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-@RequireRole(Role.ADMIN)   // 시간표·역 동기화는 관리자만
+/** 공공데이터(TAGO) 역·시간표 동기화 관리자 API */
+@RequireRole(Role.ADMIN)
 @RestController
 @RequestMapping("/admin/sync")
 @RequiredArgsConstructor
@@ -34,16 +35,19 @@ public class TagoSyncController {
     private final ScheduleSyncService scheduleSyncService;
     private final TagoRouteConfig routeConfig;
 
+    /** 역·열차 마스터 데이터 동기화 (POST /api/admin/sync/master) */
     @PostMapping("/master")
     public ResWrapper<SyncResultDTO> syncMasterData() {
         return ResWrapper.ok(masterSyncService.syncAllMasterData());
     }
 
+    /** 목업 샘플 데이터 적재 (POST /api/admin/sync/mock) */
     @PostMapping("/mock")
     public ResWrapper<SyncResultDTO> syncMockSampleData() {
         return ResWrapper.ok(scheduleSyncService.insertMockSampleData());
     }
 
+    /** 특정 날짜 시간표 동기화 (POST /api/admin/sync/schedules) */
     @PostMapping("/schedules")
     public ResWrapper<SyncResultDTO> syncSchedulesByDate(
             @RequestParam(value = "date", required = false) String date) {
@@ -55,6 +59,7 @@ public class TagoSyncController {
         return ResWrapper.ok(scheduleSyncService.syncSchedulesByDate(targetDate));
     }
 
+    /** 기간별 시간표 동기화 (POST /api/admin/sync/schedules/range) */
     @PostMapping("/schedules/range")
     public ResWrapper<List<SyncResultDTO>> syncSchedulesByRange(
             @RequestParam(value = "startDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
@@ -66,6 +71,7 @@ public class TagoSyncController {
         return ResWrapper.list(scheduleSyncService.syncSchedulesByDateRange(start, end));
     }
 
+    /** 동기화 설정 상태 조회 (GET /api/admin/sync/status) */
     @GetMapping("/status")
     public ResWrapper<Map<String, Object>> getSyncStatus() {
         Map<String, String> cachedStations = masterSyncService.getStationNameToIdCache();

@@ -13,6 +13,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+/** 실제 TAGO API 로 KTX 마스터/일정/좌석 동기화 테스트 (DB 초기화 후 적재) */
 @SpringBootTest
 class TagoRealTrainSyncTest {
 
@@ -27,16 +28,16 @@ class TagoRealTrainSyncTest {
 
     @Test
     void syncRealKtxSchedulesAndSeatsFromTagoApi() {
-        // 기존 데이터 및 시퀀스 초기화 (1번부터 시작)
+        // 기존 데이터 및 시퀀스 초기화
         jdbcTemplate.execute("TRUNCATE TABLE seat, schedule, train, station RESTART IDENTITY CASCADE");
 
-        // 1. 정적 마스터(station 349건, train 1~46호기) 적재 및 역 캐시 로드
+        // 마스터(station, train 1~46호기) 적재
         SyncResultDTO masterResult = masterSyncService.syncAllMasterData();
         System.out.println("==========================================");
         System.out.println("[REAL MASTER SYNC] " + masterResult.getMessage());
         System.out.println("==========================================");
 
-        // 2. 오늘 날짜(20261116) 실제 KTX 1세대 시종착 운행 일정(schedule) + 회차별 935석 좌석(seat) 적재
+        // 해당 날짜 KTX 운행 일정 및 회차별 좌석 적재
         SyncResultDTO scheduleResult = scheduleSyncService.syncSchedulesByDate("20261116");
         System.out.println("==========================================");
         System.out.println("[REAL SCHEDULE & SEAT SYNC] " + scheduleResult.getMessage());

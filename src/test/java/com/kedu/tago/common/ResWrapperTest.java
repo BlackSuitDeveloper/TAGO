@@ -35,12 +35,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * 공통 응답 형식(ResWrapper) 검증. DB·Redis 없이 컨트롤러와 예외 처리기만 띄운다.
- *  - 일반:  { success:true, data }            (+ message)
- *  - 목록:  { success:true, data:[], totalCount }
- *  - 에러:  { success:false, status, message }
- */
+/** 공통 응답 형식(ResWrapper) 검증 (컨트롤러와 예외 처리기만 사용) */
 class ResWrapperTest {
 
     private final StationService stationService = mock(StationService.class);

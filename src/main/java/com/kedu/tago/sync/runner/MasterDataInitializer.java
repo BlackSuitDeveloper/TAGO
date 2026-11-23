@@ -15,6 +15,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+/** 서버 기동 시 마스터 데이터 적재 및 운행 일정 동기화 */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -57,10 +58,7 @@ public class MasterDataInitializer implements ApplicationRunner {
         }
     }
 
-    /**
-     * 서버 실행 시마다 오늘 ~ slidingWindowDays일 후까지의 운행 일정(schedule)을 백그라운드에서 갱신합니다.
-     * (기존 매일 새벽 3시 @Scheduled 배치와 별도로 동작하며, 이미 존재하는 일정은 멱등성 체크로 스킵됩니다.)
-     */
+    // 오늘부터 slidingWindowDays일 후까지의 운행 일정을 비동기로 갱신 (이미 있는 일정은 스킵)
     private void syncSchedulesOnStartupAsync() {
         if (!tagoApiClient.isServiceKeyConfigured()) {
             log.warn("[MasterDataInitializer] TAGO_SERVICE_KEY가 설정되지 않아 기동 시 운행 일정 동기화를 건너뜁니다.");

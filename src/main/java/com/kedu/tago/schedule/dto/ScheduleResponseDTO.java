@@ -24,7 +24,7 @@ public class ScheduleResponseDTO {
     private Long standardPrice;
     private String status;
 
-    // JOIN 조회용 부가 정보 (역명, 열차 정보, 잔여 좌석 수)
+    // JOIN 조회용 부가 정보
     private String depStationName;
     private String arrStationName;
     private String vehicleKndNm;

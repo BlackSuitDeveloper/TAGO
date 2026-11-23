@@ -11,24 +11,20 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 정적 마스터 데이터(station, train) MyBatis 기반 DB 접근 객체 (DAO).
- * SQL문은 src/main/resources/mapper/master_sync_mapper.xml 에 정의되어 있습니다.
- */
+/** 마스터 데이터(station, train) DAO (SQL: mapper/master_sync_mapper.xml) */
 @Repository
 @RequiredArgsConstructor
 public class MasterSyncDAO {
 
     private final SqlSession sqlSession;
 
+    /** 역 전체 건수 */
     public int countStations() {
         Integer count = sqlSession.selectOne("MasterSync.countStations");
         return count == null ? 0 : count;
     }
 
-    /**
-     * station 테이블 전체 조회 (nodename -> nodeid 매핑 반환)
-     */
+    /** 역 전체 조회 (nodename -> nodeid 매핑) */
     public Map<String, String> findAllStationNameToIdMap() {
         List<TagoStationDTO> stations = sqlSession.selectList("MasterSync.selectAllStations");
         Map<String, String> nameToId = new LinkedHashMap<>();
@@ -40,9 +36,7 @@ public class MasterSyncDAO {
         return nameToId;
     }
 
-    /**
-     * station 테이블 일괄 Upsert (MyBatis <foreach> 다중 VALUES)
-     */
+    /** 역 일괄 Upsert */
     public int batchUpsertStations(List<TagoStationDTO> stationList) {
         if (stationList == null || stationList.isEmpty()) {
             return 0;
@@ -51,9 +45,7 @@ public class MasterSyncDAO {
         return stationList.size();
     }
 
-    /**
-     * KTX 열차 마스터(train) 일괄 Upsert (vehiclekndnm = 'KTX' 고정)
-     */
+    /** KTX 열차 마스터 일괄 Upsert (vehiclekndnm = 'KTX' 고정) */
     public int batchUpsertKtxTrains(Map<Integer, String> trainLineMap) {
         if (trainLineMap == null || trainLineMap.isEmpty()) {
             return 0;

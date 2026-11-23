@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.security.SecureRandom;
 import java.util.UUID;
 
+/** 이메일 인증코드 발송·검증 및 재설정 토큰 관리 (Redis 저장) */
 @Service
 public class MailService {
 
@@ -30,14 +31,14 @@ public class MailService {
         this.mailSender = mailSender;
     }
 
-    // 6자리 난수 인증코드 생성
+    /** 6자리 난수 인증코드 생성 */
     public String generateVerificationCode() {
         SecureRandom random = new SecureRandom();
         int code = 100000 + random.nextInt(900000);
         return String.valueOf(code);
     }
 
-    // 공통 이메일 발송 메서드 (실제 발송 + 실패 시 로깅 지원)
+    /** 이메일 발송 (발송 불가 시 콘솔에 내용 출력) */
     public void sendEmail(String toEmail, String subject, String content) {
         boolean sent = false;
 
@@ -70,7 +71,7 @@ public class MailService {
         }
     }
 
-    // 1. 아이디 찾기 인증번호 발송
+    /** 아이디 찾기 인증번호 발송 */
     public void sendFindIdCode(String email) {
         String code = generateVerificationCode();
         String redisKey = "VERIFY:FIND_ID:" + email;
@@ -84,7 +85,7 @@ public class MailService {
         sendEmail(email, subject, content);
     }
 
-    // 아이디 찾기 인증번호 검증
+    /** 아이디 찾기 인증번호 검증 */
     public boolean verifyFindIdCode(String email, String inputCode) {
         String redisKey = "VERIFY:FIND_ID:" + email;
         String savedCode = redisConfig.getValue(redisKey);
@@ -95,7 +96,7 @@ public class MailService {
         return false;
     }
 
-    // 2. 비밀번호 재설정 인증번호 발송 (로그인 화면용)
+    /** 비밀번호 재설정 인증번호 발송 */
     public void sendResetPasswordCode(String email) {
         String code = generateVerificationCode();
         String redisKey = "VERIFY:RESET_PW:" + email;
@@ -109,13 +110,12 @@ public class MailService {
         sendEmail(email, subject, content);
     }
 
-    // 비밀번호 재설정 인증번호 검증 -> 성공 시 일회용 재설정 토큰 발급
+    /** 비밀번호 재설정 인증번호 검증 후 일회용 재설정 토큰 발급 (실패 시 null) */
     public String verifyResetPasswordCode(String email, String inputCode) {
         String redisKey = "VERIFY:RESET_PW:" + email;
         String savedCode = redisConfig.getValue(redisKey);
         if (savedCode != null && savedCode.equals(inputCode)) {
             redisConfig.deleteValue(redisKey);
-            // 1회용 재설정 토큰 발급 (UUID)
             String resetToken = UUID.randomUUID().toString();
             redisConfig.setValue("TOKEN:RESET_PW:" + resetToken, email, TOKEN_EXPIRATION_MS);
             return resetToken;
@@ -123,7 +123,7 @@ public class MailService {
         return null;
     }
 
-    // 비밀번호 재설정 토큰 검증 및 소멸
+    /** 비밀번호 재설정 토큰 검증 및 소멸 */
     public boolean validateAndConsumeResetToken(String resetToken, String email) {
         String redisKey = "TOKEN:RESET_PW:" + resetToken;
         String savedEmail = redisConfig.getValue(redisKey);
@@ -134,7 +134,7 @@ public class MailService {
         return false;
     }
 
-    // 3. 마이페이지 비밀번호 변경용 인증코드 발송
+    /** 마이페이지 비밀번호 변경용 인증코드 발송 */
     public void sendMypagePasswordCode(String email) {
         String code = generateVerificationCode();
         String redisKey = "VERIFY:MYPAGE_PW:" + email;
@@ -148,20 +148,20 @@ public class MailService {
         sendEmail(email, subject, content);
     }
 
-    // 마이페이지 인증코드 검증
+    /** 마이페이지 인증코드 검증 */
     public boolean verifyMypagePasswordCode(String email, String inputCode) {
         String redisKey = "VERIFY:MYPAGE_PW:" + email;
         String savedCode = redisConfig.getValue(redisKey);
         if (savedCode != null && savedCode.equals(inputCode)) {
             redisConfig.deleteValue(redisKey);
-            // 인증 완료 플래그 10분간 저장
+            // 인증 완료 플래그 저장
             redisConfig.setValue("VERIFIED:MYPAGE_PW:" + email, "true", TOKEN_EXPIRATION_MS);
             return true;
         }
         return false;
     }
 
-    // 마이페이지 비밀번호 변경 권한 확인 및 소비
+    /** 마이페이지 비밀번호 변경 인증 여부 확인 및 소비 */
     public boolean consumeMypageVerification(String email) {
         String redisKey = "VERIFIED:MYPAGE_PW:" + email;
         String verified = redisConfig.getValue(redisKey);
