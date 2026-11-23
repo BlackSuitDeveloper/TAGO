@@ -62,6 +62,11 @@ public class PaymentService {
                 throw new ApiException(ErrorCode.RESERVATION_NOT_FOUND);
             }
 
+            // 본인의 예매만 결제할 수 있다 (다른 사람의 예약 번호를 넣어 결제 확정하는 것을 차단)
+            if (memberId == null || !memberId.equals(reservation.getMemberId())) {
+                throw new ApiException(ErrorCode.NOT_RESOURCE_OWNER, "본인의 예매만 결제할 수 있습니다.");
+            }
+
             if (!"HELD".equals(reservation.getStatus())) {
                 throw new ApiException(ErrorCode.PAYMENT_NOT_AVAILABLE, "결제 가능한 상태가 아닙니다. 현재 상태: " + reservation.getStatus());
             }

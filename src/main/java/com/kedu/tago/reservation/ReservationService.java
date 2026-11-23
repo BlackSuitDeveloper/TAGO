@@ -128,7 +128,7 @@ public class ReservationService {
             throw new ApiException(ErrorCode.RESERVATION_NOT_FOUND);
         }
 
-        if (memberId != null && !memberId.equals(reservation.getMemberId())) {
+        if (memberId == null || !memberId.equals(reservation.getMemberId())) {
             throw new ApiException(ErrorCode.NOT_RESOURCE_OWNER, "본인의 예매만 취소할 수 있습니다.");
         }
 
