@@ -1,4 +1,4 @@
-package com.kedu.tago.sync.service;
+package com.kedu.tago.seat;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

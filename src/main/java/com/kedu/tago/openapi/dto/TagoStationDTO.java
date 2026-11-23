@@ -1,4 +1,4 @@
-package com.kedu.tago.sync.dto;
+package com.kedu.tago.openapi.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,7 +9,10 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class TagoCityDTO {
+public class TagoStationDTO {
+    private String nodeid;
+    private String nodename;
     private String citycode;
     private String cityname;
+    private String nodeAddress;
 }

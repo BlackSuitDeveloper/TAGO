@@ -4,12 +4,12 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.kedu.tago.common.exception.GlobalExceptionHandler;
 import com.kedu.tago.member.Role;
+import com.kedu.tago.openapi.TagoRouteConfig;
 import com.kedu.tago.station.StationController;
 import com.kedu.tago.station.StationService;
-import com.kedu.tago.sync.config.TagoRouteConfig;
-import com.kedu.tago.sync.controller.TagoSyncController;
-import com.kedu.tago.sync.service.MasterSyncService;
-import com.kedu.tago.sync.service.ScheduleSyncService;
+import com.kedu.tago.sync.MasterSyncService;
+import com.kedu.tago.sync.ScheduleSyncService;
+import com.kedu.tago.sync.SyncController;
 import com.kedu.tago.wishlist.WishListController;
 import com.kedu.tago.wishlist.WishListService;
 import org.junit.jupiter.api.DisplayName;
@@ -115,7 +115,7 @@ class AccessControlTest {
                 .standaloneSetup(
                         new StationController(mock(StationService.class)),
                         new WishListController(mock(WishListService.class)),
-                        new TagoSyncController(mock(MasterSyncService.class), mock(ScheduleSyncService.class), mock(TagoRouteConfig.class)),
+                        new SyncController(mock(MasterSyncService.class), mock(ScheduleSyncService.class), mock(TagoRouteConfig.class)),
                         new SecretController(),
                         new VaultController())
                 .addInterceptors(new AuthInterceptor(jwt, new AccessPolicy()))

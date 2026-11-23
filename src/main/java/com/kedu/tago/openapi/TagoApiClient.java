@@ -1,11 +1,10 @@
-package com.kedu.tago.sync.client;
+package com.kedu.tago.openapi;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.kedu.tago.sync.config.TagoRouteConfig;
-import com.kedu.tago.sync.dto.TagoCityDTO;
-import com.kedu.tago.sync.dto.TagoStationDTO;
-import com.kedu.tago.sync.dto.TagoTrainScheduleDTO;
+import com.kedu.tago.openapi.dto.TagoCityDTO;
+import com.kedu.tago.openapi.dto.TagoStationDTO;
+import com.kedu.tago.openapi.dto.TagoTrainScheduleDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;

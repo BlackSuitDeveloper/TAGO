@@ -1,13 +1,11 @@
-package com.kedu.tago.sync.controller;
+package com.kedu.tago.sync;
 
 import com.kedu.tago.common.response.ResWrapper;
 import com.kedu.tago.common.security.RequireRole;
 import com.kedu.tago.member.Role;
-import com.kedu.tago.sync.config.TagoRouteConfig;
+import com.kedu.tago.openapi.TagoRouteConfig;
+import com.kedu.tago.seat.SeatTemplateGenerator;
 import com.kedu.tago.sync.dto.SyncResultDTO;
-import com.kedu.tago.sync.service.MasterSyncService;
-import com.kedu.tago.sync.service.ScheduleSyncService;
-import com.kedu.tago.sync.service.SeatTemplateGenerator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,7 +25,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/admin/sync")
 @RequiredArgsConstructor
-public class TagoSyncController {
+public class SyncController {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
 

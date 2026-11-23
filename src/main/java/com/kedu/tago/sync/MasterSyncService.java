@@ -1,11 +1,11 @@
-package com.kedu.tago.sync.service;
+package com.kedu.tago.sync;
 
-import com.kedu.tago.sync.client.TagoApiClient;
-import com.kedu.tago.sync.config.TagoRouteConfig;
-import com.kedu.tago.sync.dao.MasterSyncDAO;
+import com.kedu.tago.openapi.TagoApiClient;
+import com.kedu.tago.openapi.TagoRouteConfig;
+import com.kedu.tago.openapi.dto.TagoCityDTO;
+import com.kedu.tago.openapi.dto.TagoStationDTO;
+import com.kedu.tago.openapi.dto.TagoTrainDTO;
 import com.kedu.tago.sync.dto.SyncResultDTO;
-import com.kedu.tago.sync.dto.TagoCityDTO;
-import com.kedu.tago.sync.dto.TagoStationDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,7 +28,7 @@ public class MasterSyncService {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
-    private final MasterSyncDAO masterSyncDAO;
+    private final MasterSyncMapper masterSyncMapper;
     private final TagoApiClient tagoApiClient;
     private final TagoRouteConfig routeConfig;
 
@@ -39,12 +39,12 @@ public class MasterSyncService {
 
     /** station 테이블 비어 있는지 확인 */
     public boolean isStationTableEmpty() {
-        return masterSyncDAO.countStations() == 0;
+        return masterSyncMapper.countStations() == 0;
     }
 
     /** DB 기준으로 역 캐시 재로드 */
     public void refreshStationCacheFromDb() {
-        Map<String, String> nameToId = masterSyncDAO.findAllStationNameToIdMap();
+        Map<String, String> nameToId = loadStationNameToIdMap();
         Map<String, String> idToName = new LinkedHashMap<>();
         nameToId.forEach((name, id) -> idToName.put(id, name));
 
@@ -129,7 +129,7 @@ public class MasterSyncService {
         }
 
         List<TagoStationDTO> stationList = new ArrayList<>(uniqueByNodeId.values());
-        int upserted = masterSyncDAO.batchUpsertStations(stationList);
+        int upserted = upsertStations(stationList);
         log.info("[MasterSync] station 테이블 적재 완료: 총 {}건", upserted);
         return upserted;
     }
@@ -144,7 +144,7 @@ public class MasterSyncService {
     /** KTX 열차 마스터 upsert */
     @Transactional
     public int upsertKtxTrains(Map<Integer, String> trainLineMap) {
-        int upserted = masterSyncDAO.batchUpsertKtxTrains(trainLineMap);
+        int upserted = upsertTrains(trainLineMap);
         if (upserted > 0) {
             log.info("[MasterSync] train 마스터 테이블 Upsert 완료: {}건", upserted);
         }
@@ -154,6 +154,34 @@ public class MasterSyncService {
     /** 샘플 역 데이터 upsert */
     @Transactional
     public int upsertMockStations(List<TagoStationDTO> stations) {
-        return masterSyncDAO.batchUpsertStations(stations);
+        return upsertStations(stations);
+    }
+
+    // DB 의 역을 이름 -> ID 맵으로 읽기
+    private Map<String, String> loadStationNameToIdMap() {
+        Map<String, String> nameToId = new LinkedHashMap<>();
+        for (TagoStationDTO st : masterSyncMapper.selectAllStations()) {
+            if (st.getNodeid() != null && st.getNodename() != null) {
+                nameToId.put(st.getNodename().trim(), st.getNodeid().trim());
+            }
+        }
+        return nameToId;
+    }
+
+    private int upsertStations(List<TagoStationDTO> stations) {
+        if (stations == null || stations.isEmpty()) {
+            return 0;
+        }
+        return masterSyncMapper.upsertStations(stations);
+    }
+
+    private int upsertTrains(Map<Integer, String> trainLineMap) {
+        if (trainLineMap == null || trainLineMap.isEmpty()) {
+            return 0;
+        }
+        List<TagoTrainDTO> trains = new ArrayList<>(trainLineMap.size());
+        trainLineMap.forEach((trainno, lineCategory) -> trains.add(
+                TagoTrainDTO.builder().trainno(trainno).vehiclekndnm("KTX").lineCategory(lineCategory).build()));
+        return masterSyncMapper.upsertKtxTrains(trains);
     }
 }

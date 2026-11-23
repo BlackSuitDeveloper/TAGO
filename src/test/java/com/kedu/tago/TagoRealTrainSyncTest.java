@@ -1,8 +1,8 @@
 package com.kedu.tago;
 
+import com.kedu.tago.sync.MasterSyncService;
+import com.kedu.tago.sync.ScheduleSyncService;
 import com.kedu.tago.sync.dto.SyncResultDTO;
-import com.kedu.tago.sync.service.MasterSyncService;
-import com.kedu.tago.sync.service.ScheduleSyncService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

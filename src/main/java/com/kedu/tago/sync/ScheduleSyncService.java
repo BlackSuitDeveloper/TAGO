@@ -1,10 +1,11 @@
-package com.kedu.tago.sync.service;
+package com.kedu.tago.sync;
 
-import com.kedu.tago.sync.client.TagoApiClient;
-import com.kedu.tago.sync.config.TagoRouteConfig;
-import com.kedu.tago.sync.dao.ScheduleSyncDAO;
+import com.kedu.tago.openapi.TagoApiClient;
+import com.kedu.tago.openapi.TagoRouteConfig;
+import com.kedu.tago.openapi.dto.TagoStationDTO;
+import com.kedu.tago.openapi.dto.TagoTrainScheduleDTO;
+import com.kedu.tago.sync.dto.ScheduleInsertDTO;
 import com.kedu.tago.sync.dto.SyncResultDTO;
-import com.kedu.tago.sync.dto.TagoTrainScheduleDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,11 +31,10 @@ public class ScheduleSyncService {
     private static final DateTimeFormatter DATETIME_14_FMT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private static final DateTimeFormatter DATETIME_12_FMT = DateTimeFormatter.ofPattern("yyyyMMddHHmm");
 
-    private final ScheduleSyncDAO scheduleSyncDAO;
+    private final ScheduleSyncMapper scheduleSyncMapper;
     private final TagoApiClient tagoApiClient;
     private final TagoRouteConfig routeConfig;
     private final MasterSyncService masterSyncService;
-    private final SeatTemplateGenerator seatTemplateGenerator;
 
     @Value("${tago.sync.sliding-window-days:3}")
     private int slidingWindowDays;
@@ -123,7 +123,7 @@ public class ScheduleSyncService {
                 continue;
             }
 
-            if (scheduleSyncDAO.existsSchedule(dto.getTrainno(), dto.getDepPlaceId(), dto.getArrPlaceId(), depTime)) {
+            if (scheduleSyncMapper.existsSchedule(dto.getTrainno(), dto.getDepPlaceId(), dto.getArrPlaceId(), depTime)) {
                 skippedScheduleCount++;
                 continue;
             }
@@ -132,7 +132,7 @@ public class ScheduleSyncService {
             int unifiedPrice = dto.getAdultcharge() > 0 ? dto.getAdultcharge() : fallbackFare;
             LocalDateTime bookingOpenAt = depTime.minusMonths(1);
 
-            Long scheduleSeq = scheduleSyncDAO.insertScheduleAndReturnSeq(
+            Long scheduleSeq = insertSchedule(
                     dto.getTrainno(),
                     dto.getDepPlaceId(),
                     dto.getArrPlaceId(),
@@ -170,23 +170,23 @@ public class ScheduleSyncService {
     /** 테스트용 KTX 마스터 및 운행 일정 샘플 데이터 적재 */
     @Transactional
     public SyncResultDTO insertMockSampleData() {
-        List<com.kedu.tago.sync.dto.TagoStationDTO> mockStations = List.of(
-                com.kedu.tago.sync.dto.TagoStationDTO.builder()
+        List<TagoStationDTO> mockStations = List.of(
+                TagoStationDTO.builder()
                         .nodeid("NAT010000").nodename("서울").citycode("11").cityname("서울특별시")
                         .nodeAddress(routeConfig.resolveStationAddress("서울", "서울특별시")).build(),
-                com.kedu.tago.sync.dto.TagoStationDTO.builder()
+                TagoStationDTO.builder()
                         .nodeid("NAT011668").nodename("대전").citycode("25").cityname("대전광역시")
                         .nodeAddress(routeConfig.resolveStationAddress("대전", "대전광역시")).build(),
-                com.kedu.tago.sync.dto.TagoStationDTO.builder()
+                TagoStationDTO.builder()
                         .nodeid("NAT013271").nodename("동대구").citycode("22").cityname("대구광역시")
                         .nodeAddress(routeConfig.resolveStationAddress("동대구", "대구광역시")).build(),
-                com.kedu.tago.sync.dto.TagoStationDTO.builder()
+                TagoStationDTO.builder()
                         .nodeid("NAT014445").nodename("부산").citycode("21").cityname("부산광역시")
                         .nodeAddress(routeConfig.resolveStationAddress("부산", "부산광역시")).build(),
-                com.kedu.tago.sync.dto.TagoStationDTO.builder()
+                TagoStationDTO.builder()
                         .nodeid("NAT010032").nodename("용산").citycode("11").cityname("서울특별시")
                         .nodeAddress(routeConfig.resolveStationAddress("용산", "서울특별시")).build(),
-                com.kedu.tago.sync.dto.TagoStationDTO.builder()
+                TagoStationDTO.builder()
                         .nodeid("NAT031857").nodename("광주송정").citycode("24").cityname("광주광역시")
                         .nodeAddress(routeConfig.resolveStationAddress("광주송정", "광주광역시")).build()
         );
@@ -233,12 +233,12 @@ public class ScheduleSyncService {
         for (TagoTrainScheduleDTO dto : mockSchedules) {
             LocalDateTime depTime = parseTagoDateTime(dto.getDepplandtime());
             LocalDateTime arrTime = parseTagoDateTime(dto.getArrplandtime());
-            if (scheduleSyncDAO.existsSchedule(dto.getTrainno(), dto.getDepPlaceId(), dto.getArrPlaceId(), depTime)) {
+            if (scheduleSyncMapper.existsSchedule(dto.getTrainno(), dto.getDepPlaceId(), dto.getArrPlaceId(), depTime)) {
                 skippedScheduleCount++;
                 continue;
             }
             LocalDateTime bookingOpenAt = depTime.minusMonths(1);
-            Long scheduleSeq = scheduleSyncDAO.insertScheduleAndReturnSeq(
+            Long scheduleSeq = insertSchedule(
                     dto.getTrainno(),
                     dto.getDepPlaceId(),
                     dto.getArrPlaceId(),
@@ -287,5 +287,22 @@ public class ScheduleSyncService {
             log.warn("[ScheduleSync] 날짜 파싱 실패: {}", raw);
         }
         return null;
+    }
+
+    // 일정 1건 저장 후 생성된 schedule_seq 반환
+    private Long insertSchedule(int trainno, String depNodeId, String arrNodeId, LocalDateTime depTime, LocalDateTime arrTime,
+                                LocalDateTime bookingOpenAt, int firstPrice, int standardPrice) {
+        ScheduleInsertDTO schedule = ScheduleInsertDTO.builder()
+                .trainno(trainno)
+                .depNodeId(depNodeId)
+                .arrNodeId(arrNodeId)
+                .depTime(depTime)
+                .arrTime(arrTime)
+                .bookingOpenAt(bookingOpenAt)
+                .firstPrice(firstPrice)
+                .standardPrice(standardPrice)
+                .build();
+        scheduleSyncMapper.insertSchedule(schedule);
+        return schedule.getScheduleSeq();
     }
 }

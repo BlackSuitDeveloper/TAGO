@@ -3,7 +3,6 @@ package com.kedu.tago.seat;
 import com.kedu.tago.seat.dto.CarSummaryDTO;
 import com.kedu.tago.seat.dto.SeatDTO;
 import com.kedu.tago.seat.dto.SeatResponseDTO;
-import com.kedu.tago.sync.service.SeatTemplateGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

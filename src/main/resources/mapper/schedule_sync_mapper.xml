@@ -2,10 +2,10 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="ScheduleSync">
+<mapper namespace="com.kedu.tago.sync.ScheduleSyncMapper">
 
-    <!-- 운행 일정 중복 확인 | POST /api/admin/sync/schedules, POST /api/admin/sync/schedules/range, POST /api/admin/sync/mock, 매일 03:00 배치, 서버 시작 시 MasterDataInitializer (ScheduleSyncDAO.existsSchedule) -->
-    <select id="existsSchedule" parameterType="map" resultType="boolean">
+    <!-- 운행 일정 중복 확인 | POST /api/admin/sync/schedules, POST /api/admin/sync/schedules/range, POST /api/admin/sync/mock, 매일 03:00 배치, 서버 시작 시 SyncStartupRunner (ScheduleSyncService.syncSchedulesByDate) -->
+    <select id="existsSchedule" resultType="boolean">
         SELECT EXISTS (
             SELECT 1
             FROM schedule
@@ -16,7 +16,7 @@
         )
     </select>
 
-    <!-- 운행 일정 저장 | POST /api/admin/sync/schedules, POST /api/admin/sync/schedules/range, POST /api/admin/sync/mock, 매일 03:00 배치, 서버 시작 시 MasterDataInitializer (ScheduleSyncDAO.insertScheduleAndReturnSeq) -->
+    <!-- 운행 일정 저장 | POST /api/admin/sync/schedules, POST /api/admin/sync/schedules/range, POST /api/admin/sync/mock, 매일 03:00 배치, 서버 시작 시 SyncStartupRunner (ScheduleSyncService.syncSchedulesByDate) -->
     <insert id="insertSchedule" parameterType="com.kedu.tago.sync.dto.ScheduleInsertDTO"
             useGeneratedKeys="true" keyProperty="scheduleSeq" keyColumn="schedule_seq">
         INSERT INTO schedule (

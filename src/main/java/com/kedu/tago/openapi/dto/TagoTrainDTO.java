@@ -1,4 +1,4 @@
-package com.kedu.tago.sync.dto;
+package com.kedu.tago.openapi.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
