@@ -1,9 +1,14 @@
 package com.kedu.tago.schedule.dto;
 
+import com.kedu.tago.common.paging.PageParam;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
 @Data
-public class ScheduleSearchRequestDTO {
+@EqualsAndHashCode(callSuper = true)
+@ToString(callSuper = true)
+public class ScheduleSearchRequestDTO extends PageParam {
 
     private String depStation;
     private String arrStation;
@@ -13,8 +18,6 @@ public class ScheduleSearchRequestDTO {
     private String keyword;
     private String filter = "ALL";
     private Boolean upcoming;
-    private int page = 1;
-    private int size = 10;
 
     public String getEffectiveDepStation() {
         return (depStation != null && !depStation.isBlank()) ? depStation : depNodeId;
@@ -26,17 +29,5 @@ public class ScheduleSearchRequestDTO {
 
     public String getNormalizedFilter() {
         return (filter != null && !filter.isBlank()) ? filter.toUpperCase() : "ALL";
-    }
-
-    public int getSafePage() {
-        return Math.max(page, 1);
-    }
-
-    public int getSafeSize() {
-        return size <= 0 ? 10 : Math.min(size, 100);
-    }
-
-    public int getOffset() {
-        return (getSafePage() - 1) * getSafeSize();
     }
 }

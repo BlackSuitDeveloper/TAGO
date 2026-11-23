@@ -1,6 +1,6 @@
 package com.kedu.tago.schedule;
 
-import com.kedu.tago.schedule.dto.SchedulePageResponseDTO;
+import com.kedu.tago.common.paging.PageResult;
 import com.kedu.tago.schedule.dto.ScheduleResponseDTO;
 import com.kedu.tago.schedule.dto.ScheduleSearchRequestDTO;
 import lombok.RequiredArgsConstructor;
@@ -14,21 +14,10 @@ public class ScheduleService {
 
     private final ScheduleMapper scheduleMapper;
 
-    public SchedulePageResponseDTO getScheduleList(ScheduleSearchRequestDTO searchDTO) {
-        int page = searchDTO.getSafePage();
-        int size = searchDTO.getSafeSize();
-
+    public PageResult<ScheduleResponseDTO> getScheduleList(ScheduleSearchRequestDTO searchDTO) {
         List<ScheduleResponseDTO> schedules = scheduleMapper.selectScheduleList(searchDTO);
         long totalCount = scheduleMapper.countScheduleList(searchDTO);
-        int totalPages = (int) Math.ceil((double) totalCount / size);
-
-        return SchedulePageResponseDTO.builder()
-                .schedules(schedules)
-                .page(page)
-                .size(size)
-                .totalCount(totalCount)
-                .totalPages(totalPages)
-                .build();
+        return PageResult.of(schedules, totalCount, searchDTO);
     }
 
     public ScheduleResponseDTO getScheduleDetail(Long scheduleSeq) {
