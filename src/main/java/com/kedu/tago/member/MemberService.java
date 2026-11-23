@@ -26,6 +26,11 @@ public class MemberService {
         return bcrypt.checkPassword(rawPw, encodedPw);
     }
 
+    // 회원 권한 조회 (없거나 모르는 값이면 USER)
+    public Role getRole(String id) {
+        return Role.from(memberMapper.getRoleById(id));
+    }
+
     // 아이디 중복 체크
     public int checkId(String id) {
         return memberMapper.checkId(id);

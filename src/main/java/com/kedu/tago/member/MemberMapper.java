@@ -23,6 +23,8 @@ public interface MemberMapper {
 
     String getPasswordById(String id);
 
+    String getRoleById(@Param("id") String id);
+
     String findIdByNameAndEmail(@Param("name") String name, @Param("email") String email);
 
     int countByIdAndEmail(@Param("id") String id, @Param("email") String email);

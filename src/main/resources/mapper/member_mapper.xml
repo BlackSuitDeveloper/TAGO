@@ -10,6 +10,12 @@
         where member_id = #{id}
     </select>
 
+    <!-- 회원 권한(ROLE) 조회 -->
+    <select id="getRoleById" resultType="String">
+        select role from member
+        where member_id = #{id}
+    </select>
+
     <!--아이디 중복 체크-->
     <select id="checkId" parameterType="string" resultType="int">
         select count(*) from
@@ -19,15 +25,15 @@
     <!-- 회원가입-->
     <insert id="insertMember" parameterType="com.kedu.tago.member.dto.MemberSignupRequestDTO">
         insert into member
-        (member_id, pw, name, phone, email, zipcode, address1, address2)
+        (member_id, pw, name, phone, email, zipcode, address1, address2, role)
         values
-        (#{id}, #{pw}, #{name}, #{phone}, #{email}, #{zipcode}, #{address1}, #{address2})
+        (#{id}, #{pw}, #{name}, #{phone}, #{email}, #{zipcode}, #{address1}, #{address2}, 'USER')
     </insert>
 
     <!--회원 정보 조회-->
     <select id="selectMember" parameterType="string"
             resultType="com.kedu.tago.member.dto.MemberProfileResponseDTO">
-        select member_id as id, name, phone, email, zipcode, address1, address2, created_at
+        select member_id as id, name, phone, email, zipcode, address1, address2, role, created_at
         from member
         where member_id = #{id}
     </select>
