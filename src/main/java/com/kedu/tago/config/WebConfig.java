@@ -23,6 +23,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "/error",
                         "/actuator/**",
                         "/ping",
+                        "/auth/**",
                         "/member/checkId",
                         "/member/login",
                         "/login",

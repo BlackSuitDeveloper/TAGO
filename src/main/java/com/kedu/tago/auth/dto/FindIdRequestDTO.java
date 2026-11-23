@@ -1,0 +1,14 @@
+package com.kedu.tago.auth.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class FindIdRequestDTO {
+    private String name;
+    private String email;
+    private String code;
+}

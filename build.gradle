@@ -44,6 +44,7 @@ dependencies {
     implementation(platform("me.paulschwarz:spring-dotenv-bom:5.1.0"))
     implementation("me.paulschwarz:springboot4-dotenv")
     implementation('org.mindrot:jbcrypt:0.4')
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
 }
 
 dependencyManagement {

@@ -22,4 +22,10 @@ public interface MemberMapper {
     int deleteId(@Param("id") String id);
 
     String getPasswordById(String id);
+
+    String findIdByNameAndEmail(@Param("name") String name, @Param("email") String email);
+
+    int countByIdAndEmail(@Param("id") String id, @Param("email") String email);
+
+    int updatePassword(@Param("id") String id, @Param("pw") String pw);
 }
