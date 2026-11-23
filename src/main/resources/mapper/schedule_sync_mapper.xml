@@ -4,7 +4,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.kedu.tago.sync.ScheduleSyncMapper">
 
-    <!-- 운행 일정 일괄 저장(이미 있는 일정은 제외) | POST /api/admin/sync/schedules, POST /api/admin/sync/schedules/range, POST /api/admin/sync/mock, 매일 03:00 배치, 서버 시작 시 SyncStartupRunner (ScheduleSyncService.syncSchedulesByDate, insertMockSampleData) -->
+    <!-- 운행 일정 일괄 저장(이미 있는 일정은 제외) | POST /api/v1/admin/sync/schedules, POST /api/v1/admin/sync/schedules/range, POST /api/v1/admin/sync/mock, 매일 03:00 배치, 서버 시작 시 SyncStartupRunner (ScheduleSyncService.syncSchedulesByDate, insertMockSampleData) -->
     <insert id="insertSchedulesIfAbsent">
         INSERT INTO schedule (
             trainno,

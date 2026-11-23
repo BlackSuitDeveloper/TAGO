@@ -1,5 +1,6 @@
 package com.kedu.tago.config;
 
+import com.kedu.tago.common.ApiPaths;
 import com.kedu.tago.common.security.AuthInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
@@ -17,8 +18,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(authInterceptor)
-                .addPathPatterns("/**")
-                .excludePathPatterns("/error"); // 공개/관리자 경로는 AccessPolicy 에서 관리
+                .addPathPatterns(ApiPaths.V1 + "/**"); // 공개/관리자 경로는 AccessPolicy 에서 관리
     }
 
     @Override

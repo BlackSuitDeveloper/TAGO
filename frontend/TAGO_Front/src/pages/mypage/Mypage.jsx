@@ -153,7 +153,7 @@ export default function MyPage() {
   const fetchMyTickets = useCallback(async () => {
     setIsLoadingTickets(true);
     try {
-      // GET /api/reservation/me
+      // GET /api/v1/reservation/me
       const res = await client.get('/reservation/me');
       if (Array.isArray(res.data) && res.data.length > 0) {
         const grouped = groupTickets(res.data);
@@ -395,7 +395,7 @@ export default function MyPage() {
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     try {
-      // PUT /api/member
+      // PUT /api/v1/member
       await client.put('/member', {
         name: editUserInfo.name,
         email: editUserInfo.email,

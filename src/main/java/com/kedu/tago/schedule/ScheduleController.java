@@ -1,5 +1,6 @@
 package com.kedu.tago.schedule;
 
+import com.kedu.tago.common.ApiPaths;
 import com.kedu.tago.common.exception.ApiException;
 import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.common.response.ResWrapper;
@@ -16,19 +17,19 @@ import java.util.List;
 
 /** 운행 시간표 조회 API */
 @RestController
-@RequestMapping("/schedule")
+@RequestMapping(ApiPaths.V1 + "/schedule")
 @RequiredArgsConstructor
 public class ScheduleController {
 
     private final ScheduleService scheduleService;
 
-    /** 운행 시간표 목록 페이징 조회 (GET /api/schedule) */
+    /** 운행 시간표 목록 페이징 조회 (GET /api/v1/schedule) */
     @GetMapping
     public ResWrapper<List<ScheduleResponseDTO>> getSchedules(@ModelAttribute ScheduleSearchRequestDTO searchDTO) {
         return ResWrapper.list(scheduleService.getScheduleList(searchDTO));
     }
 
-    /** 운행 시간표 상세 조회 (GET /api/schedule/{scheduleSeq}) */
+    /** 운행 시간표 상세 조회 (GET /api/v1/schedule/{scheduleSeq}) */
     @GetMapping("/{scheduleSeq}")
     public ResWrapper<ScheduleResponseDTO> getScheduleDetail(@PathVariable Long scheduleSeq) {
         ScheduleResponseDTO detail = scheduleService.getScheduleDetail(scheduleSeq);

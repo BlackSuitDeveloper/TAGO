@@ -25,6 +25,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
+import static com.kedu.tago.common.ApiPaths.V1;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -61,7 +62,7 @@ class ResWrapperTest {
                 StationResponseDTO.builder().nodeId("NAT010000").nodeName("서울").build(),
                 StationResponseDTO.builder().nodeId("NAT011668").nodeName("부산").build()));
 
-        mvc.perform(get("/station"))
+        mvc.perform(get(V1 + "/station"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.length()").value(2))
@@ -77,7 +78,7 @@ class ResWrapperTest {
         when(queueService.enterQueue(anyLong(), any())).thenReturn(
                 QueueResponseDTO.builder().queueToken("tok").queueRank(1L).isAvailable(true).build());
 
-        mvc.perform(post("/queue").contentType(MediaType.APPLICATION_JSON).content("{\"scheduleSeq\":1}"))
+        mvc.perform(post(V1 + "/queue").contentType(MediaType.APPLICATION_JSON).content("{\"scheduleSeq\":1}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.queueToken").value("tok"))
@@ -87,7 +88,7 @@ class ResWrapperTest {
     @Test
     @DisplayName("본문 없는 응답: message 만 있고 data 는 생략된다")
     void done() throws Exception {
-        mvc.perform(post("/wishlist/5"))
+        mvc.perform(post(V1 + "/wishlist/5"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message").value("찜 목록에 추가했습니다."))
@@ -99,7 +100,7 @@ class ResWrapperTest {
     void apiException() throws Exception {
         when(scheduleService.getScheduleDetail(anyLong())).thenReturn(null);
 
-        mvc.perform(get("/schedule/999"))
+        mvc.perform(get(V1 + "/schedule/999"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.status").value(404))
@@ -114,7 +115,7 @@ class ResWrapperTest {
         when(reservationService.holdSeats(any(), anyString()))
                 .thenThrow(new ApiException(ErrorCode.SEAT_ALREADY_TAKEN, "좌석 3A은(는) 이미 선택되었습니다."));
 
-        mvc.perform(post("/reservation")
+        mvc.perform(post(V1 + "/reservation")
                         .requestAttr("id", "tester")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"scheduleSeq\":1,\"carNo\":1,\"seatList\":[\"3A\"]}"))
@@ -131,7 +132,7 @@ class ResWrapperTest {
         when(reservationService.holdSeats(any(), anyString()))
                 .thenThrow(new ResponseStatusException(HttpStatus.GONE, "만료"));
 
-        mvc.perform(post("/reservation")
+        mvc.perform(post(V1 + "/reservation")
                         .requestAttr("id", "tester")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"scheduleSeq\":1,\"carNo\":1,\"seatList\":[\"3A\"]}"))
@@ -144,7 +145,7 @@ class ResWrapperTest {
     @Test
     @DisplayName("에러: 깨진 JSON 은 400, 내부 예외 메시지는 노출하지 않는다")
     void badRequestAndUnexpected() throws Exception {
-        mvc.perform(post("/queue").contentType(MediaType.APPLICATION_JSON).content("{not json"))
+        mvc.perform(post(V1 + "/queue").contentType(MediaType.APPLICATION_JSON).content("{not json"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.status").value(400))
@@ -152,7 +153,7 @@ class ResWrapperTest {
 
         when(stationService.getStationList()).thenThrow(new IllegalStateException("db password=secret"));
 
-        mvc.perform(get("/station"))
+        mvc.perform(get(V1 + "/station"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.status").value(500))
