@@ -19,7 +19,8 @@
             WHERE sc.depplacename = st.nodeid
                OR sc.arrplacename = st.nodeid
         )
-        ORDER BY st.nodename ASC
+        -- 한글을 가나다순(코드 순서)으로 정렬: DB 콜레이션(en_US 등)에 따라 순서가 달라지지 않게 고정
+        ORDER BY st.nodename COLLATE "C" ASC
     </select>
 
 </mapper>
