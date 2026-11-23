@@ -33,7 +33,7 @@
     <!--회원 정보 조회-->
     <select id="selectMember" parameterType="string"
             resultType="com.kedu.tago.member.dto.MemberProfileResponseDTO">
-        select member_id as id, name, phone, email, zipcode, address1, address2, role, created_at
+        select member_id as id, name, phone, email, zipcode, address1, address2, role, created_at AS createdAt
         from member
         where member_id = #{id}
     </select>

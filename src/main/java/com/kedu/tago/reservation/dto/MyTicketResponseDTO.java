@@ -14,12 +14,12 @@ import java.time.LocalDateTime;
 public class MyTicketResponseDTO {
     private Long reservationSeq;
     private Long scheduleSeq;
-    private String trainno;
-    private String vehiclekndnm;
+    private String trainNo;
+    private String vehicleKndNm;
     private String depStation;
     private String arrStation;
-    private LocalDateTime depplandtime;
-    private LocalDateTime arrplandtime;
+    private LocalDateTime depPlandTime;
+    private LocalDateTime arrPlandTime;
     private Integer carNo;
     private String seatNo;
     private String seatGrade;

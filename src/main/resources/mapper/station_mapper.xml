@@ -6,11 +6,11 @@
 
     <select id="selectStationList" resultType="com.kedu.tago.station.dto.StationResponseDTO">
         SELECT
-            st.nodeid,
-            st.nodename,
-            st.citycode,
-            st.cityname,
-            st.node_address
+            st.nodeid AS nodeId,
+            st.nodename AS nodeName,
+            st.citycode AS cityCode,
+            st.cityname AS cityName,
+            st.node_address AS nodeAddress
         FROM station st
         WHERE EXISTS (
             SELECT 1

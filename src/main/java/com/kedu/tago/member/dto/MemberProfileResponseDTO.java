@@ -22,5 +22,5 @@ public class MemberProfileResponseDTO {
     private String address1;
     private String address2;
     private Role role;
-    private Timestamp created_at;
+    private Timestamp createdAt;
 }

@@ -210,29 +210,28 @@ function calcDurationText(depTs, arrTs) {
 }
 
 function mapPreviewSchedule(item) {
-  const trainNoStr = String(item.trainno ?? '').padStart(3, '0');
+  const trainNoStr = String(item.trainNo ?? '').padStart(3, '0');
   const availableCount = item.availableSeats ?? 0;
   return {
-    id: item.schedule_seq,
-    scheduleSeq: item.schedule_seq,
+    id: item.scheduleSeq,
+    scheduleSeq: item.scheduleSeq,
     name: `KTX ${trainNoStr}`,
-    type: item.vehiclekndnm || 'KTX',
-    depStationName: item.depStationName || item.depplacename || '-',
-    arrStationName: item.arrStationName || item.arrplacename || '-',
-    depTime: formatTimeHHMM(item.depplandtime),
-    arrTime: formatTimeHHMM(item.arrplandtime),
-    depDateRaw: formatLocalDateYMD(item.depplandtime),
-    duration: calcDurationText(item.depplandtime, item.arrplandtime),
-    price: Number(item.standard_price || 0).toLocaleString(),
+    type: item.vehicleKndNm || 'KTX',
+    depStationName: item.depStationName || item.depPlaceName || '-',
+    arrStationName: item.arrStationName || item.arrPlaceName || '-',
+    depTime: formatTimeHHMM(item.depPlandTime),
+    arrTime: formatTimeHHMM(item.arrPlandTime),
+    depDateRaw: formatLocalDateYMD(item.depPlandTime),
+    duration: calcDurationText(item.depPlandTime, item.arrPlandTime),
+    price: Number(item.standardPrice || 0).toLocaleString(),
     status: availableCount > 0 ? '예매가능' : '매진',
     // 도메인 표시용 원본 값 (lib/trainDomain 의 helper 가 읽는 필드 이름 그대로)
     availableSeats: availableCount,
-    schedule_seq: item.schedule_seq,
-    depplandtime: item.depplandtime,
-    arrplandtime: item.arrplandtime,
-    booking_open_at: item.booking_open_at,
+    depPlandTime: item.depPlandTime,
+    arrPlandTime: item.arrPlandTime,
+    bookingOpenAt: item.bookingOpenAt,
     lineCategory: item.lineCategory || '',
-    firstPrice: item.first_price ? Number(item.first_price).toLocaleString() : '',
+    firstPrice: item.firstPrice ? Number(item.firstPrice).toLocaleString() : '',
   };
 }
 
@@ -400,7 +399,7 @@ export default function MainPage() {
       .get('/station')
       .then((res) => {
         if (Array.isArray(res.data) && res.data.length > 0) {
-          const names = Array.from(new Set(res.data.map((st) => st.nodename).filter(Boolean)));
+          const names = Array.from(new Set(res.data.map((st) => st.nodeName).filter(Boolean)));
           if (names.length > 0) {
             setStationOptions(names);
           }
@@ -771,15 +770,15 @@ export default function MainPage() {
                 const wishKey = train.scheduleSeq || train.id;
                 const wished = isWish(wishKey);
                 const soldOut = train.status === '매진';
-                const openHint = bookingOpenHint(train.booking_open_at);
+                const openHint = bookingOpenHint(train.bookingOpenAt);
                 const isNotOpen = Boolean(openHint);
                 const isUnavailable = soldOut || isNotOpen;
-                const depHint = isUnavailable ? null : departureHint(train.depplandtime);
+                const depHint = isUnavailable ? null : departureHint(train.depPlandTime);
                 // 매진이면 같은 구간에서 뒤에 출발하는 예매 가능(오픈된) 열차를 제안한다
                 const altTrain =
                   soldOut && !isNotOpen
                     ? nextAvailable(
-                        previewTrains.filter((t) => !bookingOpenHint(t.booking_open_at)),
+                        previewTrains.filter((t) => !bookingOpenHint(t.bookingOpenAt)),
                         train
                       )
                     : null;

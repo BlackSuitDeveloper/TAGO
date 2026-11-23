@@ -11,9 +11,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class StationResponseDTO {
 
-    private String nodeid;
-    private String nodename;
-    private Integer citycode;
-    private String cityname;
-    private String node_address;
+    private String nodeId;
+    private String nodeName;
+    private Integer cityCode;
+    private String cityName;
+    private String nodeAddress;
 }

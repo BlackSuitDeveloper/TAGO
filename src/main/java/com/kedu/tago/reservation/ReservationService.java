@@ -54,8 +54,8 @@ public class ReservationService {
             throw new ApiException(ErrorCode.SCHEDULE_NOT_FOUND);
         }
 
-        int unitPrice = (schedule.getStandard_price() != null && schedule.getStandard_price() > 0)
-                ? schedule.getStandard_price().intValue() : 59800;
+        int unitPrice = (schedule.getStandardPrice() != null && schedule.getStandardPrice() > 0)
+                ? schedule.getStandardPrice().intValue() : 59800;
         int totalPrice = unitPrice * seatList.size();
 
         LocalDateTime now = LocalDateTime.now();

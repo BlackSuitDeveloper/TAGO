@@ -30,16 +30,16 @@ function dayPrefix(dep, now) {
 }
 
 function toItem(row) {
-  const dep = new Date(row?.depplandtime).getTime();
+  const dep = new Date(row?.depPlandTime).getTime();
   if (Number.isNaN(dep)) return null;
   const d = new Date(dep);
   return {
-    id: row.schedule_seq ?? `${dep}-${row.trainno}`,
+    id: row.scheduleSeq ?? `${dep}-${row.trainNo}`,
     dep,
     time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
-    from: row.depStationName || row.depplacename || '',
-    to: row.arrStationName || row.arrplacename || '',
-    train: `KTX ${String(row.trainno ?? '').padStart(3, '0')}`,
+    from: row.depStationName || row.depPlaceName || '',
+    to: row.arrStationName || row.arrPlaceName || '',
+    train: `KTX ${String(row.trainNo ?? '').padStart(3, '0')}`,
   };
 }
 

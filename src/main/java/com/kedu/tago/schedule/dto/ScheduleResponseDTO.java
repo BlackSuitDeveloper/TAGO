@@ -13,21 +13,21 @@ import java.sql.Timestamp;
 @AllArgsConstructor
 public class ScheduleResponseDTO {
 
-    private Long schedule_seq;
-    private Long trainno;
-    private String depplacename;
-    private String arrplacename;
-    private Timestamp depplandtime;
-    private Timestamp arrplandtime;
-    private Timestamp booking_open_at;
-    private Long first_price;
-    private Long standard_price;
+    private Long scheduleSeq;
+    private Long trainNo;
+    private String depPlaceName;
+    private String arrPlaceName;
+    private Timestamp depPlandTime;
+    private Timestamp arrPlandTime;
+    private Timestamp bookingOpenAt;
+    private Long firstPrice;
+    private Long standardPrice;
     private String status;
 
     // JOIN 조회용 부가 정보 (역명, 열차 정보, 잔여 좌석 수)
     private String depStationName;
     private String arrStationName;
-    private String vehiclekndnm;
+    private String vehicleKndNm;
     private String lineCategory;
     private Integer availableSeats;
 }

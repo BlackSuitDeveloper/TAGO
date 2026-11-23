@@ -43,19 +43,19 @@
             parameterType="com.kedu.tago.schedule.dto.ScheduleSearchRequestDTO"
             resultType="com.kedu.tago.schedule.dto.ScheduleResponseDTO">
         SELECT
-            s.schedule_seq,
-            s.trainno,
-            s.depplacename,
-            s.arrplacename,
-            s.depplandtime,
-            s.arrplandtime,
-            s.booking_open_at,
-            s.first_price,
-            s.standard_price,
+            s.schedule_seq AS scheduleSeq,
+            s.trainno AS trainNo,
+            s.depplacename AS depPlaceName,
+            s.arrplacename AS arrPlaceName,
+            s.depplandtime AS depPlandTime,
+            s.arrplandtime AS arrPlandTime,
+            s.booking_open_at AS bookingOpenAt,
+            s.first_price AS firstPrice,
+            s.standard_price AS standardPrice,
             s.status,
             ds.nodename AS depStationName,
             as2.nodename AS arrStationName,
-            t.vehiclekndnm,
+            t.vehiclekndnm AS vehicleKndNm,
             t.line_category AS lineCategory,
             (935 - (SELECT COUNT(*) FROM seat st WHERE st.schedule_seq = s.schedule_seq)) AS availableSeats
         FROM schedule s
@@ -81,19 +81,19 @@
             parameterType="long"
             resultType="com.kedu.tago.schedule.dto.ScheduleResponseDTO">
         SELECT
-            s.schedule_seq,
-            s.trainno,
-            s.depplacename,
-            s.arrplacename,
-            s.depplandtime,
-            s.arrplandtime,
-            s.booking_open_at,
-            s.first_price,
-            s.standard_price,
+            s.schedule_seq AS scheduleSeq,
+            s.trainno AS trainNo,
+            s.depplacename AS depPlaceName,
+            s.arrplacename AS arrPlaceName,
+            s.depplandtime AS depPlandTime,
+            s.arrplandtime AS arrPlandTime,
+            s.booking_open_at AS bookingOpenAt,
+            s.first_price AS firstPrice,
+            s.standard_price AS standardPrice,
             s.status,
             ds.nodename AS depStationName,
             as2.nodename AS arrStationName,
-            t.vehiclekndnm,
+            t.vehiclekndnm AS vehicleKndNm,
             t.line_category AS lineCategory,
             (935 - (SELECT COUNT(*) FROM seat st WHERE st.schedule_seq = s.schedule_seq)) AS availableSeats
         FROM schedule s

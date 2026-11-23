@@ -17,7 +17,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ScheduleSyncDAO {
 
-    private final SqlSession mybatis;
+    private final SqlSession sqlSession;
 
     /**
      * 동일 열차/출발역/도착역/출발시각 일정 존재 여부 확인 (멱등성 보장)
@@ -29,7 +29,7 @@ public class ScheduleSyncDAO {
         params.put("arrNodeId", arrNodeId);
         params.put("depTime", depTime);
 
-        Boolean exists = mybatis.selectOne("ScheduleSync.existsSchedule", params);
+        Boolean exists = sqlSession.selectOne("ScheduleSync.existsSchedule", params);
         return Boolean.TRUE.equals(exists);
     }
 
@@ -57,7 +57,7 @@ public class ScheduleSyncDAO {
                 .standardPrice(standardPrice)
                 .build();
 
-        mybatis.insert("ScheduleSync.insertSchedule", dto);
+        sqlSession.insert("ScheduleSync.insertSchedule", dto);
         return dto.getScheduleSeq();
     }
 

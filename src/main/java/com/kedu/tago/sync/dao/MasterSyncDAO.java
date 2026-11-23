@@ -19,10 +19,10 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class MasterSyncDAO {
 
-    private final SqlSession mybatis;
+    private final SqlSession sqlSession;
 
     public int countStations() {
-        Integer count = mybatis.selectOne("MasterSync.countStations");
+        Integer count = sqlSession.selectOne("MasterSync.countStations");
         return count == null ? 0 : count;
     }
 
@@ -30,7 +30,7 @@ public class MasterSyncDAO {
      * station 테이블 전체 조회 (nodename -> nodeid 매핑 반환)
      */
     public Map<String, String> findAllStationNameToIdMap() {
-        List<TagoStationDTO> stations = mybatis.selectList("MasterSync.selectAllStations");
+        List<TagoStationDTO> stations = sqlSession.selectList("MasterSync.selectAllStations");
         Map<String, String> nameToId = new LinkedHashMap<>();
         for (TagoStationDTO st : stations) {
             if (st.getNodeid() != null && st.getNodename() != null) {
@@ -47,7 +47,7 @@ public class MasterSyncDAO {
         if (stationList == null || stationList.isEmpty()) {
             return 0;
         }
-        mybatis.insert("MasterSync.upsertStations", stationList);
+        sqlSession.insert("MasterSync.upsertStations", stationList);
         return stationList.size();
     }
 
@@ -66,7 +66,7 @@ public class MasterSyncDAO {
                         .lineCategory(lineCategory)
                         .build())
         );
-        mybatis.insert("MasterSync.upsertKtxTrains", trainList);
+        sqlSession.insert("MasterSync.upsertKtxTrains", trainList);
         return trainList.size();
     }
 }

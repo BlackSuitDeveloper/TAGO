@@ -38,8 +38,8 @@ public class MemberService {
 
     // 회원가입
     public int insertMember(MemberSignupRequestDTO dto) {
-        String encoedPw = bcrypt.hashPassword(dto.getPw());
-        dto.setPw(encoedPw);
+        String encodedPw = bcrypt.hashPassword(dto.getPw());
+        dto.setPw(encodedPw);
         return memberMapper.insertMember(dto);
     }
 

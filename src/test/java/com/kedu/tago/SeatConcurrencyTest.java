@@ -101,9 +101,9 @@ public class SeatConcurrencyTest {
                         startLatch.await();
 
                         // 3-1. 대기열 진입 (Redis ZSet)
-                        QueueResponseDTO qResp = queueService.enterQueue(scheduleSeq, memberId);
-                        if (qResp != null && qResp.getQueueToken() != null) {
-                            queueTokens.add(qResp.getQueueToken());
+                        QueueResponseDTO queueResp = queueService.enterQueue(scheduleSeq, memberId);
+                        if (queueResp != null && queueResp.getQueueToken() != null) {
+                            queueTokens.add(queueResp.getQueueToken());
                         }
 
                         // 3-2. 동일 좌석(1호차 1B) 동시 선점 시도
@@ -416,10 +416,10 @@ public class SeatConcurrencyTest {
                 executor.submit(() -> {
                     try {
                         // 3-1. 대기열 진입 (Redis ZSet 스코어링)
-                        QueueResponseDTO qResp = queueService.enterQueue(scheduleSeq, memberId);
-                        if (qResp != null && qResp.getQueueToken() != null) {
-                            queueTokens.add(qResp.getQueueToken());
-                            tokenUserPairs.add(String.format("#%02d %s -> token=%s", orderIndex, memberId, qResp.getQueueToken()));
+                        QueueResponseDTO queueResp = queueService.enterQueue(scheduleSeq, memberId);
+                        if (queueResp != null && queueResp.getQueueToken() != null) {
+                            queueTokens.add(queueResp.getQueueToken());
+                            tokenUserPairs.add(String.format("#%02d %s -> token=%s", orderIndex, memberId, queueResp.getQueueToken()));
                         }
 
                         // 3-2. 동일 좌석(1호차 1B) 예매(선점) 시도
