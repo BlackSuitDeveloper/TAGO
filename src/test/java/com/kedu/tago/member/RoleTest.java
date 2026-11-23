@@ -2,7 +2,7 @@ package com.kedu.tago.member;
 
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.interfaces.DecodedJWT;
-import com.kedu.tago.common.utils.JwtUtil;
+import com.kedu.tago.common.security.JwtUtil;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

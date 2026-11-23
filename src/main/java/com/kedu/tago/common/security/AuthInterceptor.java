@@ -1,11 +1,8 @@
-package com.kedu.tago.interceptor;
+package com.kedu.tago.common.security;
 
 import com.auth0.jwt.interfaces.DecodedJWT;
-import com.kedu.tago.common.auth.RequireRole;
 import com.kedu.tago.common.exception.ApiException;
 import com.kedu.tago.common.exception.ErrorCode;
-import com.kedu.tago.common.utils.JwtUtil;
-import com.kedu.tago.config.AccessPolicy;
 import com.kedu.tago.member.Role;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

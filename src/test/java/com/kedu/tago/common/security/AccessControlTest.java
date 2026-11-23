@@ -1,11 +1,8 @@
-package com.kedu.tago.config;
+package com.kedu.tago.common.security;
 
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
-import com.kedu.tago.common.auth.RequireRole;
 import com.kedu.tago.common.exception.GlobalExceptionHandler;
-import com.kedu.tago.common.utils.JwtUtil;
-import com.kedu.tago.interceptor.AuthInterceptor;
 import com.kedu.tago.member.Role;
 import com.kedu.tago.station.StationController;
 import com.kedu.tago.station.StationService;

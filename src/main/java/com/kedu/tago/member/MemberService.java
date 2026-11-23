@@ -1,6 +1,6 @@
 package com.kedu.tago.member;
 
-import com.kedu.tago.common.utils.Bcrypt;
+import com.kedu.tago.common.security.Bcrypt;
 import com.kedu.tago.member.dto.MemberProfileResponseDTO;
 import com.kedu.tago.member.dto.MemberSignupRequestDTO;
 import com.kedu.tago.member.dto.MemberUpdateRequestDTO;

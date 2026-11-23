@@ -1,4 +1,4 @@
-package com.kedu.tago.config;
+package com.kedu.tago.common.security;
 
 import com.kedu.tago.member.Role;
 import org.springframework.http.HttpMethod;

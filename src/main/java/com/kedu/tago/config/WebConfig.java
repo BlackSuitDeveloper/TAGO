@@ -1,6 +1,6 @@
 package com.kedu.tago.config;
 
-import com.kedu.tago.interceptor.AuthInterceptor;
+import com.kedu.tago.common.security.AuthInterceptor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;

@@ -1,4 +1,4 @@
-package com.kedu.tago.common.utils;
+package com.kedu.tago.common.security;
 
 import com.auth0.jwt.JWT;
 import com.kedu.tago.member.Role;

@@ -1,4 +1,4 @@
-package com.kedu.tago.common.utils;
+package com.kedu.tago.common.security;
 
 import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.stereotype.Component;
