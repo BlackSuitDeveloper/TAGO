@@ -48,6 +48,9 @@
         SET status = #{status},
             cancelled_at = NOW(),
             cancel_reason = #{cancelReason}
+            <if test="status == 'CANCELLED'">
+                , seat_seq = NULL
+            </if>
         WHERE reservation_seq = #{reservationSeq}
     </update>
 
@@ -99,7 +102,7 @@
         LEFT JOIN train t ON s.trainno = t.trainno
         LEFT JOIN station ds ON s.depplacename = ds.nodeid
         LEFT JOIN station as2 ON s.arrplacename = as2.nodeid
-        JOIN seat st ON r.seat_seq = st.seat_seq
+        LEFT JOIN seat st ON r.seat_seq = st.seat_seq
         LEFT JOIN payment p ON r.reservation_seq = p.reservation_seq AND p.status = 'APPROVED'
         WHERE r.member_id = #{memberId}
         ORDER BY r.reserved_at DESC

@@ -80,4 +80,31 @@ public class SeatTemplateGenerator {
     public List<SeatTemplateItem> getKtxSeatTemplate() {
         return ktxSeatTemplate;
     }
+
+    public int[] getCarSeatCounts() {
+        return CAR_SEAT_COUNTS;
+    }
+
+    public List<SeatTemplateItem> getSeatsByCarNo(int carNo) {
+        if (carNo < 1 || carNo > CAR_SEAT_COUNTS.length) {
+            return Collections.emptyList();
+        }
+        List<SeatTemplateItem> result = new ArrayList<>(CAR_SEAT_COUNTS[carNo - 1]);
+        for (SeatTemplateItem item : ktxSeatTemplate) {
+            if (item.getCarNo() == carNo) {
+                result.add(item);
+            }
+        }
+        return result;
+    }
+
+    public SeatTemplateItem findTemplateSeat(int carNo, String seatNo) {
+        if (seatNo == null) return null;
+        for (SeatTemplateItem item : ktxSeatTemplate) {
+            if (item.getCarNo() == carNo && item.getSeatNo().equals(seatNo)) {
+                return item;
+            }
+        }
+        return null;
+    }
 }

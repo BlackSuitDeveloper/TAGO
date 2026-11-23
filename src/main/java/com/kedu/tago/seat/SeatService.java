@@ -3,6 +3,7 @@ package com.kedu.tago.seat;
 import com.kedu.tago.seat.dto.CarSummaryDTO;
 import com.kedu.tago.seat.dto.SeatDTO;
 import com.kedu.tago.seat.dto.SeatResponseDTO;
+import com.kedu.tago.sync.service.SeatTemplateGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,57 +20,87 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class SeatService {
 
     private final SeatMapper seatMapper;
+    private final SeatTemplateGenerator seatTemplateGenerator;
 
     // scheduleSeq -> SseEmitter 리스트 관리
     private final Map<Long, List<SseEmitter>> sseEmitters = new ConcurrentHashMap<>();
 
     /**
-     * 특정 일정의 좌석 목록 및 호차 요약 조회
+     * 특정 일정의 좌석 목록 및 호차 요약 조회 (고정 템플릿 + DB 점유 좌석 병합)
      *
      * @param scheduleSeq 운행 일정 시퀀스 (필수)
      * @param carNo       호차 번호 (선택, 미입력 시 1호차 기본 선택)
      * @return 통합 좌석 응답 DTO
      */
     public SeatResponseDTO getSeats(Long scheduleSeq, Integer carNo) {
-        // 1. 전체 호차별 잔여석 요약 정보 조회 (1~18호차 탭 렌더링용)
-        List<CarSummaryDTO> carSummaryList = seatMapper.selectCarSummaries(scheduleSeq);
-
-        // 일정이 없거나 좌석 데이터가 초기화되지 않은 경우 빈 데이터 반환
-        if (carSummaryList == null || carSummaryList.isEmpty()) {
-            return SeatResponseDTO.builder()
-                    .scheduleSeq(scheduleSeq)
-                    .carNo(carNo != null ? carNo : 1)
-                    .totalSeats(0)
-                    .availableSeats(0)
-                    .carSummaryList(Collections.emptyList())
-                    .seatList(Collections.emptyList())
-                    .build();
+        // 1. DB에 저장된 호차별 점유 좌석 수 조회
+        List<CarSummaryDTO> occupiedSummaries = seatMapper.selectCarSummaries(scheduleSeq);
+        Map<Integer, Integer> occupiedCountByCar = new HashMap<>();
+        if (occupiedSummaries != null) {
+            for (CarSummaryDTO item : occupiedSummaries) {
+                if (item.getCarNo() != null) {
+                    occupiedCountByCar.put(item.getCarNo(), item.getTotalSeats() != null ? item.getTotalSeats() : 0);
+                }
+            }
         }
 
-        // 2. 조회 대상 호차 결정 (미지정 시 기본 1호차)
-        int targetCarNo = (carNo != null) ? carNo : 1;
+        // 2. 1~18호차 전체 요약 목록 생성 (템플릿 좌석 수 - 점유 좌석 수)
+        int[] carSeatCounts = seatTemplateGenerator.getCarSeatCounts();
+        List<CarSummaryDTO> carSummaryList = new ArrayList<>(carSeatCounts.length);
+        for (int idx = 0; idx < carSeatCounts.length; idx++) {
+            int currentCarNo = idx + 1;
+            int total = carSeatCounts[idx];
+            int occupied = occupiedCountByCar.getOrDefault(currentCarNo, 0);
+            int available = Math.max(0, total - occupied);
 
-        // 3. 해당 호차의 상세 좌석 목록 조회
-        List<SeatDTO> seatList = seatMapper.selectSeatList(scheduleSeq, targetCarNo);
+            carSummaryList.add(CarSummaryDTO.builder()
+                    .carNo(currentCarNo)
+                    .totalSeats(total)
+                    .availableSeats(available)
+                    .build());
+        }
 
-        // 4. 현재 호차의 총 좌석 수 및 잔여석 수 계산
-        CarSummaryDTO currentSummary = carSummaryList.stream()
-                .filter(c -> c.getCarNo().equals(targetCarNo))
-                .findFirst()
-                .orElse(null);
+        // 3. 조회 대상 호차 결정 (미지정 시 기본 1호차)
+        int targetCarNo = (carNo != null && carNo >= 1 && carNo <= carSeatCounts.length) ? carNo : 1;
 
-        int totalSeats = (currentSummary != null) ? currentSummary.getTotalSeats() : seatList.size();
-        int availableSeats = (currentSummary != null) ? currentSummary.getAvailableSeats()
-                : (int) seatList.stream().filter(s -> "AVAILABLE".equals(s.getStatus())).count();
+        // 4. DB에서 해당 호차의 점유된 좌석만 조회 후 Map(seatNo -> SeatDTO)으로 매핑
+        List<SeatDTO> occupiedSeats = seatMapper.selectSeatList(scheduleSeq, targetCarNo);
+        Map<String, SeatDTO> occupiedSeatMap = new HashMap<>();
+        if (occupiedSeats != null) {
+            for (SeatDTO occupied : occupiedSeats) {
+                occupiedSeatMap.put(occupied.getSeatNo(), occupied);
+            }
+        }
+
+        // 5. 템플릿 좌석 위에 점유 상태 덮어쓰기 (미점유 좌석은 AVAILABLE)
+        List<SeatTemplateGenerator.SeatTemplateItem> templateSeats = seatTemplateGenerator.getSeatsByCarNo(targetCarNo);
+        List<SeatDTO> seatList = new ArrayList<>(templateSeats.size());
+        for (SeatTemplateGenerator.SeatTemplateItem tpl : templateSeats) {
+            SeatDTO occupied = occupiedSeatMap.get(tpl.getSeatNo());
+            if (occupied != null) {
+                seatList.add(occupied);
+            } else {
+                seatList.add(SeatDTO.builder()
+                        .scheduleSeq(scheduleSeq)
+                        .carNo(targetCarNo)
+                        .seatNo(tpl.getSeatNo())
+                        .seatGrade(tpl.getSeatGrade())
+                        .status(SeatTemplateGenerator.STATUS_AVAILABLE)
+                        .version(0)
+                        .build());
+            }
+        }
+
+        CarSummaryDTO currentSummary = carSummaryList.get(targetCarNo - 1);
 
         return SeatResponseDTO.builder()
-                    .scheduleSeq(scheduleSeq)
-                    .carNo(targetCarNo)
-                    .totalSeats(totalSeats)
-                    .availableSeats(availableSeats)
-                    .carSummaryList(carSummaryList)
-                    .seatList(seatList)
-                    .build();
+                .scheduleSeq(scheduleSeq)
+                .carNo(targetCarNo)
+                .totalSeats(currentSummary.getTotalSeats())
+                .availableSeats(currentSummary.getAvailableSeats())
+                .carSummaryList(carSummaryList)
+                .seatList(seatList)
+                .build();
     }
 
     /**

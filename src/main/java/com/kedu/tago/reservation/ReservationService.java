@@ -9,7 +9,7 @@ import com.kedu.tago.schedule.ScheduleService;
 import com.kedu.tago.seat.SeatMapper;
 import com.kedu.tago.seat.SeatService;
 import com.kedu.tago.seat.dto.SeatDTO;
-import com.kedu.tago.seat.dto.SeatStatusUpdateDTO;
+import com.kedu.tago.sync.service.SeatTemplateGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -31,6 +31,7 @@ public class ReservationService {
     private final SeatMapper seatMapper;
     private final SeatService seatService;
     private final ScheduleService scheduleService;
+    private final SeatTemplateGenerator seatTemplateGenerator;
 
     public static final int HOLD_TTL_MINUTES = 5; // 좌석 선점 유효시간 5분
 
@@ -63,24 +64,22 @@ public class ReservationService {
         List<Long> createdReservationSeqs = new ArrayList<>();
 
         for (String seatNo : seatList) {
-            // 1. 좌석 정보 조회
-            SeatDTO seat = seatMapper.selectSeat(scheduleSeq, carNo, seatNo);
-            if (seat == null) {
+            // 1. 고정 좌석 템플릿 검증 (존재하지 않는 호차/좌석 번호 차단)
+            SeatTemplateGenerator.SeatTemplateItem templateSeat = seatTemplateGenerator.findTemplateSeat(carNo, seatNo);
+            if (templateSeat == null) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "호차 " + carNo + ", 좌석 " + seatNo + " 정보를 찾을 수 없습니다.");
             }
 
-            // 2. 조건부 UPDATE 실행 (동시성 제어: WHERE status = 'AVAILABLE')
-            SeatStatusUpdateDTO updateDTO = SeatStatusUpdateDTO.builder()
+            // 2. 점유 좌석 INSERT 시도 (UNIQUE(schedule_seq, car_no, seat_no) + ON CONFLICT DO NOTHING 동시성 제어)
+            SeatDTO seatToInsert = SeatDTO.builder()
                     .scheduleSeq(scheduleSeq)
                     .carNo(carNo)
                     .seatNo(seatNo)
-                    .currentStatus("AVAILABLE")
-                    .newStatus("HELD")
+                    .seatGrade(templateSeat.getSeatGrade())
                     .build();
 
-            int updated = seatMapper.updateSeatStatusConditional(updateDTO);
-
-            if (updated == 0) {
+            int inserted = seatMapper.insertOccupiedSeat(seatToInsert);
+            if (inserted == 0 || seatToInsert.getSeatSeq() == null) {
                 // 이미 다른 사용자가 선점하였거나 예약된 상태
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "좌석 " + seatNo + "은(는) 이미 선택되었거나 예약이 진행 중입니다.");
             }
@@ -89,7 +88,7 @@ public class ReservationService {
             ReservationDTO reservation = ReservationDTO.builder()
                     .memberId(memberId != null ? memberId : "guest")
                     .scheduleSeq(scheduleSeq)
-                    .seatSeq(seat.getSeatSeq())
+                    .seatSeq(seatToInsert.getSeatSeq())
                     .status("HELD")
                     .totalPrice(unitPrice)
                     .reservedAt(now)
@@ -108,6 +107,7 @@ public class ReservationService {
         return ReservationResponseDTO.builder()
                 .reservationId(mainReservationSeq)
                 .reservationSeq(mainReservationSeq)
+                .reservationIds(createdReservationSeqs)
                 .scheduleSeq(scheduleSeq)
                 .carNo(carNo)
                 .seatList(seatList)
@@ -139,8 +139,10 @@ public class ReservationService {
         // 1. 예약 상태 취소로 변경 (chk_res_cancel_reason: USER_CANCEL, TTL_EXPIRED, PAYMENT_FAILED)
         reservationMapper.updateReservationStatus(reservationSeq, "CANCELLED", "USER_CANCEL");
 
-        // 2. 좌석 상태 AVAILABLE로 즉시 반환
-        seatMapper.updateSeatStatusBySeq(reservation.getSeatSeq(), "AVAILABLE");
+        // 2. 점유 좌석 레코드 삭제 (즉시 AVAILABLE 상태로 복구)
+        if (reservation.getSeatSeq() != null) {
+            seatMapper.deleteSeatBySeq(reservation.getSeatSeq());
+        }
 
         // 3. 실시간 SSE 알림
         // (scheduleSeq와 좌석 번호 조회 필요 시 seat 정보 조회 후 전송)
@@ -172,8 +174,10 @@ public class ReservationService {
             // 1. 예약 상태 취소 처리
             reservationMapper.updateReservationStatus(r.getReservationSeq(), "CANCELLED", "TTL_EXPIRED");
 
-            // 2. 좌석 상태 AVAILABLE 복구
-            seatMapper.updateSeatStatusBySeq(r.getSeatSeq(), "AVAILABLE");
+            // 2. 점유 좌석 레코드 삭제 (AVAILABLE 복구)
+            if (r.getSeatSeq() != null) {
+                seatMapper.deleteSeatBySeq(r.getSeatSeq());
+            }
             log.info("[TTL Scheduler] 예약 번호 {} (좌석 {}) 만료 해제 완료", r.getReservationSeq(), r.getSeatSeq());
         }
     }

@@ -106,12 +106,16 @@ public class ScheduleSyncService {
         int insertedScheduleCount = 0;
         int skippedScheduleCount = 0;
         int insertedSeatCount = 0;
+        LocalDateTime now = LocalDateTime.now();
 
         for (TagoTrainScheduleDTO dto : collectedSchedules) {
             LocalDateTime depTime = parseTagoDateTime(dto.getDepplandtime());
             LocalDateTime arrTime = parseTagoDateTime(dto.getArrplandtime());
 
             if (depTime == null || arrTime == null || !arrTime.isAfter(depTime)) {
+                continue;
+            }
+            if (depTime.isBefore(now)) {
                 continue;
             }
             if (dto.getDepPlaceId().equals(dto.getArrPlaceId())) {
@@ -140,7 +144,6 @@ public class ScheduleSyncService {
 
             if (scheduleSeq != null) {
                 insertedScheduleCount++;
-                insertedSeatCount += batchInsertSeatsForSchedule(scheduleSeq);
             }
         }
 
@@ -252,7 +255,6 @@ public class ScheduleSyncService {
             );
             if (scheduleSeq != null) {
                 insertedScheduleCount++;
-                insertedSeatCount += batchInsertSeatsForSchedule(scheduleSeq);
             }
         }
 

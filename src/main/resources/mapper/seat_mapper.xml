@@ -4,72 +4,72 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.kedu.tago.seat.SeatMapper">
 
-    <!-- 특정 일정 및 호차의 좌석 목록 조회 -->
+    <!-- 특정 일정 및 호차의 점유된 좌석 목록 조회 (reservation.status 기준 HELD/CONFIRMED 판별) -->
     <select id="selectSeatList" resultType="com.kedu.tago.seat.dto.SeatDTO">
         SELECT
-            seat_seq AS seatSeq,
-            schedule_seq AS scheduleSeq,
-            car_no AS carNo,
-            seat_no AS seatNo,
-            seat_grade AS seatGrade,
-            status,
-            version
-        FROM seat
-        WHERE schedule_seq = #{scheduleSeq}
+            st.seat_seq AS seatSeq,
+            st.schedule_seq AS scheduleSeq,
+            st.car_no AS carNo,
+            st.seat_no AS seatNo,
+            st.seat_grade AS seatGrade,
+            COALESCE(r.status, 'HELD') AS status,
+            st.version
+        FROM seat st
+        LEFT JOIN reservation r
+               ON st.seat_seq = r.seat_seq
+              AND r.status IN ('HELD', 'CONFIRMED')
+        WHERE st.schedule_seq = #{scheduleSeq}
         <if test="carNo != null">
-            AND car_no = #{carNo}
+            AND st.car_no = #{carNo}
         </if>
-        ORDER BY car_no ASC,
-                 CAST(NULLIF(regexp_replace(seat_no, '\D', '', 'g'), '') AS INTEGER) ASC,
-                 regexp_replace(seat_no, '\d', '', 'g') ASC
+        ORDER BY st.car_no ASC,
+                 CAST(NULLIF(regexp_replace(st.seat_no, '\D', '', 'g'), '') AS INTEGER) ASC,
+                 regexp_replace(st.seat_no, '\d', '', 'g') ASC
     </select>
 
-    <!-- 호차별 총 좌석 및 잔여석 요약 목록 조회 -->
+    <!-- 호차별 점유 좌석 수 조회 (totalSeats 필드에 점유 수 반환 -> SeatService에서 템플릿 좌석 수와 차감 계산) -->
     <select id="selectCarSummaries" resultType="com.kedu.tago.seat.dto.CarSummaryDTO">
         SELECT
             car_no AS carNo,
-            COUNT(*) AS totalSeats,
-            COUNT(CASE WHEN status = 'AVAILABLE' THEN 1 END) AS availableSeats
+            COUNT(*) AS totalSeats
         FROM seat
         WHERE schedule_seq = #{scheduleSeq}
         GROUP BY car_no
         ORDER BY car_no ASC
     </select>
 
-    <!-- 특정 좌석 단건 조회 -->
+    <!-- 특정 점유 좌석 단건 조회 -->
     <select id="selectSeat" resultType="com.kedu.tago.seat.dto.SeatDTO">
         SELECT
-            seat_seq AS seatSeq,
-            schedule_seq AS scheduleSeq,
-            car_no AS carNo,
-            seat_no AS seatNo,
-            seat_grade AS seatGrade,
-            status,
-            version
-        FROM seat
-        WHERE schedule_seq = #{scheduleSeq}
-          AND car_no = #{carNo}
-          AND seat_no = #{seatNo}
+            st.seat_seq AS seatSeq,
+            st.schedule_seq AS scheduleSeq,
+            st.car_no AS carNo,
+            st.seat_no AS seatNo,
+            st.seat_grade AS seatGrade,
+            COALESCE(r.status, 'HELD') AS status,
+            st.version
+        FROM seat st
+        LEFT JOIN reservation r
+               ON st.seat_seq = r.seat_seq
+              AND r.status IN ('HELD', 'CONFIRMED')
+        WHERE st.schedule_seq = #{scheduleSeq}
+          AND st.car_no = #{carNo}
+          AND st.seat_no = #{seatNo}
         LIMIT 1
     </select>
 
-    <!-- 조건부 좌석 상태 변경 (동시성 제어: 현재 상태가 일치할 때만 변경 및 version 증가) -->
-    <update id="updateSeatStatusConditional" parameterType="com.kedu.tago.seat.dto.SeatStatusUpdateDTO">
-        UPDATE seat
-        SET status = #{newStatus},
-            version = version + 1
-        WHERE schedule_seq = #{scheduleSeq}
-          AND car_no = #{carNo}
-          AND seat_no = #{seatNo}
-          AND status = #{currentStatus}
-    </update>
+    <!-- 점유 좌석 INSERT (UNIQUE(schedule_seq, car_no, seat_no) 기반 동시성 제어: 충돌 시 0 반환) -->
+    <insert id="insertOccupiedSeat" parameterType="com.kedu.tago.seat.dto.SeatDTO"
+            useGeneratedKeys="true" keyProperty="seatSeq" keyColumn="seat_seq">
+        INSERT INTO seat (schedule_seq, car_no, seat_no, seat_grade, version)
+        VALUES (#{scheduleSeq}, #{carNo}, #{seatNo}, #{seatGrade}, 0)
+        ON CONFLICT (schedule_seq, car_no, seat_no) DO NOTHING
+    </insert>
 
-    <!-- seatSeq 기준 좌석 상태 변경 -->
-    <update id="updateSeatStatusBySeq">
-        UPDATE seat
-        SET status = #{newStatus},
-            version = version + 1
+    <!-- 예약 취소 또는 TTL 만료 시 점유 좌석 행 삭제 (즉시 AVAILABLE 복구) -->
+    <delete id="deleteSeatBySeq">
+        DELETE FROM seat
         WHERE seat_seq = #{seatSeq}
-    </update>
+    </delete>
 
 </mapper>

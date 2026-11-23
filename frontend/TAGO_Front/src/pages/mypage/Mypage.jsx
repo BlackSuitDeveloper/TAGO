@@ -40,9 +40,12 @@ const formatDateTime = (dateStr) => {
 const parseTicket = (item) => {
   const dep = formatDateTime(item.depplandtime);
   const arr = formatDateTime(item.arrplandtime);
+  const rawPrice = Number(item.totalPrice || 0);
   return {
     reservationSeq: item.reservationSeq,
+    reservationSeqs: [item.reservationSeq],
     scheduleSeq: item.scheduleSeq,
+    carNo: item.carNo,
     trainName: `${item.vehiclekndnm || 'KTX'} ${item.trainno || ''}`.trim(),
     trainType: item.vehiclekndnm || 'KTX',
     depDate: dep.date,
@@ -51,12 +54,51 @@ const parseTicket = (item) => {
     depTime: dep.time || '00:00',
     arrTime: arr.time || '00:00',
     car: item.carNo ? `${item.carNo}호차` : '일반',
+    seatNo: item.seatNo || '-',
     seat: item.seatNo || '-',
+    seatGrade: item.seatGrade || '어른',
     passenger: item.seatGrade ? `${item.seatGrade} 1명` : '어른 1명',
-    price: item.totalPrice ? `${Number(item.totalPrice).toLocaleString()}원` : '0원',
+    rawPrice,
+    price: `${rawPrice.toLocaleString()}원`,
+    hasRealTicketNumber: Boolean(item.ticketNumber),
     ticketNumber: item.ticketNumber || `T-${String(item.reservationSeq || '').padStart(8, '0')}`,
     status: item.status || 'CONFIRMED',
   };
+};
+
+// 동일한 스케줄·호차·상태의 승차권을 하나로 묶어 좌석 목록/인원/금액 합산
+const groupTickets = (rawList) => {
+  const map = new Map();
+
+  for (const raw of rawList) {
+    const t = parseTicket(raw);
+    const key = `${t.scheduleSeq ?? 'none'}_${t.carNo ?? 'none'}_${t.status}`;
+
+    if (!map.has(key)) {
+      map.set(key, {
+        ...t,
+        seats: [t.seatNo],
+      });
+    } else {
+      const group = map.get(key);
+      group.reservationSeqs.push(t.reservationSeq);
+      if (t.seatNo && t.seatNo !== '-' && !group.seats.includes(t.seatNo)) {
+        group.seats.push(t.seatNo);
+      }
+      group.rawPrice += t.rawPrice;
+      if (!group.hasRealTicketNumber && t.hasRealTicketNumber) {
+        group.hasRealTicketNumber = true;
+        group.ticketNumber = t.ticketNumber;
+      }
+    }
+  }
+
+  return Array.from(map.values()).map((group) => ({
+    ...group,
+    seat: group.seats.join(', '),
+    passenger: `${group.seatGrade} ${group.reservationSeqs.length}명`,
+    price: `${group.rawPrice.toLocaleString()}원`,
+  }));
 };
 
 export default function MyPage() {
@@ -65,6 +107,7 @@ export default function MyPage() {
 
   // 실제 예매 목록 및 선택된 승차권 상태
   const [ticketList, setTicketList] = useState([]);
+  const [ticketFilter, setTicketFilter] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'CANCELLED'
   const [selectedTicketIndex, setSelectedTicketIndex] = useState(0);
   const [isLoadingTickets, setIsLoadingTickets] = useState(false);
 
@@ -75,8 +118,8 @@ export default function MyPage() {
       // GET /api/reservation/me
       const res = await client.get('/reservation/me');
       if (Array.isArray(res.data) && res.data.length > 0) {
-        const parsed = res.data.map(parseTicket);
-        setTicketList(parsed);
+        const grouped = groupTickets(res.data);
+        setTicketList(grouped);
         setSelectedTicketIndex(0);
       } else {
         setTicketList([]);
@@ -89,8 +132,16 @@ export default function MyPage() {
     }
   }, []);
 
+  const filteredTickets = ticketList.filter((t) => {
+    if (ticketFilter === 'ACTIVE') return t.status !== 'CANCELLED';
+    if (ticketFilter === 'CANCELLED') return t.status === 'CANCELLED';
+    return true;
+  });
+
   // 현재 화면에 표시할 선택된 승차권
-  const activeTicket = ticketList.length > 0 ? ticketList[selectedTicketIndex] : null;
+  const activeTicket = filteredTickets.length > 0
+    ? (filteredTickets[selectedTicketIndex] || filteredTickets[0])
+    : null;
 
   // 승차권 예매 취소
   const handleCancelTicket = async () => {
@@ -100,8 +151,9 @@ export default function MyPage() {
     }
 
     try {
-      // POST /api/reservation/{reservationSeq}/cancel
-      await client.post(`/reservation/${activeTicket.reservationSeq}/cancel`);
+      const rawSeqs = activeTicket.reservationSeqs?.length ? activeTicket.reservationSeqs : [activeTicket.reservationSeq];
+      const seqs = Array.from(new Set(rawSeqs.filter(Boolean)));
+      await Promise.all(seqs.map((seq) => client.post(`/reservation/${seq}/cancel`)));
       alert('승차권 예매가 정상적으로 취소되었습니다.');
       await fetchMyTickets();
     } catch (error) {
@@ -111,54 +163,73 @@ export default function MyPage() {
   };
 
   // 찜하기 중앙 스토어 연동 (메인·시각표·마이페이지 공통)
-  const { fetchWishList, toggleWish, isWish } = useWishStore();
+  const { wishList, fetchWishList, toggleWish } = useWishStore();
+  const [favorites, setFavorites] = useState([]);
 
   useEffect(() => {
     fetchWishList();
   }, [fetchWishList]);
 
-  // 화면 표시용 KTX 열차 목록 (찜된 번호만 필터링되어 자동 표시)
-  const allTrains = [
-    {
-      id: 1,
-      scheduleSeq: 1,
-      name: 'KTX 001',
-      type: 'KTX',
-      depTime: '05:15',
-      arrTime: '07:42',
-      duration: '2시간 27분',
-      depStation: '서울',
-      arrStation: '부산',
-      price: '59,800',
-    },
-    {
-      id: 2,
-      scheduleSeq: 2,
-      name: 'KTX 002',
-      type: 'KTX',
-      depTime: '06:00',
-      arrTime: '08:35',
-      duration: '2시간 35분',
-      depStation: '서울',
-      arrStation: '부산',
-      price: '59,800',
-    },
-    {
-      id: 3,
-      scheduleSeq: 3,
-      name: 'KTX 003',
-      type: 'KTX',
-      depTime: '07:00',
-      arrTime: '09:40',
-      duration: '2시간 40분',
-      depStation: '서울',
-      arrStation: '부산',
-      price: '59,800',
-    },
-  ];
+  // 백엔드에서 받아온 찜 목록 번호(wishList)에 해당하는 실제 스케줄 상세 정보를 조회해 마이페이지에 표시
+  useEffect(() => {
+    if (!Array.isArray(wishList) || wishList.length === 0) {
+      setFavorites([]);
+      return;
+    }
 
-  // ⭐️ 백엔드에서 받아온 찜 목록 번호(wishList)와 일치하는 열차만 자동으로 마이페이지에 표시!
-  const favorites = allTrains.filter((train) => isWish(train.scheduleSeq || train.id));
+    const calcDuration = (depStr, arrStr) => {
+      if (!depStr || !arrStr) return '-';
+      const diffMs = new Date(arrStr).getTime() - new Date(depStr).getTime();
+      if (isNaN(diffMs) || diffMs <= 0) return '-';
+      const totalMins = Math.floor(diffMs / 60000);
+      const hours = Math.floor(totalMins / 60);
+      const mins = totalMins % 60;
+      return hours > 0 ? `${hours}시간 ${mins}분` : `${mins}분`;
+    };
+
+    const loadFavoriteSchedules = async () => {
+      try {
+        const results = await Promise.all(
+          wishList.map((seq) =>
+            client
+              .get(`/schedule/${seq}`)
+              .then((res) => res.data)
+              .catch((err) => {
+                console.error('찜한 열차 상세 조회 실패:', seq, err);
+                return null;
+              })
+          )
+        );
+
+        const parsed = results
+          .filter((item) => item && item.schedule_seq != null)
+          .map((item) => {
+            const dep = formatDateTime(item.depplandtime);
+            const arr = formatDateTime(item.arrplandtime);
+            const type = item.vehiclekndnm || 'KTX';
+            return {
+              id: item.schedule_seq,
+              scheduleSeq: item.schedule_seq,
+              name: `${type} ${item.trainno || ''}`.trim(),
+              type,
+              depDate: dep.date,
+              depTime: dep.time || '00:00',
+              arrTime: arr.time || '00:00',
+              duration: calcDuration(item.depplandtime, item.arrplandtime),
+              depStation: item.depStationName || item.depplacename || '출발역',
+              arrStation: item.arrStationName || item.arrplacename || '도착역',
+              price: item.standard_price ? Number(item.standard_price).toLocaleString() : '59,800',
+            };
+          });
+
+        setFavorites(parsed);
+      } catch (err) {
+        console.error('찜 목록 스케줄 변환 실패:', err);
+      }
+    };
+
+    loadFavoriteSchedules();
+  }, [wishList]);
 
   // 마이페이지 찜 삭제 클릭 시 백엔드 DELETE 및 화면 즉시 갱신
   const handleRemoveFavorite = (scheduleSeq) => {
@@ -168,14 +239,15 @@ export default function MyPage() {
   const handleBookFavoriteTrain = (fav) => {
     navigate('/reservation', {
       state: {
+        scheduleSeq: fav.scheduleSeq,
         trainName: fav.name,
-        trainType: 'KTX',
+        trainType: fav.type || 'KTX',
         depTime: fav.depTime,
         arrTime: fav.arrTime,
         duration: fav.duration,
         depStation: fav.depStation || '서울',
         arrStation: fav.arrStation || '부산',
-        depDate: '2026-11-16 (월)',
+        depDate: fav.depDate || '',
         passenger: '어른 1명',
         seatType: '일반실',
         price: fav.price,
@@ -197,7 +269,7 @@ export default function MyPage() {
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
-    const token = sessionStorage.getItem('token');
+    const token = sessionStorage.getItem('token') || localStorage.getItem('token');
     if (!token) {
       alert('로그인이 필요한 서비스입니다.');
       navigate('/login');
@@ -226,8 +298,8 @@ export default function MyPage() {
         // 2. 승차권 목록 조회
         const ticketRes = await client.get('/reservation/me');
         if (Array.isArray(ticketRes.data) && ticketRes.data.length > 0) {
-          const parsed = ticketRes.data.map(parseTicket);
-          setTicketList(parsed);
+          const grouped = groupTickets(ticketRes.data);
+          setTicketList(grouped);
           setSelectedTicketIndex(0);
         } else {
           setTicketList([]);
@@ -326,22 +398,34 @@ export default function MyPage() {
     }
   };
 
-  const handleSendEmailAuth = () => {
-    alert(`[이메일 발송 완료]\n회원님의 이메일(${originalUserInfo.email})로 6자리 인증번호가 발송되었습니다.\n(테스트 인증번호: 123456)`);
-    setEmailAuthStep(2);
-  };
-
-  const handleVerifyEmailCode = () => {
-    if (authCodeInput.trim() === '123456' || authCodeInput.trim().length === 6) {
-      alert('이메일 본인인증이 완료되었습니다.\n새로운 비밀번호를 설정해 주세요.');
-      setIsEmailVerified(true);
-      setEmailAuthStep(3);
-    } else {
-      alert('인증번호 6자리가 올바르지 않습니다. 다시 확인해 주세요.');
+  const handleSendEmailAuth = async () => {
+    try {
+      const res = await client.post('/member/password/send-code');
+      alert(res.data?.message || `회원님의 가입 이메일(${originalUserInfo.email})로 6자리 인증번호가 발송되었습니다.`);
+      setEmailAuthStep(2);
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || err.response?.data || '인증번호 발송에 실패했습니다.');
     }
   };
 
-  const handleSavePassword = (e) => {
+  const handleVerifyEmailCode = async () => {
+    if (!authCodeInput || authCodeInput.trim().length !== 6) {
+      alert('6자리 인증번호를 정확히 입력해 주세요.');
+      return;
+    }
+    try {
+      const res = await client.post('/member/password/verify', { code: authCodeInput.trim() });
+      alert(res.data?.message || '이메일 본인인증이 완료되었습니다.\n새로운 비밀번호를 설정해 주세요.');
+      setIsEmailVerified(true);
+      setEmailAuthStep(3);
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || err.response?.data || '인증번호가 일치하지 않거나 만료되었습니다.');
+    }
+  };
+
+  const handleSavePassword = async (e) => {
     e.preventDefault();
     if (!isEmailVerified) {
       alert('먼저 이메일 인증을 완료해 주세요.');
@@ -356,12 +440,18 @@ export default function MyPage() {
       return;
     }
 
-    alert('비밀번호가 성공적으로 변경되었습니다. 다음 로그인부터 적용됩니다.');
-    setNewPassword('');
-    setConfirmNewPassword('');
-    setAuthCodeInput('');
-    setIsEmailVerified(false);
-    setEmailAuthStep(1);
+    try {
+      const res = await client.put('/member/password', { newPassword });
+      alert(res.data?.message || '비밀번호가 성공적으로 변경되었습니다. 다음 로그인부터 적용됩니다.');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setAuthCodeInput('');
+      setIsEmailVerified(false);
+      setEmailAuthStep(1);
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || err.response?.data || '비밀번호 변경에 실패했습니다.');
+    }
   };
 
   return (
@@ -412,149 +502,172 @@ export default function MyPage() {
               <div className="ticket-display-card">
                 <div className="card-top-header">
                   <div>
-                    <h2>발권된 승차권 (탑승 대기)</h2>
+                    <h2>발권 승차권 조회</h2>
                     <p className="card-subtitle" style={{ margin: '4px 0 0', fontSize: '13px', color: '#666' }}>
-                      고객님께서 예매하신 KTX/열차 승차권 상세 내역입니다.
+                      동일 열차·호차의 좌석은 하나의 승차권으로 묶어 표시됩니다. 목록에서 승차권을 선택하세요.
                     </p>
                   </div>
-                  {activeTicket && (
-                    <span 
-                      className="live-status-badge"
-                      style={{
-                        backgroundColor: 
-                          activeTicket.status === 'CANCELLED' ? '#e2e8f0' :
-                          activeTicket.status === 'HELD' ? '#fef3c7' : '#e0f2fe',
-                        color:
-                          activeTicket.status === 'CANCELLED' ? '#64748b' :
-                          activeTicket.status === 'HELD' ? '#b45309' : '#0369a1',
-                        border: 'none',
-                        fontWeight: 'bold',
-                        padding: '4px 10px',
-                        borderRadius: '12px',
-                        fontSize: '12px'
-                      }}
+                  <div className="korail-filter-tabs">
+                    <button
+                      type="button"
+                      className={`korail-tab-btn ${ticketFilter === 'ALL' ? 'active' : ''}`}
+                      onClick={() => { setTicketFilter('ALL'); setSelectedTicketIndex(0); }}
                     >
-                      {activeTicket.status === 'CANCELLED' ? '예매 취소됨' :
-                       activeTicket.status === 'HELD' ? '결제 대기중' : '정상 발권'}
-                    </span>
-                  )}
+                      전체 ({ticketList.length})
+                    </button>
+                    <button
+                      type="button"
+                      className={`korail-tab-btn ${ticketFilter === 'ACTIVE' ? 'active' : ''}`}
+                      onClick={() => { setTicketFilter('ACTIVE'); setSelectedTicketIndex(0); }}
+                    >
+                      발권완료 ({ticketList.filter((t) => t.status !== 'CANCELLED').length})
+                    </button>
+                    <button
+                      type="button"
+                      className={`korail-tab-btn ${ticketFilter === 'CANCELLED' ? 'active' : ''}`}
+                      onClick={() => { setTicketFilter('CANCELLED'); setSelectedTicketIndex(0); }}
+                    >
+                      반환/취소 ({ticketList.filter((t) => t.status === 'CANCELLED').length})
+                    </button>
+                  </div>
                 </div>
 
                 {isLoadingTickets ? (
                   <div className="ticket-empty-card" style={{ padding: '40px 0' }}>
                     <p>승차권 정보를 불러오는 중입니다...</p>
                   </div>
-                ) : ticketList.length > 0 && activeTicket ? (
-                  <div>
-                    {ticketList.length > 1 && (
-                      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', overflowX: 'auto', paddingBottom: '6px' }}>
-                        {ticketList.map((ticket, idx) => (
-                          <button
-                            key={ticket.reservationSeq || idx}
-                            type="button"
-                            onClick={() => setSelectedTicketIndex(idx)}
-                            style={{
-                              padding: '8px 16px',
-                              borderRadius: '20px',
-                              fontSize: '13px',
-                              border: selectedTicketIndex === idx ? '2px solid #0056b3' : '1px solid #e2e8f0',
-                              backgroundColor: selectedTicketIndex === idx ? '#eff6ff' : '#ffffff',
-                              color: selectedTicketIndex === idx ? '#0056b3' : '#475569',
-                              fontWeight: selectedTicketIndex === idx ? '700' : '500',
-                              cursor: 'pointer',
-                              whiteSpace: 'nowrap',
-                              transition: 'all 0.2s ease'
-                            }}
-                          >
-                            승차권 {idx + 1} ({ticket.trainName} · {ticket.car} {ticket.seat})
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                ) : filteredTickets.length > 0 && activeTicket ? (
+                  <div className="korail-ticket-layout">
+                    {/* 코레일 스타일 승차권 목록 테이블 */}
+                    <div className="korail-table-scroll">
+                      <table className="korail-ticket-table">
+                        <thead>
+                          <tr>
+                            <th>승차일</th>
+                            <th>열차</th>
+                            <th>구간 (출발 → 도착)</th>
+                            <th>호차 · 좌석</th>
+                            <th>매수 / 운임</th>
+                            <th>상태</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredTickets.map((ticket, idx) => {
+                            const isSelected = (filteredTickets[selectedTicketIndex] ? selectedTicketIndex === idx : idx === 0);
+                            return (
+                              <tr
+                                key={`${ticket.reservationSeq}_${idx}`}
+                                className={isSelected ? 'selected' : ''}
+                                onClick={() => setSelectedTicketIndex(idx)}
+                              >
+                                <td className="td-date">{ticket.depDate}</td>
+                                <td className="td-train">
+                                  <span className="korail-mini-badge">{ticket.trainType}</span>
+                                  <strong>{ticket.trainName.replace(`${ticket.trainType} `, '')}</strong>
+                                </td>
+                                <td className="td-route">
+                                  <span>{ticket.depStation}({ticket.depTime})</span>
+                                  <span className="route-arrow">→</span>
+                                  <span>{ticket.arrStation}({ticket.arrTime})</span>
+                                </td>
+                                <td className="td-seat">{ticket.car} · {ticket.seat}</td>
+                                <td className="td-price">{ticket.reservationSeqs.length}매 / {ticket.price}</td>
+                                <td className="td-status">
+                                  <span className={`korail-status-pill ${ticket.status === 'CANCELLED' ? 'cancelled' : ticket.status === 'HELD' ? 'held' : 'confirmed'}`}>
+                                    {ticket.status === 'CANCELLED' ? '반환완료' : ticket.status === 'HELD' ? '결제대기' : '발권완료'}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
 
-                    <div className="mobile-ticket-container">
-                      <div className="ticket-header">
+                    {/* 코레일톡 스타일 모바일 승차권 상세 카드 */}
+                    <div className="korail-ticket-card">
+                      <div className="korail-ticket-top">
                         <div className="ticket-train-meta">
-                          <span className="badge-ktx">{activeTicket.trainType}</span>
-                          <strong className="ticket-train-no">{activeTicket.trainName}</strong>
+                          <span className="korail-ktx-pill">{activeTicket.trainType}</span>
+                          <strong className="korail-train-title">{activeTicket.trainName}</strong>
                         </div>
-                        <span className="ticket-date">{activeTicket.depDate}</span>
-                      </div>
-
-                      <div className="ticket-route-block">
-                        <div className="route-station dep">
-                          <span className="station-city">{activeTicket.depStation}</span>
-                          <span className="station-time">{activeTicket.depTime}</span>
-                        </div>
-
-                        <div className="route-indicator">
-                          <span className="indicator-label">직통</span>
-                          <div className="indicator-line"></div>
-                        </div>
-
-                        <div className="route-station arr">
-                          <span className="station-city">{activeTicket.arrStation}</span>
-                          <span className="station-time">{activeTicket.arrTime}</span>
+                        <div className="korail-top-right">
+                          <span className="korail-ticket-date">{activeTicket.depDate}</span>
+                          <span className={`korail-status-pill ${activeTicket.status === 'CANCELLED' ? 'cancelled' : activeTicket.status === 'HELD' ? 'held' : 'confirmed'}`}>
+                            {activeTicket.status === 'CANCELLED' ? '반환완료' : activeTicket.status === 'HELD' ? '결제대기' : '발권완료'}
+                          </span>
                         </div>
                       </div>
 
-                      <div className="ticket-seat-details">
-                        <div className="detail-col">
-                          <span className="col-label">호차</span>
-                          <strong className="col-val highlight">{activeTicket.car}</strong>
-                        </div>
-                        <div className="detail-col">
-                          <span className="col-label">좌석 번호</span>
-                          <strong className="col-val highlight">{activeTicket.seat}</strong>
-                        </div>
-                        <div className="detail-col">
-                          <span className="col-label">구분</span>
-                          <strong className="col-val">{activeTicket.passenger}</strong>
-                        </div>
-                        <div className="detail-col">
-                          <span className="col-label">운임</span>
-                          <strong className="col-val">{activeTicket.price}</strong>
-                        </div>
-                      </div>
-
-                      <div className="ticket-qr-section">
-                        <div className="qr-box">
-                          <div className="qr-fake-visual">
-                            <span>■ ■ ■ ■ ■<br/>■ □ □ □ ■<br/>■ □ ■ □ ■<br/>■ □ □ □ ■<br/>■ ■ ■ ■ ■</span>
+                      <div className="korail-ticket-body">
+                        <div className="korail-route-row">
+                          <div className="korail-station">
+                            <span className="korail-station-name">{activeTicket.depStation}</span>
+                            <strong className="korail-station-time">{activeTicket.depTime}</strong>
                           </div>
-                          <span className="qr-hint">개찰구 리더기에 바코드를 태그하세요.</span>
+                          <div className="korail-route-mid">
+                            <span className="korail-route-tag">직통</span>
+                            <div className="korail-route-line">
+                              <span className="dot" />
+                              <span className="arrow">▶</span>
+                            </div>
+                          </div>
+                          <div className="korail-station arr">
+                            <span className="korail-station-name">{activeTicket.arrStation}</span>
+                            <strong className="korail-station-time">{activeTicket.arrTime}</strong>
+                          </div>
                         </div>
-                        <div className="ticket-actions">
-                          <button 
-                            type="button" 
-                            className="btn-ticket-action outline"
-                            onClick={() => alert(`[영수증 정보]\n승차권: ${activeTicket.ticketNumber}\n열차: ${activeTicket.trainName}\n구간: ${activeTicket.depStation} -> ${activeTicket.arrStation}\n결제금액: ${activeTicket.price}`)}
-                          >
-                            영수증 발급
-                          </button>
-                          {activeTicket.status === 'CANCELLED' ? (
-                            <button 
-                              type="button" 
-                              className="btn-ticket-action"
-                              disabled
-                              style={{ backgroundColor: '#e2e8f0', color: '#94a3b8', cursor: 'not-allowed' }}
-                            >
-                              취소 완료
-                            </button>
-                          ) : (
-                            <button 
-                              type="button" 
-                              className="btn-ticket-action danger" 
-                              onClick={handleCancelTicket}
-                            >
-                              취소하기
-                            </button>
-                          )}
-                        </div>
-                      </div>
 
-                      <div className="ticket-footer-number">
-                        승차권 발권번호: {activeTicket.ticketNumber}
+                        <div className="korail-perforation" />
+
+                        <div className="korail-detail-grid">
+                          <div className="korail-detail-cell">
+                            <span className="cell-label">호차</span>
+                            <strong className="cell-val blue">{activeTicket.car}</strong>
+                          </div>
+                          <div className="korail-detail-cell">
+                            <span className="cell-label">좌석번호</span>
+                            <strong className="cell-val blue">{activeTicket.seat}</strong>
+                          </div>
+                          <div className="korail-detail-cell">
+                            <span className="cell-label">승객 / 등급</span>
+                            <strong className="cell-val">{activeTicket.passenger}</strong>
+                          </div>
+                          <div className="korail-detail-cell">
+                            <span className="cell-label">결제 운임</span>
+                            <strong className="cell-val">{activeTicket.price}</strong>
+                          </div>
+                        </div>
+
+                        <div className="korail-qr-footer">
+                          <div className="qr-box">
+                            <div className="qr-fake-visual korail-qr">
+                              <span>■ ■ ■ ■ ■<br/>■ □ □ □ ■<br/>■ □ ■ □ ■<br/>■ □ □ □ ■<br/>■ ■ ■ ■ ■</span>
+                            </div>
+                            <div className="korail-qr-meta">
+                              <span className="korail-qr-hint">개찰구 QR 리더기에 스캔하여 탑승하세요.</span>
+                              <span className="korail-ticket-no">승차권 번호: {activeTicket.ticketNumber}</span>
+                            </div>
+                          </div>
+                          <div className="ticket-actions">
+                            <button 
+                              type="button" 
+                              className="btn-korail-outline"
+                              onClick={() => alert(`[영수증 정보]\n승차권: ${activeTicket.ticketNumber}\n열차: ${activeTicket.trainName}\n구간: ${activeTicket.depStation} -> ${activeTicket.arrStation}\n좌석: ${activeTicket.car} ${activeTicket.seat}\n결제금액: ${activeTicket.price}`)}
+                            >
+                              영수증 조회
+                            </button>
+                            {activeTicket.status === 'CANCELLED' ? (
+                              <button type="button" className="btn-korail-disabled" disabled>
+                                반환 완료
+                              </button>
+                            ) : (
+                              <button type="button" className="btn-korail-danger" onClick={handleCancelTicket}>
+                                승차권 반환
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>

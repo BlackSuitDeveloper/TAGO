@@ -28,7 +28,7 @@
 
 .mypage-grid {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 240px minmax(0, 1fr);
   gap: 24px;
   align-items: flex-start;
 }
@@ -111,6 +111,7 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
+  min-width: 0;
 }
 
 .ticket-display-card, .favorites-display-card, .edit-card {
@@ -119,6 +120,37 @@
   padding: 28px 26px;
   border: 1px solid var(--gray-200);
   box-shadow: var(--shadow-xs);
+  min-width: 0;
+}
+
+.ticket-selector-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  max-height: 140px;
+  overflow-y: auto;
+  padding-bottom: 4px;
+}
+
+.ticket-selector-pill {
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  border: 1px solid #e2e8f0;
+  background-color: #ffffff;
+  color: #475569;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.ticket-selector-pill.active {
+  border: 2px solid #0056b3;
+  background-color: #eff6ff;
+  color: #0056b3;
+  font-weight: 700;
 }
 
 .card-top-header {
@@ -924,6 +956,9 @@
   .mypage-grid {
     grid-template-columns: 1fr;
   }
+  .korail-detail-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
   .fav-card-body {
     flex-direction: column;
     align-items: flex-start;
@@ -951,4 +986,391 @@
     flex: 1;
     text-align: center;
   }
+}
+
+/* ========================
+ * 코레일 스타일 승차권 조회 UI
+ * ======================== */
+.korail-filter-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.korail-tab-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.korail-tab-btn:hover {
+  background: #e2e8f0;
+}
+
+.korail-tab-btn.active {
+  background: #0054a6;
+  color: #ffffff;
+  border-color: #0054a6;
+}
+
+.korail-ticket-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.korail-table-scroll {
+  width: 100%;
+  max-height: 240px;
+  overflow-y: auto;
+  overflow-x: auto;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+}
+
+.korail-ticket-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: center;
+}
+
+.korail-ticket-table thead th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 700;
+  padding: 10px 12px;
+  border-bottom: 2px solid #0054a6;
+  white-space: nowrap;
+  z-index: 1;
+}
+
+.korail-ticket-table tbody tr {
+  cursor: pointer;
+  border-bottom: 1px solid #e2e8f0;
+  transition: background 0.15s ease;
+}
+
+.korail-ticket-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.korail-ticket-table tbody tr.selected {
+  background: #eff6ff;
+}
+
+.korail-ticket-table tbody td {
+  padding: 11px 10px;
+  color: #1e293b;
+  vertical-align: middle;
+}
+
+.korail-ticket-table .td-date {
+  white-space: nowrap;
+  color: #475569;
+}
+
+.korail-ticket-table .td-train {
+  white-space: nowrap;
+}
+
+.korail-mini-badge {
+  display: inline-block;
+  background: #0054a6;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-right: 5px;
+}
+
+.korail-ticket-table .td-route {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.korail-ticket-table .route-arrow {
+  margin: 0 6px;
+  color: #0054a6;
+  font-weight: 800;
+}
+
+.korail-ticket-table .td-seat {
+  color: #0054a6;
+  font-weight: 700;
+  max-width: 180px;
+  word-break: break-word;
+}
+
+.korail-ticket-table .td-price {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.korail-status-pill {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.korail-status-pill.confirmed {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.korail-status-pill.held {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.korail-status-pill.cancelled {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+/* 코레일톡 스타일 모바일 승차권 카드 */
+.korail-ticket-card {
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 84, 166, 0.08);
+  background: #ffffff;
+}
+
+.korail-ticket-top {
+  background: linear-gradient(135deg, #0054a6 0%, #006cd1 100%);
+  color: #ffffff;
+  padding: 14px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.korail-ktx-pill {
+  background: #ffffff;
+  color: #0054a6;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.korail-train-title {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+}
+
+.korail-top-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.korail-ticket-date {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.korail-ticket-body {
+  padding: 22px 24px;
+}
+
+.korail-route-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px 18px;
+}
+
+.korail-station {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.korail-station.arr {
+  align-items: flex-end;
+}
+
+.korail-station-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.korail-station-time {
+  font-size: 28px;
+  font-weight: 900;
+  color: #0f172a;
+  letter-spacing: -0.6px;
+}
+
+.korail-route-mid {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0 20px;
+}
+
+.korail-route-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #0054a6;
+  background: #eff6ff;
+  padding: 2px 10px;
+  border-radius: 10px;
+}
+
+.korail-route-line {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  position: relative;
+  height: 2px;
+  background: #cbd5e1;
+}
+
+.korail-route-line .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #0054a6;
+}
+
+.korail-route-line .arrow {
+  margin-left: auto;
+  font-size: 10px;
+  color: #0054a6;
+}
+
+.korail-perforation {
+  border-top: 2px dashed #e2e8f0;
+  margin: 4px 0 18px;
+}
+
+.korail-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 18px;
+}
+
+.korail-detail-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+}
+
+.korail-detail-cell .cell-label {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.korail-detail-cell .cell-val {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  word-break: break-word;
+}
+
+.korail-detail-cell .cell-val.blue {
+  color: #0054a6;
+  font-weight: 800;
+}
+
+.korail-qr-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.korail-qr {
+  border: 1px solid #cbd5e1;
+}
+
+.korail-qr-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.korail-qr-hint {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.korail-ticket-no {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.btn-korail-outline {
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #ffffff;
+  color: #0054a6;
+  border: 1px solid #0054a6;
+  cursor: pointer;
+}
+
+.btn-korail-outline:hover {
+  background: #eff6ff;
+}
+
+.btn-korail-danger {
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #ef4444;
+  color: #ffffff;
+  border: 1px solid #ef4444;
+  cursor: pointer;
+}
+
+.btn-korail-danger:hover {
+  background: #dc2626;
+}
+
+.btn-korail-disabled {
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #e2e8f0;
+  color: #94a3b8;
+  border: 1px solid #cbd5e1;
+  cursor: not-allowed;
 }

@@ -202,6 +202,7 @@ export default function SchedulePage() {
           filter,
           page: targetPage,
           size: 10,
+          upcoming: true,
         };
         if (dep) params.depStation = dep;
         if (arr) params.arrStation = arr;
@@ -256,37 +257,21 @@ export default function SchedulePage() {
     setPage(1);
   };
 
-  const handleSyncTagoSchedules = async () => {
-    try {
-      await client.post('/admin/sync/master');
-      const stationRes = await client.get('/station');
-      if (Array.isArray(stationRes.data) && stationRes.data.length > 0) {
-        const names = Array.from(
-          new Set(stationRes.data.map((st) => st.nodename).filter(Boolean))
-        );
-        if (names.length > 0) {
-          setStationOptions(names);
-        }
-      }
+  const [queueModal, setQueueModal] = useState(null); // { train, queueToken, queueRank }
+  const queuePollTimerRef = useRef(null);
 
-      const res = await client.post('/admin/sync/schedules/range');
-      const results = Array.isArray(res.data) ? res.data : [];
-      const summary = results.map((r) => r.message).filter(Boolean).join('\n');
-      alert(summary || '국토교통부(TAGO) 역 마스터 및 3일치 일정 동기화가 완료되었습니다.');
-      fetchSchedules({
-        dep: depStation,
-        arr: arrStation,
-        date: currentDate,
-        filter: selectedFilter,
-        targetPage: 1,
-      });
-      setPage(1);
-    } catch (err) {
-      alert('TAGO API 일정 동기화에 실패했습니다. 서버 로그 및 TAGO_SERVICE_KEY를 확인해 주세요.');
+  const clearQueuePolling = useCallback(() => {
+    if (queuePollTimerRef.current) {
+      clearInterval(queuePollTimerRef.current);
+      queuePollTimerRef.current = null;
     }
-  };
+  }, []);
 
-  const handleSelectTrain = (train) => {
+  useEffect(() => {
+    return () => clearQueuePolling();
+  }, [clearQueuePolling]);
+
+  const goToReservation = useCallback((train) => {
     navigate('/reservation', {
       state: {
         scheduleSeq: train.id,
@@ -306,6 +291,44 @@ export default function SchedulePage() {
         price: train.generalPrice,
       }
     });
+  }, [navigate, currentDate, tripType, returnDate, passengerSummaryText, passengers]);
+
+  const handleSelectTrain = async (train) => {
+    clearQueuePolling();
+    try {
+      const res = await client.post('/queue', { scheduleSeq: train.id });
+      const data = res.data || {};
+      if (data.isAvailable) {
+        goToReservation(train);
+        return;
+      }
+
+      const token = data.queueToken;
+      setQueueModal({ train, queueToken: token, queueRank: data.queueRank ?? 1 });
+
+      queuePollTimerRef.current = setInterval(async () => {
+        try {
+          const pollRes = await client.get(`/queue/${token}`);
+          const pollData = pollRes.data || {};
+          if (pollData.isAvailable) {
+            clearQueuePolling();
+            setQueueModal(null);
+            goToReservation(train);
+          } else {
+            setQueueModal((prev) => prev ? { ...prev, queueRank: pollData.queueRank ?? prev.queueRank } : null);
+          }
+        } catch (pollErr) {
+          console.error('대기열 순번 조회 실패:', pollErr);
+        }
+      }, 3000);
+    } catch (err) {
+      if (err.response?.status === 401) {
+        alert('로그인 후 승차권 예매가 가능합니다.');
+        navigate('/login');
+        return;
+      }
+      goToReservation(train);
+    }
   };
 
   return (
@@ -656,20 +679,83 @@ export default function SchedulePage() {
             <li>[좌석선택 →] 버튼을 누르면 1호차부터 18호차까지 원하는 좌석을 직접 지정하여 결제하실 수 있습니다.</li>
           </ul>
         </div>
-
-        <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
-          <button
-            type="button"
-            className="filter-btn"
-            onClick={handleSyncTagoSchedules}
-          >
-            [테스트] 국토교통부 3일치 일정 동기화
-          </button>
-        </div>
       </main>
 
       <QuickMenu />
       <Footer />
+
+      {queueModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '16px',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '14px',
+              padding: '28px 24px',
+              width: '100%',
+              maxWidth: '400px',
+              textAlign: 'center',
+              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2)',
+            }}
+          >
+            <div style={{ fontSize: '13px', fontWeight: 700, color: '#0054a6', marginBottom: '6px' }}>
+              TAGO 접속 대기열 안내
+            </div>
+            <h3 style={{ margin: '0 0 12px', fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+              {queueModal.train?.name} 예매 대기 중
+            </h3>
+            <p style={{ margin: '0 0 18px', fontSize: '13px', color: '#475569', lineHeight: 1.5 }}>
+              동시 접속자가 많아 순서대로 입장하고 있습니다.
+              <br />
+              잠시만 기다려 주시면 자동으로 좌석 선택 화면으로 이동합니다.
+            </p>
+            <div
+              style={{
+                backgroundColor: '#eff6ff',
+                border: '1px solid #bfdbfe',
+                borderRadius: '10px',
+                padding: '14px',
+                marginBottom: '18px',
+              }}
+            >
+              <div style={{ fontSize: '12px', color: '#1e40af', fontWeight: 600 }}>현재 나의 대기 순번</div>
+              <div style={{ fontSize: '28px', fontWeight: 900, color: '#0054a6', marginTop: '4px' }}>
+                {queueModal.queueRank}번
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                clearQueuePolling();
+                setQueueModal(null);
+              }}
+              style={{
+                width: '100%',
+                padding: '10px 16px',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1',
+                backgroundColor: '#f8fafc',
+                color: '#475569',
+                fontSize: '13px',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              대기 취소
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -64,19 +64,13 @@ public class SeatConcurrencyTest {
             """, memberId, "동시성테스터" + i, phone, memberId + "@tago.kr");
         }
 
-        // 2. 테스트 대상 스케줄 및 좌석 1건 확보 및 초기화
+        // 2. 테스트 대상 스케줄 확보 및 대상 좌석(1호차 1B) 기존 점유 데이터 초기화
         Long scheduleSeq = jdbcTemplate.queryForObject("SELECT schedule_seq FROM schedule LIMIT 1", Long.class);
         assertNotNull(scheduleSeq, "테스트할 schedule 데이터가 존재해야 합니다.");
 
-        Long seatSeq = jdbcTemplate.queryForObject(
-                "SELECT seat_seq FROM seat WHERE schedule_seq = ? AND car_no = 1 AND seat_no = ?",
-                Long.class, scheduleSeq, targetSeatNo
-        );
-        assertNotNull(seatSeq, "테스트할 좌석(1호차 " + targetSeatNo + ")이 존재해야 합니다.");
-
-        jdbcTemplate.update("DELETE FROM payment WHERE reservation_seq IN (SELECT reservation_seq FROM reservation WHERE seat_seq = ?)", seatSeq);
-        jdbcTemplate.update("DELETE FROM reservation WHERE seat_seq = ?", seatSeq);
-        jdbcTemplate.update("UPDATE seat SET status = 'AVAILABLE' WHERE seat_seq = ?", seatSeq);
+        jdbcTemplate.update("DELETE FROM payment WHERE reservation_seq IN (SELECT r.reservation_seq FROM reservation r JOIN seat s ON r.seat_seq = s.seat_seq WHERE s.schedule_seq = ? AND s.car_no = 1 AND s.seat_no = ?)", scheduleSeq, targetSeatNo);
+        jdbcTemplate.update("DELETE FROM reservation WHERE seat_seq IN (SELECT seat_seq FROM seat WHERE schedule_seq = ? AND car_no = 1 AND seat_no = ?)", scheduleSeq, targetSeatNo);
+        jdbcTemplate.update("DELETE FROM seat WHERE schedule_seq = ? AND car_no = 1 AND seat_no = ?", scheduleSeq, targetSeatNo);
 
         String queueKey = "tago:queue:" + scheduleSeq;
         if (redisTemplate != null) {
@@ -164,7 +158,7 @@ public class SeatConcurrencyTest {
         SeatDTO finalSeat = seatMapper.selectSeat(scheduleSeq, 1, targetSeatNo);
         Integer reservationRowCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM reservation WHERE seat_seq = ? AND status = 'HELD'",
-                Integer.class, seatSeq
+                Integer.class, finalSeat != null ? finalSeat.getSeatSeq() : -1L
         );
 
         System.out.println("===================================================");
@@ -180,9 +174,9 @@ public class SeatConcurrencyTest {
         System.out.println("===================================================");
 
         // 6. 테스트 종료 후 원상 복구 (DB/Redis 청결 유지)
-        jdbcTemplate.update("DELETE FROM payment WHERE reservation_seq IN (SELECT reservation_seq FROM reservation WHERE seat_seq = ?)", seatSeq);
-        jdbcTemplate.update("DELETE FROM reservation WHERE seat_seq = ?", seatSeq);
-        jdbcTemplate.update("UPDATE seat SET status = 'AVAILABLE' WHERE seat_seq = ?", seatSeq);
+        jdbcTemplate.update("DELETE FROM payment WHERE reservation_seq IN (SELECT r.reservation_seq FROM reservation r JOIN seat s ON r.seat_seq = s.seat_seq WHERE s.schedule_seq = ? AND s.car_no = 1 AND s.seat_no = ?)", scheduleSeq, targetSeatNo);
+        jdbcTemplate.update("DELETE FROM reservation WHERE seat_seq IN (SELECT seat_seq FROM seat WHERE schedule_seq = ? AND car_no = 1 AND seat_no = ?)", scheduleSeq, targetSeatNo);
+        jdbcTemplate.update("DELETE FROM seat WHERE schedule_seq = ? AND car_no = 1 AND seat_no = ?", scheduleSeq, targetSeatNo);
         for (String memberId : memberIds) {
             jdbcTemplate.update("DELETE FROM member WHERE member_id = ?", memberId);
         }
@@ -223,14 +217,10 @@ public class SeatConcurrencyTest {
         }
 
         Long scheduleSeq = jdbcTemplate.queryForObject("SELECT schedule_seq FROM schedule LIMIT 1", Long.class);
-        Long seatSeq = jdbcTemplate.queryForObject(
-                "SELECT seat_seq FROM seat WHERE schedule_seq = ? AND car_no = 1 AND seat_no = ?",
-                Long.class, scheduleSeq, targetSeatNo
-        );
 
-        jdbcTemplate.update("DELETE FROM payment WHERE reservation_seq IN (SELECT reservation_seq FROM reservation WHERE seat_seq = ?)", seatSeq);
-        jdbcTemplate.update("DELETE FROM reservation WHERE seat_seq = ?", seatSeq);
-        jdbcTemplate.update("UPDATE seat SET status = 'AVAILABLE' WHERE seat_seq = ?", seatSeq);
+        jdbcTemplate.update("DELETE FROM payment WHERE reservation_seq IN (SELECT r.reservation_seq FROM reservation r JOIN seat s ON r.seat_seq = s.seat_seq WHERE s.schedule_seq = ? AND s.car_no = 1 AND s.seat_no = ?)", scheduleSeq, targetSeatNo);
+        jdbcTemplate.update("DELETE FROM reservation WHERE seat_seq IN (SELECT seat_seq FROM seat WHERE schedule_seq = ? AND car_no = 1 AND seat_no = ?)", scheduleSeq, targetSeatNo);
+        jdbcTemplate.update("DELETE FROM seat WHERE schedule_seq = ? AND car_no = 1 AND seat_no = ?", scheduleSeq, targetSeatNo);
 
         String queueKey = "tago:queue:" + scheduleSeq;
         String seatLockKey = "tago:seat:hold:" + scheduleSeq + ":1:" + targetSeatNo;
@@ -371,5 +361,158 @@ public class SeatConcurrencyTest {
             System.out.printf("%2d등 | %s | score(currentTime)=%.0f%n", rank++, entry.getValue(), score);
         }
         System.out.println("===================================================");
+    }
+
+    @Test
+    @DisplayName("임의의 유저 50명 추가 + 한 좌석 1ms 간격 예매 시도 및 Redis ZSet 스코어링 검증")
+    void testFiftyUsers1msIntervalReservationAndRedisScoring() throws InterruptedException {
+        int userCount = 50;
+        String targetSeatNo = "1B";
+
+        assertNotNull(redisTemplate, "StringRedisTemplate이 주입되어야 합니다.");
+
+        // 1. 임의의 회원 50명 DB 추가
+        List<String> memberIds = new ArrayList<>();
+        for (int i = 1; i <= userCount; i++) {
+            String memberId = String.format("test50User%02d", i);
+            memberIds.add(memberId);
+            String phone = String.format("0108888%04d", i);
+            jdbcTemplate.update("""
+                INSERT INTO member (member_id, pw, name, phone, email, zipcode, address1, address2)
+                VALUES (?, 'pw1234', ?, ?, ?, '04320', '서울', '테스트')
+                ON CONFLICT (member_id) DO NOTHING
+            """, memberId, "50인테스터" + i, phone, memberId + "@tago.kr");
+        }
+
+        // 2. 테스트 대상 스케줄 확보 및 대상 좌석(1호차 1B) 기존 점유 데이터 초기화
+        Long scheduleSeq = jdbcTemplate.queryForObject("SELECT schedule_seq FROM schedule LIMIT 1", Long.class);
+        assertNotNull(scheduleSeq, "테스트할 schedule 데이터가 존재해야 합니다.");
+
+        jdbcTemplate.update("DELETE FROM payment WHERE reservation_seq IN (SELECT r.reservation_seq FROM reservation r JOIN seat s ON r.seat_seq = s.seat_seq WHERE s.schedule_seq = ? AND s.car_no = 1 AND s.seat_no = ?)", scheduleSeq, targetSeatNo);
+        jdbcTemplate.update("DELETE FROM reservation WHERE seat_seq IN (SELECT seat_seq FROM seat WHERE schedule_seq = ? AND car_no = 1 AND seat_no = ?)", scheduleSeq, targetSeatNo);
+        jdbcTemplate.update("DELETE FROM seat WHERE schedule_seq = ? AND car_no = 1 AND seat_no = ?", scheduleSeq, targetSeatNo);
+
+        String queueKey = "tago:queue:" + scheduleSeq;
+        redisTemplate.delete(queueKey);
+        redisTemplate.delete("tago:queue:admitted");
+
+        // 3. 50명 1ms 간격으로 대기열 진입 + 동일 좌석 예매 시도
+        ExecutorService executor = Executors.newFixedThreadPool(userCount);
+        CountDownLatch doneLatch = new CountDownLatch(userCount);
+
+        AtomicInteger successCount = new AtomicInteger(0);
+        AtomicInteger conflictCount = new AtomicInteger(0);
+        AtomicInteger otherErrorCount = new AtomicInteger(0);
+        List<String> winners = Collections.synchronizedList(new ArrayList<>());
+        List<String> queueTokens = Collections.synchronizedList(new ArrayList<>());
+        List<String> tokenUserPairs = Collections.synchronizedList(new ArrayList<>());
+        List<String> errorLogs = Collections.synchronizedList(new ArrayList<>());
+
+        try {
+            for (int i = 0; i < userCount; i++) {
+                final String memberId = memberIds.get(i);
+                final int orderIndex = i + 1;
+
+                executor.submit(() -> {
+                    try {
+                        // 3-1. 대기열 진입 (Redis ZSet 스코어링)
+                        QueueResponseDTO qResp = queueService.enterQueue(scheduleSeq, memberId);
+                        if (qResp != null && qResp.getQueueToken() != null) {
+                            queueTokens.add(qResp.getQueueToken());
+                            tokenUserPairs.add(String.format("#%02d %s -> token=%s", orderIndex, memberId, qResp.getQueueToken()));
+                        }
+
+                        // 3-2. 동일 좌석(1호차 1B) 예매(선점) 시도
+                        ReservationRequestDTO req = ReservationRequestDTO.builder()
+                                .scheduleSeq(scheduleSeq)
+                                .carNo(1)
+                                .seatList(List.of(targetSeatNo))
+                                .count(1)
+                                .build();
+
+                        ReservationResponseDTO res = reservationService.holdSeats(req, memberId);
+                        if (res != null && "HELD".equals(res.getStatus())) {
+                            successCount.incrementAndGet();
+                            winners.add(memberId + " (reservationSeq=" + res.getReservationSeq() + ")");
+                        }
+                    } catch (ResponseStatusException e) {
+                        if (e.getStatusCode().value() == 409) {
+                            conflictCount.incrementAndGet();
+                        } else {
+                            otherErrorCount.incrementAndGet();
+                            errorLogs.add(memberId + ": HTTP " + e.getStatusCode() + " - " + e.getReason());
+                        }
+                    } catch (Exception e) {
+                        otherErrorCount.incrementAndGet();
+                        errorLogs.add(memberId + ": " + e.getClass().getSimpleName() + " - " + e.getMessage());
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                });
+
+                // 1ms 간격으로 다음 유저 요청 전송
+                java.util.concurrent.locks.LockSupport.parkNanos(1_000_000L);
+            }
+
+            doneLatch.await();
+        } finally {
+            executor.shutdown();
+        }
+
+        // 4. Redis ZSet 스코어링 실제 결과 조회
+        var orderedScores = redisTemplate.opsForZSet().rangeWithScores(queueKey, 0, -1);
+        assertNotNull(orderedScores);
+
+        System.out.println("===================================================");
+        System.out.println("[50명 1ms 간격 예매 시도 & Redis ZSet 스코어링 결과]");
+        System.out.println("대상 스케줄: " + scheduleSeq + " / 대상 좌석: 1호차 " + targetSeatNo);
+        System.out.println("Redis ZSet 키: " + queueKey + " (총 등록 수: " + orderedScores.size() + " / 50)");
+        System.out.println("선점 성공: " + successCount.get() + "명 -> " + winners);
+        System.out.println("선점 충돌(409 Conflict): " + conflictCount.get() + "명");
+        System.out.println("기타 에러: " + otherErrorCount.get() + "건 " + errorLogs);
+        System.out.println("---------------------------------------------------");
+        System.out.println("[Redis ZSet 스코어링 상위/전체 목록 (오름차순)]");
+
+        int rank = 1;
+        double prevScore = -1;
+        double firstScore = -1;
+        double lastScore = -1;
+        for (ZSetOperations.TypedTuple<String> entry : orderedScores) {
+            double score = entry.getScore() != null ? entry.getScore() : 0;
+            if (firstScore < 0) firstScore = score;
+            lastScore = score;
+            assertTrue(score >= prevScore, "ZSet 스코어는 오름차순이어야 합니다.");
+            prevScore = score;
+            System.out.printf("%2d등 | token=%s | score=%.0f (+%.0fms)%n",
+                    rank++, entry.getValue(), score, (score - firstScore));
+        }
+        System.out.printf("총 스코어링 시간 범위: %.0fms (첫 진입 ~ 마지막 진입)%n", (lastScore - firstScore));
+        System.out.println("===================================================");
+
+        // 육안 확인을 위해 Redis 키에 TTL 180초 부여 후 유지
+        redisTemplate.expire(queueKey, Duration.ofSeconds(180));
+        redisTemplate.expire("tago:queue:admitted", Duration.ofSeconds(180));
+
+        // 5. DB 정합성 검증 및 테스트 데이터 정리
+        SeatDTO finalSeat = seatMapper.selectSeat(scheduleSeq, 1, targetSeatNo);
+        Integer reservationRowCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM reservation WHERE seat_seq = ? AND status = 'HELD'",
+                Integer.class, finalSeat != null ? finalSeat.getSeatSeq() : -1L
+        );
+
+        assertEquals(userCount, orderedScores.size(), "50명 모두 Redis ZSet에 스코어링되어 등록되어야 합니다.");
+        assertEquals(1, successCount.get(), "50명 중 정확히 1명만 좌석 선점에 성공해야 합니다.");
+        assertEquals(userCount - 1, conflictCount.get(), "나머지 49명은 409 Conflict를 받아야 합니다.");
+        assertEquals(0, otherErrorCount.get(), "예상치 못한 오류가 없어야 합니다: " + errorLogs);
+        assertEquals("HELD", finalSeat.getStatus());
+        assertEquals(1, reservationRowCount);
+
+        // DB 원상 복구 (테스트용 회원/예약/좌석 초기화)
+        jdbcTemplate.update("DELETE FROM payment WHERE reservation_seq IN (SELECT r.reservation_seq FROM reservation r JOIN seat s ON r.seat_seq = s.seat_seq WHERE s.schedule_seq = ? AND s.car_no = 1 AND s.seat_no = ?)", scheduleSeq, targetSeatNo);
+        jdbcTemplate.update("DELETE FROM reservation WHERE seat_seq IN (SELECT seat_seq FROM seat WHERE schedule_seq = ? AND car_no = 1 AND seat_no = ?)", scheduleSeq, targetSeatNo);
+        jdbcTemplate.update("DELETE FROM seat WHERE schedule_seq = ? AND car_no = 1 AND seat_no = ?", scheduleSeq, targetSeatNo);
+        for (String memberId : memberIds) {
+            jdbcTemplate.update("DELETE FROM member WHERE member_id = ?", memberId);
+        }
     }
 }

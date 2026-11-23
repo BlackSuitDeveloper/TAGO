@@ -235,12 +235,14 @@ export default function ReservationPage() {
       });
 
       const reservationId = resHold.data.reservationId || resHold.data.reservationSeq;
+      const reservationIds = resHold.data.reservationIds || (reservationId ? [reservationId] : []);
 
       // 2. 결제 및 발권 확정 (POST /api/payment)
       const resPay = await client.post('/payment', {
         reservationId: reservationId,
+        reservationIds: reservationIds,
         payMethod: paymentMethod === 'card' ? 'CARD' : paymentMethod === 'easy' ? 'EASY' : 'TRANSFER',
-        totalPrice: totalPrice,
+        totalPrice: resHold.data.totalPrice ?? totalPrice,
       });
 
       const ticketNumber = resPay.data.ticketNumber || '1029-3847-5690-11';
@@ -257,7 +259,9 @@ export default function ReservationPage() {
         `승차권이 정상적으로 발권되었습니다. 마이페이지로 이동합니다.`
       );
 
-      navigate('/mypage');
+      setOutboundSeats([]);
+      setReturnSeats([]);
+      navigate('/mypage', { replace: true });
     } catch (err) {
       console.error('예매/결제 실패:', err);
       const errMsg = err.response?.data?.message || err.response?.data || '좌석 선점 또는 결제 처리 중 오류가 발생했습니다.';

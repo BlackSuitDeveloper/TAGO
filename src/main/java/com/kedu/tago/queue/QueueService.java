@@ -3,10 +3,14 @@ package com.kedu.tago.queue;
 import com.kedu.tago.queue.dto.QueueResponseDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -18,13 +22,66 @@ public class QueueService {
     private final StringRedisTemplate redisTemplate;
 
     // Redis 장애/미구동 시 안전하게 동작하기 위한 In-Memory Fallback
-    // token -> enterTime
     private final Map<String, Long> inMemoryQueue = new ConcurrentSkipListMap<>();
     private final Set<String> inMemoryAdmittedTokens = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private static final String QUEUE_KEY_PREFIX = "tago:queue:";
+    private static final String ACTIVE_KEY_PREFIX = "tago:queue:active:";
+    private static final String META_KEY_PREFIX = "tago:queue:meta:";
     private static final String ADMITTED_SET_KEY = "tago:queue:admitted";
-    private static final long ALLOWED_BURST_COUNT = 10; // 회차당 한 번에 입장 허용할 인원
+    private static final String SCHEDULE_SET_KEY = "tago:queue:schedules";
+
+    // 원자적 대기열 진입 Lua 스크립트:
+    // KEYS[1]=activeKey, KEYS[2]=queueKey, KEYS[3]=admittedSetKey, KEYS[4]=scheduleSetKey
+    // ARGV[1]=token, ARGV[2]=now, ARGV[3]=expiresAt, ARGV[4]=maxActiveUsers, ARGV[5]=scheduleSeq
+    // 반환값: 0이면 즉시 입장, 1 이상이면 대기 순번(1-based)
+    private static final DefaultRedisScript<Long> ENTER_QUEUE_SCRIPT = new DefaultRedisScript<>("""
+            redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[2])
+            local activeCount = redis.call('ZCARD', KEYS[1])
+            if activeCount < tonumber(ARGV[4]) then
+                redis.call('ZADD', KEYS[1], ARGV[3], ARGV[1])
+                redis.call('SADD', KEYS[3], ARGV[1])
+                return 0
+            else
+                redis.call('ZADD', KEYS[2], 'NX', ARGV[2], ARGV[1])
+                redis.call('SADD', KEYS[4], ARGV[5])
+                local rank = redis.call('ZRANK', KEYS[2], ARGV[1])
+                return (rank or 0) + 1
+            end
+            """, Long.class);
+
+    // 원자적 대기열 순차 입장 Lua 스크립트:
+    // KEYS[1]=activeKey, KEYS[2]=queueKey, KEYS[3]=admittedSetKey
+    // ARGV[1]=now, ARGV[2]=expiresAt, ARGV[3]=maxActiveUsers, ARGV[4]=admitBatchSize
+    private static final DefaultRedisScript<Long> ADMIT_BATCH_SCRIPT = new DefaultRedisScript<>("""
+            redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[1])
+            local activeCount = redis.call('ZCARD', KEYS[1])
+            local slots = tonumber(ARGV[3]) - activeCount
+            if slots <= 0 then
+                return 0
+            end
+            local admitCount = math.min(slots, tonumber(ARGV[4]))
+            if admitCount <= 0 then
+                return 0
+            end
+            local tokens = redis.call('ZRANGE', KEYS[2], 0, admitCount - 1)
+            for _, token in ipairs(tokens) do
+                redis.call('ZREM', KEYS[2], token)
+                redis.call('ZADD', KEYS[1], ARGV[2], token)
+                redis.call('SADD', KEYS[3], token)
+            end
+            return #tokens
+            """, Long.class);
+
+    // EC2(16GB/i5) 단일 서버 기준 적정 제어치: 열차당 동시 입장 200명, 3초마다 30명 유입, 입장권 TTL 5분(300초)
+    @Value("${tago.queue.max-active:200}")
+    private long maxActiveUsers = 200;
+
+    @Value("${tago.queue.batch-size:30}")
+    private long admitBatchSize = 30;
+
+    @Value("${tago.queue.token-ttl-seconds:300}")
+    private long tokenTtlSeconds = 300;
 
     public QueueService(@Autowired(required = false) StringRedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
@@ -32,23 +89,30 @@ public class QueueService {
 
     /**
      * 대기열 진입 (R001: ZSet 점수 = 진입 시각, ZADD NX 로 기존 점수 보호)
+     * - 열차별 동시 입장 인원(maxActiveUsers, 기본 200명) 미만이면 즉시 입장 허용 (5분 TTL)
+     * - 초과 시 대기열(ZSet)에 등록하고 대기 순번 반환
      */
     public QueueResponseDTO enterQueue(Long scheduleSeq, String memberId) {
         String token = UUID.randomUUID().toString();
         long now = System.currentTimeMillis();
+        long expiresAt = now + (tokenTtlSeconds * 1000L);
 
-        if (redisTemplate != null) {
+        if (redisTemplate != null && scheduleSeq != null) {
             try {
                 String queueKey = QUEUE_KEY_PREFIX + scheduleSeq;
-                // ZADD NX
-                Boolean added = redisTemplate.opsForZSet().addIfAbsent(queueKey, token, now);
-                Long rank = redisTemplate.opsForZSet().rank(queueKey, token);
+                String activeKey = ACTIVE_KEY_PREFIX + scheduleSeq;
 
-                // 이미 통과 상태인지 확인
-                Boolean isAdmitted = redisTemplate.opsForSet().isMember(ADMITTED_SET_KEY, token);
+                Long result = redisTemplate.execute(
+                        ENTER_QUEUE_SCRIPT,
+                        List.of(activeKey, queueKey, ADMITTED_SET_KEY, SCHEDULE_SET_KEY),
+                        token,
+                        String.valueOf(now),
+                        String.valueOf(expiresAt),
+                        String.valueOf(maxActiveUsers),
+                        String.valueOf(scheduleSeq)
+                );
 
-                if (Boolean.TRUE.equals(isAdmitted) || (rank != null && rank < ALLOWED_BURST_COUNT)) {
-                    redisTemplate.opsForSet().add(ADMITTED_SET_KEY, token);
+                if (result != null && result == 0L) {
                     return QueueResponseDTO.builder()
                             .queueToken(token)
                             .queueRank(0L)
@@ -57,9 +121,12 @@ public class QueueService {
                             .build();
                 }
 
+                // 대기 상태: 폴링 시 정확한 순번 조회를 위해 스케줄 매핑 저장
+                redisTemplate.opsForValue().set(META_KEY_PREFIX + token, String.valueOf(scheduleSeq), Duration.ofMinutes(30));
+
                 return QueueResponseDTO.builder()
                         .queueToken(token)
-                        .queueRank(rank != null ? rank + 1 : 1L)
+                        .queueRank(result != null ? result : 1L)
                         .isAvailable(false)
                         .message("대기 중입니다.")
                         .build();
@@ -71,7 +138,7 @@ public class QueueService {
         // In-Memory Fallback
         inMemoryQueue.put(token, now);
         int currentSize = inMemoryQueue.size();
-        if (currentSize <= ALLOWED_BURST_COUNT) {
+        if (currentSize <= maxActiveUsers) {
             inMemoryAdmittedTokens.add(token);
             return QueueResponseDTO.builder()
                     .queueToken(token)
@@ -90,7 +157,7 @@ public class QueueService {
     }
 
     /**
-     * 대기열 순번 조회 (5초 간격 폴링용)
+     * 대기열 순번 조회 (3초 간격 폴링용)
      */
     public QueueResponseDTO checkQueueRank(String queueToken) {
         if (redisTemplate != null) {
@@ -105,7 +172,19 @@ public class QueueService {
                             .build();
                 }
 
-                // 전체 queue 키들을 뒤지지 않고, 통과되지 않은 경우 첫 번째 랭크 추정 또는 1 이상 반환
+                String scheduleSeqStr = redisTemplate.opsForValue().get(META_KEY_PREFIX + queueToken);
+                if (scheduleSeqStr != null) {
+                    Long rank = redisTemplate.opsForZSet().rank(QUEUE_KEY_PREFIX + scheduleSeqStr, queueToken);
+                    if (rank != null) {
+                        return QueueResponseDTO.builder()
+                                .queueToken(queueToken)
+                                .queueRank(rank + 1)
+                                .isAvailable(false)
+                                .message("대기 중입니다.")
+                                .build();
+                    }
+                }
+
                 return QueueResponseDTO.builder()
                         .queueToken(queueToken)
                         .queueRank(1L)
@@ -136,14 +215,47 @@ public class QueueService {
     }
 
     /**
-     * 주기적으로 대기열 상위 인원 입장 허용 (스케줄러: 3초마다 상위 N명 통과)
+     * 주기적으로 만료된 입장권을 비우고, 여유 슬롯만큼 대기열 상위 인원 입장 허용 (3초마다 최대 30명씩)
      */
     @Scheduled(fixedDelay = 3000)
     public void scheduleAdmitQueue() {
+        if (redisTemplate != null) {
+            try {
+                Set<String> scheduleIds = redisTemplate.opsForSet().members(SCHEDULE_SET_KEY);
+                if (scheduleIds != null && !scheduleIds.isEmpty()) {
+                    long now = System.currentTimeMillis();
+                    long expiresAt = now + (tokenTtlSeconds * 1000L);
+
+                    for (String scheduleId : scheduleIds) {
+                        String queueKey = QUEUE_KEY_PREFIX + scheduleId;
+                        String activeKey = ACTIVE_KEY_PREFIX + scheduleId;
+
+                        Long admitted = redisTemplate.execute(
+                                ADMIT_BATCH_SCRIPT,
+                                List.of(activeKey, queueKey, ADMITTED_SET_KEY),
+                                String.valueOf(now),
+                                String.valueOf(expiresAt),
+                                String.valueOf(maxActiveUsers),
+                                String.valueOf(admitBatchSize)
+                        );
+
+                        if (admitted == null || admitted == 0L) {
+                            Long remaining = redisTemplate.opsForZSet().zCard(queueKey);
+                            if (remaining == null || remaining == 0) {
+                                redisTemplate.opsForSet().remove(SCHEDULE_SET_KEY, scheduleId);
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("[QueueService] Redis scheduler error: {}", e.getMessage());
+            }
+        }
+
         if (!inMemoryQueue.isEmpty()) {
             Iterator<String> iterator = inMemoryQueue.keySet().iterator();
             int admitted = 0;
-            while (iterator.hasNext() && admitted < ALLOWED_BURST_COUNT) {
+            while (iterator.hasNext() && admitted < admitBatchSize) {
                 String token = iterator.next();
                 inMemoryAdmittedTokens.add(token);
                 iterator.remove();

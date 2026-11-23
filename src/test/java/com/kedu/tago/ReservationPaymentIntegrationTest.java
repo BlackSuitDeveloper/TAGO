@@ -61,19 +61,13 @@ public class ReservationPaymentIntegrationTest {
             ON CONFLICT (member_id) DO NOTHING
         """);
 
-        // 1. 테스트용 스케줄 및 좌석 1건 확보
+        // 1. 테스트용 스케줄 확보 및 대상 좌석(1호차 1A) 기존 점유 데이터 정리
         Long scheduleSeq = jdbcTemplate.queryForObject("SELECT schedule_seq FROM schedule LIMIT 1", Long.class);
         assertNotNull(scheduleSeq, "스케줄 데이터가 존재해야 합니다.");
 
-        Long seatSeq = jdbcTemplate.queryForObject(
-                "SELECT seat_seq FROM seat WHERE schedule_seq = ? AND car_no = 1 AND seat_no = '1A'",
-                Long.class, scheduleSeq
-        );
-
-        // 이전 테스트 잔여 데이터 정리
-        jdbcTemplate.update("DELETE FROM payment WHERE reservation_seq IN (SELECT reservation_seq FROM reservation WHERE seat_seq = ?)", seatSeq);
-        jdbcTemplate.update("DELETE FROM reservation WHERE seat_seq = ?", seatSeq);
-        jdbcTemplate.update("UPDATE seat SET status = 'AVAILABLE' WHERE seat_seq = ?", seatSeq);
+        jdbcTemplate.update("DELETE FROM payment WHERE reservation_seq IN (SELECT r.reservation_seq FROM reservation r JOIN seat s ON r.seat_seq = s.seat_seq WHERE s.schedule_seq = ? AND s.car_no = 1 AND s.seat_no = '1A')", scheduleSeq);
+        jdbcTemplate.update("DELETE FROM reservation WHERE seat_seq IN (SELECT seat_seq FROM seat WHERE schedule_seq = ? AND car_no = 1 AND seat_no = '1A')", scheduleSeq);
+        jdbcTemplate.update("DELETE FROM seat WHERE schedule_seq = ? AND car_no = 1 AND seat_no = '1A'", scheduleSeq);
 
         // 2. 대기열 진입 및 순번 확인 (R001)
         QueueResponseDTO queueEnter = queueService.enterQueue(scheduleSeq, "testUser1");
@@ -136,6 +130,6 @@ public class ReservationPaymentIntegrationTest {
         reservationService.cancelReservation(holdResp.getReservationSeq(), "testUser1");
 
         SeatDTO seatAfterCancel = seatMapper.selectSeat(scheduleSeq, 1, "1A");
-        assertEquals("AVAILABLE", seatAfterCancel.getStatus(), "취소 후 좌석은 AVAILABLE로 즉시 복구되어야 합니다.");
+        assertNull(seatAfterCancel, "취소 후 점유 좌석 레코드는 삭제되어 AVAILABLE 상태가 되어야 합니다.");
     }
 }

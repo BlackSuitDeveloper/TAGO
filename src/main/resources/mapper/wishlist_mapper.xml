@@ -9,7 +9,7 @@
     </select>
 
     <insert id="insertWish">
-        INSERT INTO wishlist (member_id, schedule_seq) VALUES (#{memberId}, #{scheduleSeq})
+        INSERT INTO wishlist (wishlist_seq, member_id, schedule_seq) VALUES ((SELECT COALESCE(MAX(wishlist_seq), 0) + 1 FROM wishlist), #{memberId}, #{scheduleSeq})
     </insert>
 
     <delete id="deleteWish">

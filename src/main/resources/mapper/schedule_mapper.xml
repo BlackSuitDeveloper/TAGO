@@ -16,7 +16,7 @@
                 AND DATE(s.depplandtime) = CAST(#{date} AS DATE)
             </if>
             <if test="upcoming != null and upcoming">
-                AND s.depplandtime &gt;= NOW()
+                AND s.depplandtime &gt;= (NOW() AT TIME ZONE 'Asia/Seoul')
             </if>
             <if test="keyword != null and keyword != ''">
                 AND (
@@ -28,11 +28,7 @@
             <if test="normalizedFilter == 'AVAILABLE'">
                 AND s.status = 'SCHEDULED'
                 AND s.booking_open_at &lt;= NOW()
-                AND EXISTS (
-                    SELECT 1 FROM seat st
-                    WHERE st.schedule_seq = s.schedule_seq
-                      AND st.status = 'AVAILABLE'
-                )
+                AND (SELECT COUNT(*) FROM seat st WHERE st.schedule_seq = s.schedule_seq) &lt; 935
             </if>
             <if test="normalizedFilter == 'MORNING'">
                 AND EXTRACT(HOUR FROM s.depplandtime) &lt; 12
@@ -61,7 +57,7 @@
             as2.nodename AS arrStationName,
             t.vehiclekndnm,
             t.line_category AS lineCategory,
-            (SELECT COUNT(*) FROM seat st WHERE st.schedule_seq = s.schedule_seq AND st.status = 'AVAILABLE') AS availableSeats
+            (935 - (SELECT COUNT(*) FROM seat st WHERE st.schedule_seq = s.schedule_seq)) AS availableSeats
         FROM schedule s
         LEFT JOIN station ds ON s.depplacename = ds.nodeid
         LEFT JOIN station as2 ON s.arrplacename = as2.nodeid
@@ -99,7 +95,7 @@
             as2.nodename AS arrStationName,
             t.vehiclekndnm,
             t.line_category AS lineCategory,
-            (SELECT COUNT(*) FROM seat st WHERE st.schedule_seq = s.schedule_seq AND st.status = 'AVAILABLE') AS availableSeats
+            (935 - (SELECT COUNT(*) FROM seat st WHERE st.schedule_seq = s.schedule_seq)) AS availableSeats
         FROM schedule s
         LEFT JOIN station ds ON s.depplacename = ds.nodeid
         LEFT JOIN station as2 ON s.arrplacename = as2.nodeid

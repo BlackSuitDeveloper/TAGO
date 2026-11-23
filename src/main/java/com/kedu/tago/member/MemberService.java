@@ -52,4 +52,20 @@ public class MemberService {
     public int deleteId(String id) {
         return memberMapper.deleteId(id);
     }
+
+    // 이름과 이메일로 아이디 찾기
+    public String findIdByNameAndEmail(String name, String email) {
+        return memberMapper.findIdByNameAndEmail(name, email);
+    }
+
+    // 아이디와 이메일 일치 검증
+    public boolean validateMemberByIdAndEmail(String id, String email) {
+        return memberMapper.countByIdAndEmail(id, email) > 0;
+    }
+
+    // 새 비밀번호 변경 (BCrypt 암호화 적용)
+    public boolean updatePassword(String id, String newRawPw) {
+        String encodedPw = bcrypt.hashPassword(newRawPw);
+        return memberMapper.updatePassword(id, encodedPw) > 0;
+    }
 }
