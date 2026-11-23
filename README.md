@@ -23,7 +23,7 @@
 | Backend | Java 21, Spring Boot 4.0, MyBatis|
 | Frontend | React 19, Vite 8, Zustand, React Router DOM, Axios |
 | Database / Cache | PostgreSQL, Redis (Docker) |
-| Auth / External | JWT (java-jwt), BCrypt, Google Cloud Storage, 공공데이터포털 TAGO API |
+| Auth / External | JWT (java-jwt), BCrypt, 공공데이터포털 TAGO API |
 | Infra / Test | Docker, AWS EC2, JUnit 5 |
 
 ---
@@ -81,3 +81,11 @@
 | POST | `/reservation/{reservationId}/cancel` | 승차권 예매 취소 및 좌석 반환 | ✅ |
 
 
+
+---
+
+## 🔧 로컬 실행 환경 설정
+
+1. PostgreSQL 과 Redis 를 준비한다.
+2. 프로젝트 루트에 `.env` 를 만들고 값을 채운다. 필수 항목은 `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET` 이고, 나머지는 `application.properties` 의 기본값을 쓴다(바꾸려면 같은 이름의 환경변수를 지정). `.env` 는 커밋하지 않는다.
+3. `./gradlew bootRun` 으로 실행한다. 기본 포트는 80 이며 `SERVER_PORT` 로 바꿀 수 있다.
