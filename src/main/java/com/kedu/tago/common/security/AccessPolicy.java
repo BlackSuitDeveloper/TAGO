@@ -17,7 +17,6 @@ public class AccessPolicy {
     private static final List<Route> PUBLIC = List.of(
             new Route(HttpMethod.GET, "/ping"),
             new Route(HttpMethod.POST, "/member"),            // 회원가입
-            new Route(HttpMethod.POST, "/member/login"),
             new Route(HttpMethod.GET, "/member/checkId"),
             new Route(HttpMethod.POST, "/auth/**"),           // 아이디 찾기, 비밀번호 재설정(이메일 인증)
             new Route(HttpMethod.GET, "/station"),

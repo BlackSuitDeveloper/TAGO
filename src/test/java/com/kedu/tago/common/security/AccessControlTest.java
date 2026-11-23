@@ -48,7 +48,7 @@ class AccessControlTest {
             assertTrue(policy.isPublic("POST", "/member"));            // 회원가입
             assertFalse(policy.isPublic("DELETE", "/member"));         // 회원 탈퇴
             assertFalse(policy.isPublic("PUT", "/member"));
-            assertTrue(policy.isPublic("POST", "/member/login"));
+            assertTrue(policy.isPublic("POST", "/auth/login"));
             assertTrue(policy.isPublic("GET", "/member/checkId"));
             assertFalse(policy.isPublic("GET", "/member/mypage"));
             assertTrue(policy.isPublic("POST", "/auth/find-id/send-code"));

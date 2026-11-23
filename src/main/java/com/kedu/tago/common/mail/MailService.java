@@ -1,4 +1,4 @@
-package com.kedu.tago.auth;
+package com.kedu.tago.common.mail;
 
 import com.kedu.tago.config.RedisConfig;
 import org.slf4j.Logger;

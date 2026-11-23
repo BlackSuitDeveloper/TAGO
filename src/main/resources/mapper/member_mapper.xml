@@ -4,14 +4,14 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.kedu.tago.member.MemberMapper">
 
-    <!-- 로그인 비밀번호 확인 | POST /api/member/login (MemberService.isMember) -->
+    <!-- 로그인 비밀번호 확인 | POST /api/auth/login (MemberService.isMember) -->
     <select id="getPasswordById" resultType="String">
         SELECT pw
         FROM member
         WHERE member_id = #{id}
     </select>
 
-    <!-- 로그인 시 권한 조회 | POST /api/member/login (MemberService.getRole) -->
+    <!-- 로그인 시 권한 조회 | POST /api/auth/login (MemberService.getRole) -->
     <select id="getRoleById" resultType="String">
         SELECT role
         FROM member

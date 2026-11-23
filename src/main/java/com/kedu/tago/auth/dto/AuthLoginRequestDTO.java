@@ -1,4 +1,4 @@
-package com.kedu.tago.member.dto;
+package com.kedu.tago.auth.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

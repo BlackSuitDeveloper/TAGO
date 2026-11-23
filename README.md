@@ -102,16 +102,29 @@ UPDATE member SET role = 'ADMIN' WHERE member_id = '관리자아이디';
 - 가입 요청으로는 권한을 지정할 수 없다(항상 `USER`). 권한을 바꾸면 이미 발급된 토큰이 만료된 뒤(기본 1시간) 적용된다.
 - 로그인 응답과 `GET /member/mypage` 응답에 `role` 이 포함된다.
 
-#### 👤 회원 (Member)
+#### 🔑 인증 (Auth) — 로그인 전 계정 접근
+
+| Method | Endpoint | 설명 | 인증 |
+|---|---|---|---|
+| POST | `/auth/login` | 로그인 (JWT 토큰 발급) | ❌ |
+| POST | `/auth/find-id/send-code` | 아이디 찾기 인증번호 발송 | ❌ |
+| POST | `/auth/find-id/verify` | 아이디 찾기 인증번호 확인 | ❌ |
+| POST | `/auth/reset-password/send-code` | 비밀번호 재설정 인증번호 발송 | ❌ |
+| POST | `/auth/reset-password/verify` | 비밀번호 재설정 인증번호 확인 (재설정 토큰 발급) | ❌ |
+| POST | `/auth/reset-password` | 새 비밀번호 설정 | ❌ |
+
+#### 👤 회원 (Member) — 회원 정보 관리
 
 | Method | Endpoint | 설명 | 인증 |
 |---|---|---|---|
 | POST | `/member` | 회원가입 | ❌ |
-| POST | `/member/login` | 로그인 (JWT 토큰 발급) | ❌ |
 | GET | `/member/checkId` | 아이디 중복 체크 | ❌ |
 | GET | `/member/mypage` | 내 정보 조회 | ✅ |
 | PUT | `/member` | 회원 정보 수정 | ✅ |
 | DELETE | `/member` | 회원 탈퇴 | ✅ |
+| POST | `/member/password/send-code` | 비밀번호 변경 인증번호 발송 | ✅ |
+| POST | `/member/password/verify` | 비밀번호 변경 인증번호 확인 | ✅ |
+| PUT | `/member/password` | 비밀번호 변경 | ✅ |
 
 #### ⏳ 대기열 (Queue)
 

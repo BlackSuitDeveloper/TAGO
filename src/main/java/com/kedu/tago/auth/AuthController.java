@@ -1,17 +1,21 @@
 package com.kedu.tago.auth;
 
+import com.kedu.tago.auth.dto.AuthLoginRequestDTO;
 import com.kedu.tago.auth.dto.FindIdRequestDTO;
 import com.kedu.tago.auth.dto.ResetPasswordRequestDTO;
 import com.kedu.tago.common.exception.ApiException;
 import com.kedu.tago.common.exception.ErrorCode;
+import com.kedu.tago.common.mail.MailService;
 import com.kedu.tago.common.response.ResWrapper;
+import com.kedu.tago.common.security.JwtUtil;
 import com.kedu.tago.member.MemberService;
+import com.kedu.tago.member.Role;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
-/** 이메일 인증 기반 아이디 찾기·비밀번호 재설정 API */
+/** 로그인, 아이디 찾기, 비밀번호 재설정 API (로그인 전 계정 접근) */
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
@@ -19,6 +23,18 @@ public class AuthController {
 
     private final MailService mailService;
     private final MemberService memberService;
+    private final JwtUtil jwtUtil;
+
+    /** 로그인 및 토큰 발급 (POST /api/member/login) */
+    @PostMapping("/login")
+    public ResWrapper<Map<String, String>> login(@RequestBody AuthLoginRequestDTO dto) {
+        if (!memberService.isMember(dto.getId(), dto.getPw())) {
+            throw new ApiException(ErrorCode.LOGIN_FAILED);
+        }
+        Role role = memberService.getRole(dto.getId());
+        String token = jwtUtil.createToken(dto.getId(), role);
+        return ResWrapper.ok(Map.of("token", token, "id", dto.getId(), "role", role.name()));
+    }
 
     /** 아이디 찾기 인증번호 발송 (POST /api/auth/find-id/send-code) */
     @PostMapping("/find-id/send-code")
