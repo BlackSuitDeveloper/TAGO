@@ -23,6 +23,7 @@ public class QueueService {
     private final Set<String> inMemoryAdmittedTokens = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private static final String QUEUE_KEY_PREFIX = "tago:queue:";
+    private static final String QUEUE_SEQ_KEY_PREFIX = "tago:queue:seq:";
     private static final String ADMITTED_SET_KEY = "tago:queue:admitted";
     private static final long ALLOWED_BURST_COUNT = 10; // 회차당 한 번에 입장 허용할 인원
 
@@ -31,17 +32,24 @@ public class QueueService {
     }
 
     /**
-     * 대기열 진입 (R001: ZSet 점수 = 진입 시각, ZADD NX 로 기존 점수 보호)
+     * 대기열 진입 (R001: Redis INCR 단조 증가 시퀀스를 score로 사용, ZADD NX 로 기존 점수 보호)
      */
     public QueueResponseDTO enterQueue(Long scheduleSeq, String memberId) {
         String token = UUID.randomUUID().toString();
-        long now = System.currentTimeMillis();
 
         if (redisTemplate != null) {
             try {
                 String queueKey = QUEUE_KEY_PREFIX + scheduleSeq;
+                String seqKey = QUEUE_SEQ_KEY_PREFIX + scheduleSeq;
+
+                // Redis INCR로 동일 밀리초 내 동시 유입 시에도 중복 없는 도착 순번 발급
+                Long sequence = redisTemplate.opsForValue().increment(seqKey);
+                if (sequence == null) {
+                    throw new IllegalStateException("Failed to issue sequence from Redis INCR: " + seqKey);
+                }
+
                 // ZADD NX
-                Boolean added = redisTemplate.opsForZSet().addIfAbsent(queueKey, token, now);
+                redisTemplate.opsForZSet().addIfAbsent(queueKey, token, sequence.doubleValue());
                 Long rank = redisTemplate.opsForZSet().rank(queueKey, token);
 
                 // 이미 통과 상태인지 확인
@@ -69,7 +77,7 @@ public class QueueService {
         }
 
         // In-Memory Fallback
-        inMemoryQueue.put(token, now);
+        inMemoryQueue.put(token, System.currentTimeMillis());
         int currentSize = inMemoryQueue.size();
         if (currentSize <= ALLOWED_BURST_COUNT) {
             inMemoryAdmittedTokens.add(token);
