@@ -111,54 +111,73 @@ export default function MyPage() {
   };
 
   // 찜하기 중앙 스토어 연동 (메인·시각표·마이페이지 공통)
-  const { fetchWishList, toggleWish, isWish } = useWishStore();
+  const { wishList, fetchWishList, toggleWish } = useWishStore();
+  const [favorites, setFavorites] = useState([]);
 
   useEffect(() => {
     fetchWishList();
   }, [fetchWishList]);
 
-  // 화면 표시용 KTX 열차 목록 (찜된 번호만 필터링되어 자동 표시)
-  const allTrains = [
-    {
-      id: 1,
-      scheduleSeq: 1,
-      name: 'KTX 001',
-      type: 'KTX',
-      depTime: '05:15',
-      arrTime: '07:42',
-      duration: '2시간 27분',
-      depStation: '서울',
-      arrStation: '부산',
-      price: '59,800',
-    },
-    {
-      id: 2,
-      scheduleSeq: 2,
-      name: 'KTX 002',
-      type: 'KTX',
-      depTime: '06:00',
-      arrTime: '08:35',
-      duration: '2시간 35분',
-      depStation: '서울',
-      arrStation: '부산',
-      price: '59,800',
-    },
-    {
-      id: 3,
-      scheduleSeq: 3,
-      name: 'KTX 003',
-      type: 'KTX',
-      depTime: '07:00',
-      arrTime: '09:40',
-      duration: '2시간 40분',
-      depStation: '서울',
-      arrStation: '부산',
-      price: '59,800',
-    },
-  ];
+  // 백엔드에서 받아온 찜 목록 번호(wishList)에 해당하는 실제 스케줄 상세 정보를 조회해 마이페이지에 표시
+  useEffect(() => {
+    if (!Array.isArray(wishList) || wishList.length === 0) {
+      setFavorites([]);
+      return;
+    }
 
-  // ⭐️ 백엔드에서 받아온 찜 목록 번호(wishList)와 일치하는 열차만 자동으로 마이페이지에 표시!
-  const favorites = allTrains.filter((train) => isWish(train.scheduleSeq || train.id));
+    const calcDuration = (depStr, arrStr) => {
+      if (!depStr || !arrStr) return '-';
+      const diffMs = new Date(arrStr).getTime() - new Date(depStr).getTime();
+      if (isNaN(diffMs) || diffMs <= 0) return '-';
+      const totalMins = Math.floor(diffMs / 60000);
+      const hours = Math.floor(totalMins / 60);
+      const mins = totalMins % 60;
+      return hours > 0 ? `${hours}시간 ${mins}분` : `${mins}분`;
+    };
+
+    const loadFavoriteSchedules = async () => {
+      try {
+        const results = await Promise.all(
+          wishList.map((seq) =>
+            client
+              .get(`/schedule/${seq}`)
+              .then((res) => res.data)
+              .catch((err) => {
+                console.error('찜한 열차 상세 조회 실패:', seq, err);
+                return null;
+              })
+          )
+        );
+
+        const parsed = results
+          .filter((item) => item && item.schedule_seq != null)
+          .map((item) => {
+            const dep = formatDateTime(item.depplandtime);
+            const arr = formatDateTime(item.arrplandtime);
+            const type = item.vehiclekndnm || 'KTX';
+            return {
+              id: item.schedule_seq,
+              scheduleSeq: item.schedule_seq,
+              name: `${type} ${item.trainno || ''}`.trim(),
+              type,
+              depDate: dep.date,
+              depTime: dep.time || '00:00',
+              arrTime: arr.time || '00:00',
+              duration: calcDuration(item.depplandtime, item.arrplandtime),
+              depStation: item.depStationName || item.depplacename || '출발역',
+              arrStation: item.arrStationName || item.arrplacename || '도착역',
+              price: item.standard_price ? Number(item.standard_price).toLocaleString() : '59,800',
+            };
+          });
+
+        setFavorites(parsed);
+      } catch (err) {
+        console.error('찜 목록 스케줄 변환 실패:', err);
+      }
+    };
+
+    loadFavoriteSchedules();
+  }, [wishList]);
 
   // 마이페이지 찜 삭제 클릭 시 백엔드 DELETE 및 화면 즉시 갱신
   const handleRemoveFavorite = (scheduleSeq) => {
@@ -168,14 +187,15 @@ export default function MyPage() {
   const handleBookFavoriteTrain = (fav) => {
     navigate('/reservation', {
       state: {
+        scheduleSeq: fav.scheduleSeq,
         trainName: fav.name,
-        trainType: 'KTX',
+        trainType: fav.type || 'KTX',
         depTime: fav.depTime,
         arrTime: fav.arrTime,
         duration: fav.duration,
         depStation: fav.depStation || '서울',
         arrStation: fav.arrStation || '부산',
-        depDate: '2026-11-16 (월)',
+        depDate: fav.depDate || '',
         passenger: '어른 1명',
         seatType: '일반실',
         price: fav.price,
@@ -197,7 +217,7 @@ export default function MyPage() {
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
-    const token = sessionStorage.getItem('token');
+    const token = sessionStorage.getItem('token') || localStorage.getItem('token');
     if (!token) {
       alert('로그인이 필요한 서비스입니다.');
       navigate('/login');
