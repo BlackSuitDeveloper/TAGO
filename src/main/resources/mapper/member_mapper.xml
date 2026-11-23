@@ -50,4 +50,26 @@
         where member_id = #{id}
     </delete>
 
+    <!-- 이름과 이메일로 아이디 찾기 -->
+    <select id="findIdByNameAndEmail" resultType="String">
+        select member_id
+        from member
+        where name = #{name} and email = #{email}
+        limit 1
+    </select>
+
+    <!-- 아이디와 이메일 일치 확인 -->
+    <select id="countByIdAndEmail" resultType="int">
+        select count(*)
+        from member
+        where member_id = #{id} and email = #{email}
+    </select>
+
+    <!-- 비밀번호 변경 -->
+    <update id="updatePassword">
+        update member
+        set pw = #{pw}
+        where member_id = #{id}
+    </update>
+
 </mapper>

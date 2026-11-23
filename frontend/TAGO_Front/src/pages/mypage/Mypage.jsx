@@ -346,22 +346,34 @@ export default function MyPage() {
     }
   };
 
-  const handleSendEmailAuth = () => {
-    alert(`[이메일 발송 완료]\n회원님의 이메일(${originalUserInfo.email})로 6자리 인증번호가 발송되었습니다.\n(테스트 인증번호: 123456)`);
-    setEmailAuthStep(2);
-  };
-
-  const handleVerifyEmailCode = () => {
-    if (authCodeInput.trim() === '123456' || authCodeInput.trim().length === 6) {
-      alert('이메일 본인인증이 완료되었습니다.\n새로운 비밀번호를 설정해 주세요.');
-      setIsEmailVerified(true);
-      setEmailAuthStep(3);
-    } else {
-      alert('인증번호 6자리가 올바르지 않습니다. 다시 확인해 주세요.');
+  const handleSendEmailAuth = async () => {
+    try {
+      const res = await client.post('/member/password/send-code');
+      alert(res.data?.message || `회원님의 가입 이메일(${originalUserInfo.email})로 6자리 인증번호가 발송되었습니다.`);
+      setEmailAuthStep(2);
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || err.response?.data || '인증번호 발송에 실패했습니다.');
     }
   };
 
-  const handleSavePassword = (e) => {
+  const handleVerifyEmailCode = async () => {
+    if (!authCodeInput || authCodeInput.trim().length !== 6) {
+      alert('6자리 인증번호를 정확히 입력해 주세요.');
+      return;
+    }
+    try {
+      const res = await client.post('/member/password/verify', { code: authCodeInput.trim() });
+      alert(res.data?.message || '이메일 본인인증이 완료되었습니다.\n새로운 비밀번호를 설정해 주세요.');
+      setIsEmailVerified(true);
+      setEmailAuthStep(3);
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || err.response?.data || '인증번호가 일치하지 않거나 만료되었습니다.');
+    }
+  };
+
+  const handleSavePassword = async (e) => {
     e.preventDefault();
     if (!isEmailVerified) {
       alert('먼저 이메일 인증을 완료해 주세요.');
@@ -376,12 +388,18 @@ export default function MyPage() {
       return;
     }
 
-    alert('비밀번호가 성공적으로 변경되었습니다. 다음 로그인부터 적용됩니다.');
-    setNewPassword('');
-    setConfirmNewPassword('');
-    setAuthCodeInput('');
-    setIsEmailVerified(false);
-    setEmailAuthStep(1);
+    try {
+      const res = await client.put('/member/password', { newPassword });
+      alert(res.data?.message || '비밀번호가 성공적으로 변경되었습니다. 다음 로그인부터 적용됩니다.');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setAuthCodeInput('');
+      setIsEmailVerified(false);
+      setEmailAuthStep(1);
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || err.response?.data || '비밀번호 변경에 실패했습니다.');
+    }
   };
 
   return (
