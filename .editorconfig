@@ -1,0 +1,5 @@
+# 에디터/IDE 공통 설정. IntelliJ 는 이 파일의 charset 을 우선 적용하므로 PC 마다 다른 기본 인코딩(ISO-8859-1, MS949 등)에서도 한글이 깨지지 않는다.
+root = true
+
+[*]
+charset = utf-8
