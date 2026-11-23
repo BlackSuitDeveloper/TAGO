@@ -1,13 +1,13 @@
 package com.kedu.tago.reservation;
 
-import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.common.exception.ApiException;
+import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.reservation.dto.MyTicketResponseDTO;
 import com.kedu.tago.reservation.dto.ReservationDTO;
 import com.kedu.tago.reservation.dto.ReservationRequestDTO;
 import com.kedu.tago.reservation.dto.ReservationResponseDTO;
-import com.kedu.tago.schedule.dto.ScheduleResponseDTO;
 import com.kedu.tago.schedule.ScheduleService;
+import com.kedu.tago.schedule.dto.ScheduleResponseDTO;
 import com.kedu.tago.seat.SeatMapper;
 import com.kedu.tago.seat.SeatService;
 import com.kedu.tago.seat.dto.SeatDTO;

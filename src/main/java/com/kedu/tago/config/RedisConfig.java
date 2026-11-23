@@ -1,18 +1,16 @@
 package com.kedu.tago.config;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.Duration;
 
 @Configuration
+@RequiredArgsConstructor
 public class RedisConfig {
 
     private final StringRedisTemplate redis;
-
-    public RedisConfig(StringRedisTemplate redis) {
-        this.redis = redis;
-    }
 
     public void setValue(String key, String value) {
         redis.opsForValue().set(key, value);

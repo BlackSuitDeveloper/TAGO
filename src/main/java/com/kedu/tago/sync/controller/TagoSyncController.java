@@ -1,7 +1,7 @@
 package com.kedu.tago.sync.controller;
 
-import com.kedu.tago.common.security.RequireRole;
 import com.kedu.tago.common.response.ResWrapper;
+import com.kedu.tago.common.security.RequireRole;
 import com.kedu.tago.member.Role;
 import com.kedu.tago.sync.config.TagoRouteConfig;
 import com.kedu.tago.sync.dto.SyncResultDTO;

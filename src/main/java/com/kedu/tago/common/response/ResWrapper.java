@@ -2,9 +2,9 @@ package com.kedu.tago.common.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import lombok.Getter;
 import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.common.paging.PageResult;
+import lombok.Getter;
 import org.springframework.http.HttpStatusCode;
 
 import java.util.List;

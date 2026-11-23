@@ -1,8 +1,8 @@
 package com.kedu.tago.member.dto;
 
+import com.kedu.tago.member.Role;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import com.kedu.tago.member.Role;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 

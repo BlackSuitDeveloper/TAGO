@@ -1,26 +1,23 @@
 package com.kedu.tago.auth;
 
-import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.auth.dto.FindIdRequestDTO;
 import com.kedu.tago.auth.dto.ResetPasswordRequestDTO;
 import com.kedu.tago.common.exception.ApiException;
+import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.common.response.ResWrapper;
 import com.kedu.tago.member.MemberService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
 @RestController
 @RequestMapping("/auth")
+@RequiredArgsConstructor
 public class AuthController {
 
     private final MailService mailService;
     private final MemberService memberService;
-
-    public AuthController(MailService mailService, MemberService memberService) {
-        this.mailService = mailService;
-        this.memberService = memberService;
-    }
 
     // ==========================================
     // 1. 아이디 찾기 (이메일 인증)

@@ -1,6 +1,7 @@
 package com.kedu.tago.seat.dto;
 
 import lombok.*;
+
 import java.util.List;
 
 @Data

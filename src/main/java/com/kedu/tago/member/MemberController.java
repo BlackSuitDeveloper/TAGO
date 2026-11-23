@@ -1,33 +1,29 @@
 package com.kedu.tago.member;
 
-import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.auth.MailService;
-import com.kedu.tago.member.dto.AuthLoginRequestDTO;
-import com.kedu.tago.member.dto.MypagePasswordRequestDTO;
 import com.kedu.tago.common.exception.ApiException;
+import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.common.response.ResWrapper;
 import com.kedu.tago.common.security.JwtUtil;
+import com.kedu.tago.member.dto.AuthLoginRequestDTO;
 import com.kedu.tago.member.dto.MemberProfileResponseDTO;
 import com.kedu.tago.member.dto.MemberSignupRequestDTO;
 import com.kedu.tago.member.dto.MemberUpdateRequestDTO;
+import com.kedu.tago.member.dto.MypagePasswordRequestDTO;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
 @RestController
 @RequestMapping("/member")
+@RequiredArgsConstructor
 public class MemberController {
 
     private final MemberService memberService;
     private final JwtUtil jwtUtil;
     private final MailService mailService;
-
-    MemberController(MemberService memberService, JwtUtil jwtUtil, MailService mailService) {
-        this.memberService = memberService;
-        this.jwtUtil = jwtUtil;
-        this.mailService = mailService;
-    }
 
     @PostMapping("/login")
     public ResWrapper<Map<String, String>> login(@RequestBody AuthLoginRequestDTO dto) {

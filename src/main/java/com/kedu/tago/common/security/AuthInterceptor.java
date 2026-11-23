@@ -6,6 +6,7 @@ import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.member.Role;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
@@ -27,15 +28,11 @@ import org.springframework.web.servlet.HandlerInterceptor;
  * 리소스 소유자 검사(남의 예약 결제/취소 등)는 해당 서비스에서 한다.
  */
 @Component
+@RequiredArgsConstructor
 public class AuthInterceptor implements HandlerInterceptor {
 
     private final JwtUtil jwtUtil;
     private final AccessPolicy accessPolicy;
-
-    public AuthInterceptor(JwtUtil jwtUtil, AccessPolicy accessPolicy) {
-        this.jwtUtil = jwtUtil;
-        this.accessPolicy = accessPolicy;
-    }
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {

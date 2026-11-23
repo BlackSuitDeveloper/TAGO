@@ -4,18 +4,15 @@ import com.kedu.tago.common.security.Bcrypt;
 import com.kedu.tago.member.dto.MemberProfileResponseDTO;
 import com.kedu.tago.member.dto.MemberSignupRequestDTO;
 import com.kedu.tago.member.dto.MemberUpdateRequestDTO;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class MemberService {
 
     private final MemberMapper memberMapper;
     private final Bcrypt bcrypt;
-
-    public MemberService(MemberMapper memberMapper, Bcrypt bcrypt) {
-        this.memberMapper = memberMapper;
-        this.bcrypt = bcrypt;
-    }
 
     // 로그인
     public boolean isMember(String id, String rawPw) {

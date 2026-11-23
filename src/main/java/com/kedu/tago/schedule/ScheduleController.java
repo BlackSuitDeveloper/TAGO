@@ -1,7 +1,7 @@
 package com.kedu.tago.schedule;
 
-import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.common.exception.ApiException;
+import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.common.response.ResWrapper;
 import com.kedu.tago.schedule.dto.ScheduleResponseDTO;
 import com.kedu.tago.schedule.dto.ScheduleSearchRequestDTO;
