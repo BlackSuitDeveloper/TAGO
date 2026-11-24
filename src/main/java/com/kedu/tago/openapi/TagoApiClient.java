@@ -7,17 +7,28 @@ import com.kedu.tago.openapi.dto.TagoStationDTO;
 import com.kedu.tago.openapi.dto.TagoTrainScheduleDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.net.URI;
 import java.net.URLEncoder;
+import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** 공공데이터포털(TAGO) 열차정보 API 호출 클라이언트 */
+/**
+ * 공공데이터포털(TAGO) 열차정보 API 호출 클라이언트
+ * - 연결/읽기 제한 시간을 두어 외부 서버가 느려도 호출이 무한정 매달리지 않는다.
+ * - 일시적 오류(연결 실패, 제한 시간 초과, 5xx, 429)만 짧게 기다렸다가 다시 시도한다. 그 외 4xx 는 재시도하지 않는다.
+ * - 로그에는 서비스 키가 남지 않는다(요청 주소가 담긴 예외 문구도 가린다).
+ * - 최종 실패는 예외 대신 null(목록 조회는 빈 목록)로 돌려주므로, 호출하는 쪽의 동작은 그대로다.
+ */
 @Slf4j
 @Component
 public class TagoApiClient {
@@ -29,16 +40,31 @@ public class TagoApiClient {
     private final TagoRouteConfig routeConfig;
     private final String baseUrl;
     private final String encodedServiceKey;
+    private final String rawServiceKey;
+    private final int maxAttempts;
+    private final long retryBackoffMs;
 
     public TagoApiClient(
             @Value("${tago.api.base-url:https://apis.data.go.kr/1613000/TrainInfo}") String baseUrl,
             @Value("${tago.api.service-key:}") String serviceKey,
+            @Value("${tago.api.connect-timeout-ms:3000}") long connectTimeoutMs,
+            @Value("${tago.api.read-timeout-ms:10000}") long readTimeoutMs,
+            @Value("${tago.api.max-attempts:2}") int maxAttempts,
+            @Value("${tago.api.retry-backoff-ms:500}") long retryBackoffMs,
             TagoRouteConfig routeConfig) {
-        this.restClient = RestClient.builder().build();
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(connectTimeoutMs))
+                .build();
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(Duration.ofMillis(readTimeoutMs));
+        this.restClient = RestClient.builder().requestFactory(requestFactory).build();
         this.objectMapper = new ObjectMapper();
         this.routeConfig = routeConfig;
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.encodedServiceKey = normalizeServiceKey(serviceKey);
+        this.rawServiceKey = serviceKey == null ? "" : serviceKey.trim();
+        this.maxAttempts = Math.max(1, maxAttempts);
+        this.retryBackoffMs = Math.max(0, retryBackoffMs);
     }
 
     /** ServiceKey 설정 여부 */
@@ -171,11 +197,7 @@ public class TagoApiClient {
             return null;
         }
         try {
-            URI uri = URI.create(fullUrl);
-            String rawBody = restClient.get()
-                    .uri(uri)
-                    .retrieve()
-                    .body(String.class);
+            String rawBody = fetchWithRetry(URI.create(fullUrl), apiName);
 
             if (rawBody == null || rawBody.isBlank()) {
                 log.warn("[TAGO API] {} 응답 본문이 비어 있습니다.", apiName);
@@ -201,9 +223,63 @@ public class TagoApiClient {
             }
             return itemNode;
         } catch (Exception e) {
-            log.error("[TAGO API] {} 호출 중 예외 발생: {}", apiName, e.getMessage());
+            log.error("[TAGO API] {} 처리 중 예외 발생: {}", apiName, mask(e.getMessage()));
             return null;
         }
+    }
+
+    // 일시적 오류만 최대 maxAttempts 번까지 시도한다. 최종 실패면 null
+    private String fetchWithRetry(URI uri, String apiName) {
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            String failure;
+            boolean retryable;
+            try {
+                return restClient.get().uri(uri).retrieve().body(String.class);
+            } catch (RestClientResponseException e) {
+                int status = e.getStatusCode().value();
+                retryable = status >= 500 || status == 429;
+                failure = "HTTP " + status;
+            } catch (ResourceAccessException e) {
+                retryable = true;
+                failure = "연결 실패 또는 제한 시간 초과 (" + mask(e.getMessage()) + ")";
+            }
+
+            if (!retryable || attempt == maxAttempts) {
+                log.error("[TAGO API] {} 호출 실패 ({}번 시도): {}", apiName, attempt, failure);
+                return null;
+            }
+            log.warn("[TAGO API] {} 호출 실패, 재시도합니다 ({}/{}): {}", apiName, attempt, maxAttempts, failure);
+            if (!pauseBeforeRetry()) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    // 인터럽트되면 재시도를 멈춘다
+    private boolean pauseBeforeRetry() {
+        try {
+            Thread.sleep(retryBackoffMs);
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    // 로그에 서비스 키가 남지 않게 가린다 (라이브러리 예외 문구에 요청 주소가 들어가는 경우 대비. 테스트에서 직접 호출)
+    String mask(String text) {
+        if (text == null) {
+            return "";
+        }
+        String masked = text.replaceAll("(?i)(serviceKey=)[^&\\s\"')]*", "$1****");
+        if (!encodedServiceKey.isEmpty()) {
+            masked = masked.replace(encodedServiceKey, "****");
+        }
+        if (!rawServiceKey.isEmpty()) {
+            masked = masked.replace(rawServiceKey, "****");
+        }
+        return masked;
     }
 
     private List<JsonNode> toNodeList(JsonNode itemNode) {
