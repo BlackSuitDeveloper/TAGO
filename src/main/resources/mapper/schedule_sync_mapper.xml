@@ -2,20 +2,10 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="ScheduleSync">
+<mapper namespace="com.kedu.tago.sync.ScheduleSyncMapper">
 
-    <select id="existsSchedule" parameterType="map" resultType="boolean">
-        SELECT EXISTS (
-            SELECT 1 FROM schedule
-            WHERE trainno = #{trainno}
-              AND depplacename = #{depNodeId}
-              AND arrplacename = #{arrNodeId}
-              AND depplandtime = #{depTime}
-        )
-    </select>
-
-    <insert id="insertSchedule" parameterType="com.kedu.tago.sync.dto.ScheduleInsertDTO"
-            useGeneratedKeys="true" keyProperty="scheduleSeq" keyColumn="schedule_seq">
+    <!-- 운행 일정 일괄 저장(이미 있는 일정은 제외) | POST /api/admin/sync/schedules, POST /api/admin/sync/schedules/range, POST /api/admin/sync/mock, 매일 03:00 배치, 서버 시작 시 SyncStartupRunner (ScheduleSyncService.syncSchedulesByDate, insertMockSampleData) -->
+    <insert id="insertSchedulesIfAbsent">
         INSERT INTO schedule (
             trainno,
             depplacename,
@@ -27,26 +17,41 @@
             standard_price,
             status
         )
-        VALUES (
-            #{trainno},
-            #{depNodeId},
-            #{arrNodeId},
-            #{depTime},
-            #{arrTime},
-            #{bookingOpenAt},
-            #{firstPrice},
-            #{standardPrice},
+        SELECT
+            v.trainno,
+            v.dep_node_id,
+            v.arr_node_id,
+            v.dep_time,
+            v.arr_time,
+            v.booking_open_at,
+            v.first_price,
+            v.standard_price,
             'SCHEDULED'
+        FROM (
+            VALUES
+            <foreach collection="list" item="s" index="i" separator=",">
+                (
+                    CAST(#{s.trainno} AS integer),
+                    CAST(#{s.depNodeId} AS varchar),
+                    CAST(#{s.arrNodeId} AS varchar),
+                    CAST(#{s.depTime} AS timestamp),
+                    CAST(#{s.arrTime} AS timestamp),
+                    CAST(#{s.bookingOpenAt} AS timestamp),
+                    CAST(#{s.firstPrice} AS integer),
+                    CAST(#{s.standardPrice} AS integer),
+                    CAST(#{i} AS integer)
+                )
+            </foreach>
+        ) AS v(trainno, dep_node_id, arr_node_id, dep_time, arr_time, booking_open_at, first_price, standard_price, ord)
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM schedule s
+            WHERE s.trainno = v.trainno
+              AND s.depplacename = v.dep_node_id
+              AND s.arrplacename = v.arr_node_id
+              AND s.depplandtime = v.dep_time
         )
-    </insert>
-
-    <insert id="batchInsertSeats" parameterType="map">
-        INSERT INTO seat (schedule_seq, car_no, seat_no, seat_grade, version)
-        VALUES
-        <foreach collection="seats" item="seat" separator=",">
-            (#{scheduleSeq}, #{seat.carNo}, #{seat.seatNo}, #{seat.seatGrade}, 0)
-        </foreach>
-        ON CONFLICT (schedule_seq, car_no, seat_no) DO NOTHING
+        ORDER BY v.ord
     </insert>
 
 </mapper>

@@ -47,6 +47,12 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
+// 소스·문서의 한글이 PC 기본 인코딩에 영향받지 않도록 UTF-8 로 고정
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
 tasks.named('test') {
     useJUnitPlatform()
+    systemProperty 'file.encoding', 'UTF-8'
 }

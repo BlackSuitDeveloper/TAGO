@@ -9,7 +9,6 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ScheduleInsertDTO {
-    private Long scheduleSeq;
     private int trainno;
     private String depNodeId;
     private String arrNodeId;

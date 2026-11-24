@@ -21,7 +21,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 결제는 본인의 예약만 가능해야 한다 (다른 사람의 예약 번호로 결제 확정 차단) */
+/** 결제 소유권 검증 테스트 (타인 예약으로 결제 확정 차단) */
 class PaymentOwnershipTest {
 
     private final PaymentMapper paymentMapper = mock(PaymentMapper.class);

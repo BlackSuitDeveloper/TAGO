@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/** 역 조회 API */
 @RestController
 @RequestMapping("/station")
 @RequiredArgsConstructor
@@ -16,6 +17,7 @@ public class StationController {
 
     private final StationService stationService;
 
+    /** 역 목록 조회 (GET /api/station) */
     @GetMapping
     public ResWrapper<List<StationResponseDTO>> getStationList() {
         return ResWrapper.list(stationService.getStationList());

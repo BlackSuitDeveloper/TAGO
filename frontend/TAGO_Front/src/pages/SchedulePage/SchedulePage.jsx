@@ -54,23 +54,23 @@ function calcDurationText(depTimestamp, arrTimestamp) {
 }
 
 function mapScheduleItem(item) {
-  const trainNoStr = String(item.trainno ?? '').padStart(3, '0');
+  const trainNoStr = String(item.trainNo ?? '').padStart(3, '0');
   const availableCount = item.availableSeats ?? 0;
 
   return {
-    id: item.schedule_seq,
+    id: item.scheduleSeq,
     trainNo: trainNoStr,
     name: `KTX ${trainNoStr}`,
-    type: item.vehiclekndnm || 'KTX',
-    depStationName: item.depStationName || item.depplacename || '-',
-    arrStationName: item.arrStationName || item.arrplacename || '-',
-    depTime: formatTimeHHMM(item.depplandtime),
-    arrTime: formatTimeHHMM(item.arrplandtime),
-    duration: calcDurationText(item.depplandtime, item.arrplandtime),
-    generalPrice: Number(item.standard_price || 0).toLocaleString(),
+    type: item.vehicleKndNm || 'KTX',
+    depStationName: item.depStationName || item.depPlaceName || '-',
+    arrStationName: item.arrStationName || item.arrPlaceName || '-',
+    depTime: formatTimeHHMM(item.depPlandTime),
+    arrTime: formatTimeHHMM(item.arrPlandTime),
+    duration: calcDurationText(item.depPlandTime, item.arrPlandTime),
+    generalPrice: Number(item.standardPrice || 0).toLocaleString(),
     generalStatus: availableCount > 0 ? '예매가능' : '매진',
     availableSeats: availableCount,
-    depDateRaw: item.depplandtime ? formatLocalDateYMD(item.depplandtime) : '',
+    depDateRaw: item.depPlandTime ? formatLocalDateYMD(item.depPlandTime) : '',
   };
 }
 
@@ -137,7 +137,7 @@ export default function SchedulePage() {
       .then((res) => {
         if (Array.isArray(res.data) && res.data.length > 0) {
           const names = Array.from(
-            new Set(res.data.map((st) => st.nodename).filter(Boolean))
+            new Set(res.data.map((st) => st.nodeName).filter(Boolean))
           );
           if (names.length > 0) {
             setStationOptions(names);

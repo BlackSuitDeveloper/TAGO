@@ -62,7 +62,7 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      const response = await client.post('/member/login', {
+      const response = await client.post('/auth/login', {
         id: userId,
         pw: password,
       });

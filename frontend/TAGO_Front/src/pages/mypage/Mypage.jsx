@@ -43,16 +43,16 @@ const GRADE_LABEL = { STANDARD: '일반실', FIRST: '특실', PREMIUM: '특실' 
 
 // 백엔드 MyTicketResponseDTO -> 화면 표시용 데이터 변환
 const parseTicket = (item) => {
-  const dep = formatDateTime(item.depplandtime);
-  const arr = formatDateTime(item.arrplandtime);
+  const dep = formatDateTime(item.depPlandTime);
+  const arr = formatDateTime(item.arrPlandTime);
   const rawPrice = Number(item.totalPrice || 0);
   return {
     reservationSeq: item.reservationSeq,
     reservationSeqs: [item.reservationSeq],
     scheduleSeq: item.scheduleSeq,
     carNo: item.carNo,
-    trainName: `${item.vehiclekndnm || 'KTX'} ${item.trainno || ''}`.trim(),
-    trainType: item.vehiclekndnm || 'KTX',
+    trainName: `${item.vehicleKndNm || 'KTX'} ${item.trainNo || ''}`.trim(),
+    trainType: item.vehicleKndNm || 'KTX',
     depDate: dep.date,
     depStation: item.depStation || '출발역',
     arrStation: item.arrStation || '도착역',
@@ -255,23 +255,23 @@ export default function MyPage() {
         );
 
         const parsed = results
-          .filter((item) => item && item.schedule_seq != null)
+          .filter((item) => item && item.scheduleSeq != null)
           .map((item) => {
-            const dep = formatDateTime(item.depplandtime);
-            const arr = formatDateTime(item.arrplandtime);
-            const type = item.vehiclekndnm || 'KTX';
+            const dep = formatDateTime(item.depPlandTime);
+            const arr = formatDateTime(item.arrPlandTime);
+            const type = item.vehicleKndNm || 'KTX';
             return {
-              id: item.schedule_seq,
-              scheduleSeq: item.schedule_seq,
-              name: `${type} ${item.trainno || ''}`.trim(),
+              id: item.scheduleSeq,
+              scheduleSeq: item.scheduleSeq,
+              name: `${type} ${item.trainNo || ''}`.trim(),
               type,
               depDate: dep.date,
               depTime: dep.time || '00:00',
               arrTime: arr.time || '00:00',
-              duration: calcDuration(item.depplandtime, item.arrplandtime),
-              depStation: item.depStationName || item.depplacename || '출발역',
-              arrStation: item.arrStationName || item.arrplacename || '도착역',
-              price: item.standard_price ? Number(item.standard_price).toLocaleString() : '59,800',
+              duration: calcDuration(item.depPlandTime, item.arrPlandTime),
+              depStation: item.depStationName || item.depPlaceName || '출발역',
+              arrStation: item.arrStationName || item.arrPlaceName || '도착역',
+              price: item.standardPrice ? Number(item.standardPrice).toLocaleString() : '59,800',
             };
           });
 

@@ -53,39 +53,39 @@ export function occupancy(available, total = TOTAL_SEATS_DEFAULT) {
 export function fastestTags(items) {
   const groups = new Map();
   for (const it of items) {
-    const dep = toMs(it.depplandtime);
-    const arr = toMs(it.arrplandtime);
+    const dep = toMs(it.depPlandTime);
+    const arr = toMs(it.arrPlandTime);
     if (Number.isNaN(dep) || Number.isNaN(arr) || !((it.availableSeats ?? 0) > 0)) continue;
     const day = new Date(dep);
-    const key = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}|${it.depStationName ?? it.depplacename}|${it.arrStationName ?? it.arrplacename}`;
+    const key = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}|${it.depStationName ?? it.depPlaceName}|${it.arrStationName ?? it.arrPlaceName}`;
     const dur = arr - dep;
     const g = groups.get(key);
-    if (!g || dur < g.dur) groups.set(key, { id: it.schedule_seq, dur });
+    if (!g || dur < g.dur) groups.set(key, { id: it.scheduleSeq, dur });
   }
   // 한 그룹에 후보가 하나뿐이면 의미가 없으므로 2개 이상일 때만 표시
   const counts = new Map();
   for (const it of items) {
-    const dep = toMs(it.depplandtime);
+    const dep = toMs(it.depPlandTime);
     if (Number.isNaN(dep) || !((it.availableSeats ?? 0) > 0)) continue;
     const day = new Date(dep);
-    const key = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}|${it.depStationName ?? it.depplacename}|${it.arrStationName ?? it.arrplacename}`;
+    const key = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}|${it.depStationName ?? it.depPlaceName}|${it.arrStationName ?? it.arrPlaceName}`;
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   const out = new Set();
   for (const [key, g] of groups) if ((counts.get(key) ?? 0) >= 2) out.add(g.id);
-  return out; // Set<schedule_seq>
+  return out; // Set<scheduleSeq>
 }
 
 /** 이 열차 뒤에 출발하는, 예매 가능한 가장 가까운 같은 구간 열차 */
 export function nextAvailable(items, current) {
-  const dep = toMs(current.depplandtime);
-  const dName = current.depStationName ?? current.depplacename;
-  const aName = current.arrStationName ?? current.arrplacename;
+  const dep = toMs(current.depPlandTime);
+  const dName = current.depStationName ?? current.depPlaceName;
+  const aName = current.arrStationName ?? current.arrPlaceName;
   return (
     items
-      .filter((it) => (it.depStationName ?? it.depplacename) === dName && (it.arrStationName ?? it.arrplacename) === aName)
-      .filter((it) => toMs(it.depplandtime) > dep && (it.availableSeats ?? 0) > 0)
-      .sort((x, y) => toMs(x.depplandtime) - toMs(y.depplandtime))[0] ?? null
+      .filter((it) => (it.depStationName ?? it.depPlaceName) === dName && (it.arrStationName ?? it.arrPlaceName) === aName)
+      .filter((it) => toMs(it.depPlandTime) > dep && (it.availableSeats ?? 0) > 0)
+      .sort((x, y) => toMs(x.depPlandTime) - toMs(y.depPlandTime))[0] ?? null
   );
 }
 

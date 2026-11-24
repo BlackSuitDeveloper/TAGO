@@ -4,78 +4,90 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.kedu.tago.member.MemberMapper">
 
-    <!--로그인-->
+    <!-- 로그인 비밀번호 확인 | POST /api/auth/login (MemberService.isMember) -->
     <select id="getPasswordById" resultType="String">
-        select pw from member
-        where member_id = #{id}
+        SELECT pw
+        FROM member
+        WHERE member_id = #{id}
     </select>
 
-    <!-- 회원 권한(ROLE) 조회 -->
+    <!-- 로그인 시 권한 조회 | POST /api/auth/login (MemberService.getRole) -->
     <select id="getRoleById" resultType="String">
-        select role from member
-        where member_id = #{id}
+        SELECT role
+        FROM member
+        WHERE member_id = #{id}
     </select>
 
-    <!--아이디 중복 체크-->
+    <!-- 회원가입 아이디 중복 확인 | GET /api/member/checkId (MemberService.checkId) -->
     <select id="checkId" parameterType="string" resultType="int">
-        select count(*) from
-        member where member_id = #{id}
+        SELECT COUNT(*)
+        FROM member
+        WHERE member_id = #{id}
     </select>
 
-    <!-- 회원가입-->
+    <!-- 회원가입 | POST /api/member (MemberService.insertMember) -->
     <insert id="insertMember" parameterType="com.kedu.tago.member.dto.MemberSignupRequestDTO">
-        insert into member
-        (member_id, pw, name, phone, email, zipcode, address1, address2, role)
-        values
-        (#{id}, #{pw}, #{name}, #{phone}, #{email}, #{zipcode}, #{address1}, #{address2}, 'USER')
+        INSERT INTO member (member_id, pw, name, phone, email, zipcode, address1, address2, role)
+        VALUES (#{id}, #{pw}, #{name}, #{phone}, #{email}, #{zipcode}, #{address1}, #{address2}, 'USER')
     </insert>
 
-    <!--회원 정보 조회-->
+    <!-- 내 정보 조회 | GET /api/member/mypage, POST /api/member/password/send-code, POST /api/member/password/verify, PUT /api/member/password (MemberService.selectMember) -->
     <select id="selectMember" parameterType="string"
             resultType="com.kedu.tago.member.dto.MemberProfileResponseDTO">
-        select member_id as id, name, phone, email, zipcode, address1, address2, role, created_at
-        from member
-        where member_id = #{id}
+        SELECT
+            member_id AS id,
+            name,
+            phone,
+            email,
+            zipcode,
+            address1,
+            address2,
+            role,
+            created_at AS createdAt
+        FROM member
+        WHERE member_id = #{id}
     </select>
 
-    <!--회원 정보 수정-->
+    <!-- 회원 정보 수정 | PUT /api/member (MemberService.updateMember) -->
     <update id="updateMember" parameterType="com.kedu.tago.member.dto.MemberUpdateRequestDTO">
-        update member
-        set name = #{name},
-        phone = #{phone},
-        email = #{email},
-        zipcode = #{zipcode},
-        address1 = #{address1},
-        address2 = #{address2}
-        where member_id = #{id}
+        UPDATE member
+        SET name = #{name},
+            phone = #{phone},
+            email = #{email},
+            zipcode = #{zipcode},
+            address1 = #{address1},
+            address2 = #{address2}
+        WHERE member_id = #{id}
     </update>
 
-    <!--회원 탈퇴-->
+    <!-- 회원 탈퇴 | DELETE /api/member (MemberService.deleteId) -->
     <delete id="deleteId" parameterType="string">
-        delete from member
-        where member_id = #{id}
+        DELETE FROM member
+        WHERE member_id = #{id}
     </delete>
 
-    <!-- 이름과 이메일로 아이디 찾기 -->
+    <!-- 이름과 이메일로 아이디 찾기 | POST /api/auth/find-id/send-code, POST /api/auth/find-id/verify (MemberService.findIdByNameAndEmail) -->
     <select id="findIdByNameAndEmail" resultType="String">
-        select member_id
-        from member
-        where name = #{name} and email = #{email}
-        limit 1
+        SELECT member_id
+        FROM member
+        WHERE name = #{name}
+          AND email = #{email}
+        LIMIT 1
     </select>
 
-    <!-- 아이디와 이메일 일치 확인 -->
+    <!-- 아이디와 이메일 일치 확인 | POST /api/auth/reset-password/send-code (MemberService.validateMemberByIdAndEmail) -->
     <select id="countByIdAndEmail" resultType="int">
-        select count(*)
-        from member
-        where member_id = #{id} and email = #{email}
+        SELECT COUNT(*)
+        FROM member
+        WHERE member_id = #{id}
+          AND email = #{email}
     </select>
 
-    <!-- 비밀번호 변경 -->
+    <!-- 비밀번호 변경 | POST /api/auth/reset-password, PUT /api/member/password (MemberService.updatePassword) -->
     <update id="updatePassword">
-        update member
-        set pw = #{pw}
-        where member_id = #{id}
+        UPDATE member
+        SET pw = #{pw}
+        WHERE member_id = #{id}
     </update>
 
 </mapper>

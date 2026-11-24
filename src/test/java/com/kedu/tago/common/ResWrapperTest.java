@@ -35,12 +35,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * 공통 응답 형식(ResWrapper) 검증. DB·Redis 없이 컨트롤러와 예외 처리기만 띄운다.
- *  - 일반:  { success:true, data }            (+ message)
- *  - 목록:  { success:true, data:[], totalCount }
- *  - 에러:  { success:false, status, message }
- */
+/** 공통 응답 형식(ResWrapper) 검증 (컨트롤러와 예외 처리기만 사용) */
 class ResWrapperTest {
 
     private final StationService stationService = mock(StationService.class);
@@ -63,14 +58,14 @@ class ResWrapperTest {
     @DisplayName("목록 응답: data 는 배열, totalCount 가 있고 status 는 없다")
     void list() throws Exception {
         when(stationService.getStationList()).thenReturn(List.of(
-                StationResponseDTO.builder().nodeid("NAT010000").nodename("서울").build(),
-                StationResponseDTO.builder().nodeid("NAT011668").nodename("부산").build()));
+                StationResponseDTO.builder().nodeId("NAT010000").nodeName("서울").build(),
+                StationResponseDTO.builder().nodeId("NAT011668").nodeName("부산").build()));
 
         mvc.perform(get("/station"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.length()").value(2))
-                .andExpect(jsonPath("$.data[0].nodename").value("서울"))
+                .andExpect(jsonPath("$.data[0].nodeName").value("서울"))
                 .andExpect(jsonPath("$.totalCount").value(2))
                 .andExpect(jsonPath("$.status").doesNotExist())
                 .andExpect(jsonPath("$.message").doesNotExist());

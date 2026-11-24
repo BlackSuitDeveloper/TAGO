@@ -1,32 +1,42 @@
 package com.kedu.tago.auth;
 
-import com.kedu.tago.common.exception.ErrorCode;
+import com.kedu.tago.auth.dto.AuthLoginRequestDTO;
 import com.kedu.tago.auth.dto.FindIdRequestDTO;
 import com.kedu.tago.auth.dto.ResetPasswordRequestDTO;
 import com.kedu.tago.common.exception.ApiException;
+import com.kedu.tago.common.exception.ErrorCode;
+import com.kedu.tago.common.mail.MailService;
 import com.kedu.tago.common.response.ResWrapper;
+import com.kedu.tago.common.security.JwtUtil;
 import com.kedu.tago.member.MemberService;
+import com.kedu.tago.member.Role;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+/** 로그인, 아이디 찾기, 비밀번호 재설정 API (로그인 전 계정 접근) */
 @RestController
 @RequestMapping("/auth")
+@RequiredArgsConstructor
 public class AuthController {
 
     private final MailService mailService;
     private final MemberService memberService;
+    private final JwtUtil jwtUtil;
 
-    public AuthController(MailService mailService, MemberService memberService) {
-        this.mailService = mailService;
-        this.memberService = memberService;
+    /** 로그인 및 토큰 발급 (POST /api/member/login) */
+    @PostMapping("/login")
+    public ResWrapper<Map<String, String>> login(@RequestBody AuthLoginRequestDTO dto) {
+        if (!memberService.isMember(dto.getId(), dto.getPw())) {
+            throw new ApiException(ErrorCode.LOGIN_FAILED);
+        }
+        Role role = memberService.getRole(dto.getId());
+        String token = jwtUtil.createToken(dto.getId(), role);
+        return ResWrapper.ok(Map.of("token", token, "id", dto.getId(), "role", role.name()));
     }
 
-    // ==========================================
-    // 1. 아이디 찾기 (이메일 인증)
-    // ==========================================
-
-    // 1-1. 아이디 찾기 인증번호 발송 (가입 시 등록된 이름 + 이메일 검증)
+    /** 아이디 찾기 인증번호 발송 (POST /api/auth/find-id/send-code) */
     @PostMapping("/find-id/send-code")
     public ResWrapper<Void> sendFindIdCode(@RequestBody FindIdRequestDTO dto) {
         if (dto.getName() == null || dto.getName().trim().isEmpty() ||
@@ -43,7 +53,7 @@ public class AuthController {
         return ResWrapper.done("인증번호가 가입된 이메일로 발송되었습니다. (5분 유효)");
     }
 
-    // 1-2. 아이디 찾기 인증번호 확인 및 아이디 반환
+    /** 아이디 찾기 인증번호 확인 및 아이디 반환 (POST /api/auth/find-id/verify) */
     @PostMapping("/find-id/verify")
     public ResWrapper<Map<String, String>> verifyFindIdCode(@RequestBody FindIdRequestDTO dto) {
         if (dto.getEmail() == null || dto.getCode() == null) {
@@ -60,7 +70,7 @@ public class AuthController {
             throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
         }
 
-        // 아이디 마스킹 (예: 'admin123' -> 'adm*****')
+        // 아이디 마스킹 (admin123 -> adm*****)
         String maskedId;
         if (memberId.length() <= 3) {
             maskedId = memberId.charAt(0) + "*".repeat(memberId.length() - 1);
@@ -71,11 +81,7 @@ public class AuthController {
         return ResWrapper.ok(Map.of("id", memberId, "maskedId", maskedId), "인증이 완료되었습니다.");
     }
 
-    // ==========================================
-    // 2. 비밀번호 재설정 (로그인 화면용 이메일 인증)
-    // ==========================================
-
-    // 2-1. 비밀번호 재설정 인증번호 발송 (아이디 + 가입 이메일 검증)
+    /** 비밀번호 재설정 인증번호 발송 (POST /api/auth/reset-password/send-code) */
     @PostMapping("/reset-password/send-code")
     public ResWrapper<Void> sendResetPwCode(@RequestBody ResetPasswordRequestDTO dto) {
         if (dto.getId() == null || dto.getId().trim().isEmpty() ||
@@ -92,7 +98,7 @@ public class AuthController {
         return ResWrapper.done("인증번호가 가입된 이메일로 발송되었습니다. (5분 유효)");
     }
 
-    // 2-2. 비밀번호 재설정 인증번호 확인 (통과 시 재설정 토큰 발급)
+    /** 비밀번호 재설정 인증번호 확인 및 재설정 토큰 발급 (POST /api/auth/reset-password/verify) */
     @PostMapping("/reset-password/verify")
     public ResWrapper<Map<String, String>> verifyResetPwCode(@RequestBody ResetPasswordRequestDTO dto) {
         if (dto.getEmail() == null || dto.getCode() == null) {
@@ -107,7 +113,7 @@ public class AuthController {
         return ResWrapper.ok(Map.of("resetToken", resetToken), "이메일 인증이 완료되었습니다.");
     }
 
-    // 2-3. 새 비밀번호 재설정 (Bcrypt 단방향 암호화 적용)
+    /** 새 비밀번호 재설정 (POST /api/auth/reset-password) */
     @PostMapping("/reset-password")
     public ResWrapper<Void> resetPassword(@RequestBody ResetPasswordRequestDTO dto) {
         if (dto.getId() == null || dto.getEmail() == null ||
@@ -119,13 +125,11 @@ public class AuthController {
             throw new ApiException(ErrorCode.PASSWORD_TOO_SHORT);
         }
 
-        // 재설정 토큰 유효성 검증
         boolean isTokenValid = mailService.validateAndConsumeResetToken(dto.getResetToken().trim(), dto.getEmail().trim());
         if (!isTokenValid) {
             throw new ApiException(ErrorCode.VERIFICATION_EXPIRED);
         }
 
-        // DB에 BCrypt 암호화된 비밀번호 업데이트
         boolean updated = memberService.updatePassword(dto.getId().trim(), dto.getNewPassword());
         if (!updated) {
             throw new ApiException(ErrorCode.PASSWORD_CHANGE_FAILED);

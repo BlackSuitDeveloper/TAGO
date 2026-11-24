@@ -20,6 +20,7 @@ import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/** Redis 대기열 입장/승격 테스트 (실 Redis 연결 필요) */
 public class QueueServiceTest {
 
     private static final Long TEST_SCHEDULE_SEQ = 999999L;
@@ -121,7 +122,7 @@ public class QueueServiceTest {
         assertEquals(50, waitingResponses.size(), "나머지 50명은 대기열에 들어가야 합니다.");
         assertEquals(200L, activeCount);
 
-        // 2단계: 기존 입장자 중 30명이 5분 TTL 만료되었다고 시뮬레이션
+        // 기존 입장자 30명이 TTL 만료된 상태로 시뮬레이션
         Set<ZSetOperations.TypedTuple<String>> first30Active = redisTemplate.opsForZSet().rangeWithScores(ACTIVE_KEY, 0, 29);
         assertNotNull(first30Active);
         assertEquals(30, first30Active.size());
@@ -132,19 +133,19 @@ public class QueueServiceTest {
             }
         }
 
-        // 대기열 1번(가장 먼저 줄 선 대기자) 확인을 위해 ZSet 최소 score 토큰 확보
+        // 1번 대기자 토큰 확보 (ZSet 최소 score)
         Set<String> nextInLine = redisTemplate.opsForZSet().range(QUEUE_KEY, 0, 0);
         assertNotNull(nextInLine);
         assertFalse(nextInLine.isEmpty());
         String firstWaitingToken = nextInLine.iterator().next();
 
-        // 3단계: 스케줄러 실행 (만료 30명 제거 -> 대기열 상위 30명 순차 입장)
+        // 스케줄러 실행 (만료 30명 제거 후 대기열 상위 30명 입장)
         queueService.scheduleAdmitQueue();
 
         QueueResponseDTO promotedCheck = queueService.checkQueueRank(firstWaitingToken);
         Long activeAfterSchedule = redisTemplate.opsForZSet().zCard(ACTIVE_KEY);
 
-        // 남은 대기자 중 1등 토큰 확인
+        // 남은 대기자 중 1번 토큰
         Set<String> remainingFirst = redisTemplate.opsForZSet().range(QUEUE_KEY, 0, 0);
         assertNotNull(remainingFirst);
         String remainingFirstToken = remainingFirst.iterator().next();

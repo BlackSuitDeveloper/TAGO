@@ -4,15 +4,7 @@ import lombok.Getter;
 
 import java.util.List;
 
-/**
- * 페이징 조회 결과. 서비스가 반환하고, 컨트롤러는 {@code ResWrapper.list(pageResult)} 로 응답한다.
- *
- * <pre>
- * List&lt;T&gt; items = mapper.selectList(param);
- * long total = mapper.count(param);
- * return PageResult.of(items, total, param);
- * </pre>
- */
+/** 페이징 조회 결과 */
 @Getter
 public class PageResult<T> {
 

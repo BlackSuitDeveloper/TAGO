@@ -2,18 +2,12 @@ package com.kedu.tago.payment;
 
 import com.kedu.tago.payment.dto.PaymentDTO;
 import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Param;
 
+/** 결제 매퍼 */
 @Mapper
 public interface PaymentMapper {
 
+    /** 결제 내역 저장 */
     int insertPayment(PaymentDTO payment);
 
-    PaymentDTO selectPaymentByReservationSeq(@Param("reservationSeq") Long reservationSeq);
-
-    int updatePaymentStatus(
-            @Param("paymentSeq") Long paymentSeq,
-            @Param("status") String status,
-            @Param("failReason") String failReason
-    );
 }

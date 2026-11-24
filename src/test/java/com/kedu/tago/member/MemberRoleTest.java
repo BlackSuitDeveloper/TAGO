@@ -1,6 +1,6 @@
 package com.kedu.tago.member;
 
-import com.kedu.tago.common.utils.Bcrypt;
+import com.kedu.tago.common.security.Bcrypt;
 import com.kedu.tago.member.dto.MemberSignupRequestDTO;
 import org.apache.ibatis.builder.xml.XMLMapperBuilder;
 import org.apache.ibatis.mapping.MappedStatement;
@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** 회원 권한(ROLE) 조회와 매퍼 SQL 검증 (DB 없이) */
+/** 회원 권한 조회와 매퍼 SQL 검증 */
 class MemberRoleTest {
 
     private final MemberMapper mapper = mock(MemberMapper.class);

@@ -16,10 +16,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
-/**
- * 모든 예외를 { success:false, status, code, message } 한 가지 형식으로 바꾼다.
- * 컨트롤러·서비스·인터셉터는 에러를 직접 만들지 않고 ApiException(ErrorCode) 을 던진다.
- */
+/** 모든 예외를 공통 에러 응답 형식으로 변환하는 전역 예외 처리기 */
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -31,7 +28,7 @@ public class GlobalExceptionHandler {
         return ResWrapper.error(code, e.getMessage());
     }
 
-    /** ErrorCode 를 거치지 않고 던져진 ResponseStatusException 은 HTTP 상태를 유지하고 대표 코드를 붙인다 */
+    /** ResponseStatusException 은 HTTP 상태를 유지하고 대표 에러 코드를 붙인다 */
     @ExceptionHandler(ResponseStatusException.class)
     public ResWrapper<Void> handleResponseStatus(ResponseStatusException e, HttpServletResponse res) {
         HttpStatusCode status = e.getStatusCode();
@@ -76,7 +73,7 @@ public class GlobalExceptionHandler {
     public ResWrapper<Void> handleUnexpected(Exception e, HttpServletResponse res) {
         log.error("처리되지 않은 예외", e);
         if (res.isCommitted()) {
-            // SSE 처럼 이미 응답이 시작된 요청은 본문을 쓸 수 없다
+            // SSE 등 이미 응답이 시작된 요청은 본문을 쓸 수 없다
             return null;
         }
         return fail(res, ErrorCode.INTERNAL_ERROR);
