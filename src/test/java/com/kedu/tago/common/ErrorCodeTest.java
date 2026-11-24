@@ -29,7 +29,8 @@ class ErrorCodeTest {
             assertTrue(Set.of(1, 2, 3, 4, 5, 9).contains(band), c + " 은(는) 정의되지 않은 대역: " + c.getCode());
             String name = c.name();
             if (band == 2) {
-                assertTrue(c.getStatus().value() == 401 || c.getStatus().value() == 403, name + " 인증/인가 코드는 401 또는 403");
+                assertTrue(c.getStatus().value() == 401 || c.getStatus().value() == 403 || c.getStatus().value() == 429,
+                        name + " 인증/인가 코드는 401, 403 또는 429");
             }
             if (band == 9) {
                 assertEquals(500, c.getStatus().value(), name);

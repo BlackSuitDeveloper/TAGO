@@ -20,6 +20,8 @@ public enum ErrorCode {
     FORBIDDEN(2003, HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
     ADMIN_ONLY(2004, HttpStatus.FORBIDDEN, "관리자만 사용할 수 있습니다."),
     NOT_RESOURCE_OWNER(2005, HttpStatus.FORBIDDEN, "본인의 정보만 처리할 수 있습니다."),
+    LOGIN_LOCKED_ACCOUNT(2006, HttpStatus.TOO_MANY_REQUESTS, "비밀번호 5회 연속 오류로 계정이 일시 잠금되었습니다. 잠시 후 다시 시도해 주세요."),
+    LOGIN_LOCKED_IP(2007, HttpStatus.TOO_MANY_REQUESTS, "비정상적인 로그인 시도가 감지되어 해당 IP에서의 접속이 일시 차단되었습니다. 잠시 후 다시 시도해 주세요."),
 
     MEMBER_NOT_FOUND(3000, HttpStatus.NOT_FOUND, "회원 정보를 찾을 수 없습니다."),
     MEMBER_INFO_MISMATCH(3001, HttpStatus.NOT_FOUND, "입력하신 정보와 일치하는 회원 정보를 찾을 수 없습니다."),
@@ -32,6 +34,10 @@ public enum ErrorCode {
     CODE_MISMATCH(3010, HttpStatus.BAD_REQUEST, "인증번호가 일치하지 않거나 만료되었습니다."),
     VERIFICATION_EXPIRED(3011, HttpStatus.BAD_REQUEST, "인증 세션이 만료되었습니다. 처음부터 다시 시도해 주세요."),
     EMAIL_VERIFICATION_REQUIRED(3012, HttpStatus.BAD_REQUEST, "이메일 인증이 완료되지 않았거나 인증 세션이 만료되었습니다. 다시 인증해 주세요."),
+    DUPLICATE_EMAIL(3013, HttpStatus.CONFLICT, "이미 가입된 이메일 주소입니다."),
+    EMAIL_SEND_COOLDOWN(3014, HttpStatus.TOO_MANY_REQUESTS, "인증번호를 이미 발송했습니다. 1분 후 다시 시도해 주세요."),
+    VERIFICATION_ATTEMPTS_EXCEEDED(3015, HttpStatus.BAD_REQUEST, "인증번호 입력 시도 횟수(5회)를 초과했습니다. 인증번호를 다시 요청해 주세요."),
+    MAIL_SEND_FAILED(3016, HttpStatus.INTERNAL_SERVER_ERROR, "이메일 발송에 실패했습니다. 메일 서버 설정을 확인하거나 잠시 후 다시 시도해 주세요."),
     PASSWORD_TOO_SHORT(3020, HttpStatus.BAD_REQUEST, "비밀번호는 최소 8자리 이상이어야 합니다."),
     PASSWORD_CHANGE_FAILED(3021, HttpStatus.INTERNAL_SERVER_ERROR, "비밀번호 변경에 실패했습니다."),
 
