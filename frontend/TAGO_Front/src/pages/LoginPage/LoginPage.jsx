@@ -89,7 +89,23 @@ export default function LoginPage() {
       navigate('/');
     } catch (error) {
       console.error('로그인 에러:', error);
-      dialog.alert(errorText(error, '아이디 또는 비밀번호가 올바르지 않습니다.'), { title: '로그인 실패', tone: 'error' });
+      const errCode = error.response?.data?.code;
+      const message = errorText(error, '아이디 또는 비밀번호가 올바르지 않습니다.');
+
+      if (errCode === 2006) {
+        // 계정 잠금 에러 (5회 연속 실패)
+        const goReset = await dialog.confirm(`${message}\n\n비밀번호를 재설정하시겠습니까?`, {
+          title: '계정 잠금 안내',
+          confirmLabel: '비밀번호 재설정',
+          cancelLabel: '닫기',
+        });
+        if (goReset) {
+          setResetId(userId);
+          setActiveModal('find-pw');
+        }
+      } else {
+        dialog.alert(message, { title: '로그인 실패', tone: 'error' });
+      }
     } finally {
       setLoading(false);
     }

@@ -184,6 +184,17 @@
   color: var(--status-ok);
 }
 
+/* ---------- 회원 탈퇴 영역 ---------- */
+.pf--danger {
+  margin-top: 24px;
+  border: 1px solid #fee2e2;
+  background: var(--white);
+}
+
+.ui-heading--danger {
+  color: var(--status-danger);
+}
+
 @media (max-width: 480px) {
   .mypage-container { padding-top: 24px; }
   .tk__head { padding: 18px 16px; }

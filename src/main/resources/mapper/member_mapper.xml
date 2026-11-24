@@ -25,6 +25,13 @@
         WHERE member_id = #{id}
     </select>
 
+    <!-- 회원가입 이메일 중복 확인 (MemberService.checkEmail) -->
+    <select id="checkEmail" parameterType="string" resultType="int">
+        SELECT COUNT(*)
+        FROM member
+        WHERE email = #{email}
+    </select>
+
     <!-- 회원가입 | POST /api/v1/member (MemberService.insertMember) -->
     <insert id="insertMember" parameterType="com.kedu.tago.member.dto.MemberSignupRequestDTO">
         INSERT INTO member (member_id, pw, name, phone, email, zipcode, address1, address2, role)
