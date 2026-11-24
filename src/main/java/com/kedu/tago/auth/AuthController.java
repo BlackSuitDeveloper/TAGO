@@ -29,10 +29,23 @@ public class AuthController {
     private final JwtUtil jwtUtil;
     private final LoginAttemptService loginAttemptService;
 
-    /** 로그인 및 토큰 발급 (POST /api/v1/auth/login) - 계정 및 IP 단위 실패 제한 적용 */
+    /** 로그인 및 토큰 발급 (POST /api/v1/auth/login) - 입력값 사전 검증 및 계정/IP 잠금 적용 */
     @PostMapping("/login")
     public ResWrapper<Map<String, String>> login(@RequestBody AuthLoginRequestDTO dto, HttpServletRequest request) {
-        String memberId = dto.getId() != null ? dto.getId().trim() : "";
+        if (dto == null || dto.getId() == null || dto.getId().trim().isEmpty()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "아이디를 입력해 주세요.");
+        }
+        if (dto.getPw() == null || dto.getPw().isEmpty()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "비밀번호를 입력해 주세요.");
+        }
+
+        String memberId = dto.getId().trim();
+
+        // 아이디 기본 형식(4~20자 영문/숫자) 검증 (비정상 입력 시 IP 실패 카운트 증가 후 차단)
+        if (!memberId.matches("^[a-zA-Z0-9]{4,20}$")) {
+            loginAttemptService.processLoginFailure(null, request);
+        }
+
         loginAttemptService.checkLoginLock(memberId, request);
 
         if (!memberService.isMember(memberId, dto.getPw())) {
