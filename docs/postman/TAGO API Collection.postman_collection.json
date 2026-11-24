@@ -1,9 +1,10 @@
 {
   "info": {
-    "_postman_id": "87964fe4-7e07-45c1-a464-29c5bc7a5592",
+    "_postman_id": "da455d5a-81b5-429d-b41a-c01229760286",
     "name": "TAGO API Collection",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "_exporter_id": "60385861"
+    "_exporter_id": "60385872",
+    "_collection_link": "https://go.postman.co/collection/60385872-da455d5a-81b5-429d-b41a-c01229760286?source=collection_link"
   },
   "item": [
     {
@@ -34,15 +35,31 @@
       ]
     },
     {
-      "name": "Auth API",
+      "name": "3.Mypage API",
+      "item": [
+        {
+          "name": "로그인",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": ""
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4.Reservation API",
       "item": []
     },
     {
-      "name": "Reservation API",
+      "name": "5.Train API",
       "item": []
     },
     {
-      "name": "Payment API",
+      "name": "6.Operator API",
       "item": []
     }
   ]
