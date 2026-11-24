@@ -6,7 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.sql.Timestamp;
+import java.time.LocalDateTime;
 
 @Data
 @Builder
@@ -22,5 +22,5 @@ public class MemberProfileResponseDTO {
     private String address1;
     private String address2;
     private Role role;
-    private Timestamp createdAt;
+    private LocalDateTime createdAt;
 }

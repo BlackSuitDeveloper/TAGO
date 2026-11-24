@@ -5,7 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.sql.Timestamp;
+import java.time.LocalDateTime;
 
 @Data
 @Builder
@@ -17,9 +17,9 @@ public class ScheduleResponseDTO {
     private Long trainNo;
     private String depPlaceName;
     private String arrPlaceName;
-    private Timestamp depPlandTime;
-    private Timestamp arrPlandTime;
-    private Timestamp bookingOpenAt;
+    private LocalDateTime depPlandTime;
+    private LocalDateTime arrPlandTime;
+    private LocalDateTime bookingOpenAt;
     private Long firstPrice;
     private Long standardPrice;
     private String status;
