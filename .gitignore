@@ -1,9 +1,14 @@
+### Gradle ###
 HELP.md
 .gradle
 build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
+
+### 환경변수 / 비밀값 (저장소에 올리지 않는다) ###
+.env
+.env.*
 
 ### STS ###
 .apt_generated
@@ -25,8 +30,6 @@ bin/
 out/
 !**/src/main/**/out/
 !**/src/test/**/out/
-project-71dd55bd-6788-4af8-a17-d9f849005f61.json
-.env
 
 ### NetBeans ###
 /nbproject/private/
@@ -37,3 +40,9 @@ project-71dd55bd-6788-4af8-a17-d9f849005f61.json
 
 ### VS Code ###
 .vscode/
+
+### OS ###
+.DS_Store
+
+### 로컬에 남아 있을 수 있는 예전 GCP 키 파일 (더 이상 쓰지 않음. 파일을 지웠다면 이 줄도 지워도 된다) ###
+project-71dd55bd-6788-4af8-a17-d9f849005f61.json
