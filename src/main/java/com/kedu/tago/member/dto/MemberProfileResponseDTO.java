@@ -2,6 +2,7 @@ package com.kedu.tago.member.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import com.kedu.tago.member.Role;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -20,5 +21,6 @@ public class MemberProfileResponseDTO {
     private String zipcode;
     private String address1;
     private String address2;
+    private Role role;
     private Timestamp created_at;
 }

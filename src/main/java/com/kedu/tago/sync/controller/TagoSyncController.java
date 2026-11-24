@@ -1,6 +1,8 @@
 package com.kedu.tago.sync.controller;
 
+import com.kedu.tago.common.auth.RequireRole;
 import com.kedu.tago.common.response.ResWrapper;
+import com.kedu.tago.member.Role;
 import com.kedu.tago.sync.config.TagoRouteConfig;
 import com.kedu.tago.sync.dto.SyncResultDTO;
 import com.kedu.tago.sync.service.MasterSyncService;
@@ -20,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+@RequireRole(Role.ADMIN)   // 시간표·역 동기화는 관리자만
 @RestController
 @RequestMapping("/admin/sync")
 @RequiredArgsConstructor

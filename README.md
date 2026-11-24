@@ -82,12 +82,24 @@
 
 #### 🔐 인증 / 권한 규칙
 
-규칙은 `AccessPolicy` 와 `AuthInterceptor` 한 곳에서 정한다.
+규칙은 `AccessPolicy`(경로 기준)와 `AuthInterceptor`(토큰·권한 검사) 한 곳에서 처리한다.
 
+- **권한(ROLE)**: 회원은 `USER`(기본) 또는 `ADMIN` 이다. `member.role` 컬럼에 저장되고, 로그인 시 JWT 의 `role` 에 담긴다. `ADMIN` 은 `USER` 가 할 수 있는 것을 모두 할 수 있다.
 - **공개**(로그인 불필요, 메서드까지 일치): 회원가입 `POST /member`, 로그인, 아이디 중복 확인, `/auth/**`, 역 목록, 시간표 조회, 좌석 조회/스트림
-- **관리자 전용**: `/admin/**`. 설정 `TAGO_ADMIN_MEMBER_IDS`(쉼표로 구분한 회원 아이디)에 있는 회원만 가능하고, 비워 두면 아무도 쓸 수 없다.
-- **그 밖의 모든 API**: 로그인 필요(`Authorization: Bearer`). 새 API 를 만들면 기본적으로 보호된다.
+- **그 밖의 모든 API**: 로그인 필요(`Authorization: Bearer`, USER 이상). 새 API 를 만들면 기본적으로 보호된다.
+- **관리자 전용**: 컨트롤러(또는 메서드)에 `@RequireRole(Role.ADMIN)` 을 붙인다(예: `/admin/sync/**`). 경로가 `/admin/**` 이면 어노테이션이 없어도 ADMIN 이 필요하다. 권한이 부족하면 403(관리자 전용은 에러 코드 2004).
 - **본인 것만**: 예매 취소와 결제는 서비스에서 예약 소유자를 확인한다(2005).
+
+권한을 쓰려면 DB 에 컬럼을 한 번 추가해야 한다(서버 배포 전에 실행).
+
+```sql
+-- db/001_member_role.sql 실행 (기존 회원은 모두 USER)
+-- 관리자 지정
+UPDATE member SET role = 'ADMIN' WHERE member_id = '관리자아이디';
+```
+
+- 가입 요청으로는 권한을 지정할 수 없다(항상 `USER`). 권한을 바꾸면 이미 발급된 토큰이 만료된 뒤(기본 1시간) 적용된다.
+- 로그인 응답과 `GET /member/mypage` 응답에 `role` 이 포함된다.
 
 #### 👤 회원 (Member)
 

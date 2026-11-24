@@ -34,8 +34,9 @@ public class MemberController {
         if (!mServ.isMember(dto.getId(), dto.getPw())) {
             throw new ApiException(ErrorCode.LOGIN_FAILED);
         }
-        String token = jwt.createToken(dto.getId());
-        return ResWrapper.ok(Map.of("token", token, "id", dto.getId()));
+        Role role = mServ.getRole(dto.getId());
+        String token = jwt.createToken(dto.getId(), role);
+        return ResWrapper.ok(Map.of("token", token, "id", dto.getId(), "role", role.name()));
     }
 
     // 회원가입
