@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import client from '../../pages/Api/client';
 import useAuthStore from '../../store/useAuthStore';
 import { dialog } from '../Dialog/dialogService';
 import TrainMark from './TrainMark';
@@ -84,6 +85,12 @@ export default function Header({ showTopBar = true, simple = false, isLoggedIn =
 
   const handleLogout = async (e) => {
     e.preventDefault();
+    try {
+      await client.post('/auth/logout');
+    } catch (err) {
+      // 서버 에러 또는 이미 만료된 경우여도 클라이언트 로그아웃은 정상 완료
+      console.error('Logout request failed:', err);
+    }
     // 원래 alert 는 화면을 멈춰 두었으므로, 로그아웃 상태 반영은 안내를 닫은 뒤에 한다.
     // (모달이 떠 있는 동안 먼저 반영하면 보호 페이지의 로그인 가드가 끼어든다)
     await dialog.alert('로그아웃되었습니다.', { tone: 'success' });

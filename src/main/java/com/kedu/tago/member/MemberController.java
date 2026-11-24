@@ -24,6 +24,7 @@ public class MemberController {
     private final MemberService memberService;
     private final MailService mailService;
     private final MemberValidator memberValidator;
+    private final com.kedu.tago.common.security.TokenManagementService tokenManagementService;
 
     /** 회원가입 (POST /api/v1/member) - EXC-1 정밀 유효성 검증 적용 */
     @PostMapping
@@ -71,6 +72,14 @@ public class MemberController {
     public ResWrapper<Void> deleteId(HttpServletRequest request) {
         String id = (String) request.getAttribute("id");
         memberService.deleteId(id);
+
+        // 현재 토큰 및 해당 계정의 모든 토큰 무효화
+        tokenManagementService.invalidateMemberTokens(id);
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            tokenManagementService.blacklistToken(authHeader.substring(7).trim());
+        }
+
         return ResWrapper.done("탈퇴 완료");
     }
 
@@ -131,6 +140,10 @@ public class MemberController {
         if (!memberService.updatePassword(id, dto.getNewPassword())) {
             throw new ApiException(ErrorCode.PASSWORD_CHANGE_FAILED);
         }
+
+        // 비밀번호 변경 시 이전 발급된 모든 세션의 토큰 일괄 무효화
+        tokenManagementService.invalidateMemberTokens(id);
+
         return ResWrapper.done("비밀번호가 성공적으로 변경되었습니다.");
     }
 }

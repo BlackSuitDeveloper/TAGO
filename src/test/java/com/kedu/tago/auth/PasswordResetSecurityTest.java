@@ -6,6 +6,7 @@ import com.kedu.tago.common.exception.ApiException;
 import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.common.mail.MailService;
 import com.kedu.tago.common.security.JwtUtil;
+import com.kedu.tago.common.security.TokenManagementService;
 import com.kedu.tago.member.MemberService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -34,11 +35,14 @@ class PasswordResetSecurityTest {
     @Mock
     private LoginAttemptService loginAttemptService;
 
+    @Mock
+    private TokenManagementService tokenManagementService;
+
     private AuthController authController;
 
     @BeforeEach
     void setUp() {
-        authController = new AuthController(mailService, memberService, jwtUtil, loginAttemptService);
+        authController = new AuthController(mailService, memberService, jwtUtil, loginAttemptService, tokenManagementService);
     }
 
     @Test
@@ -80,6 +84,7 @@ class PasswordResetSecurityTest {
         assertTrue(response.isSuccess());
         verify(memberService).updatePassword("user1", "newPassword123!");
         verify(loginAttemptService).unlockAccount("user1");
+        verify(tokenManagementService).invalidateMemberTokens("user1");
     }
 
     @Test

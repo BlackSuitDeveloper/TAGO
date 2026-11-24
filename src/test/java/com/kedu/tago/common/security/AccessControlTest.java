@@ -27,7 +27,9 @@ import static com.kedu.tago.common.ApiPaths.V1;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -113,6 +115,7 @@ class AccessControlTest {
     class Interceptor {
 
         private final JwtUtil jwt = new JwtUtil(3_600_000L, SECRET);
+        private final TokenManagementService tokenManagementService = mock(TokenManagementService.class);
         private final MockMvc mvc = MockMvcBuilders
                 .standaloneSetup(
                         new StationController(mock(StationService.class)),
@@ -120,7 +123,7 @@ class AccessControlTest {
                         new SyncController(mock(MasterSyncService.class), mock(ScheduleSyncService.class), mock(TagoRouteConfig.class)),
                         new SecretController(),
                         new VaultController())
-                .addInterceptors(new AuthInterceptor(jwt, new AccessPolicy()))
+                .addInterceptors(new AuthInterceptor(jwt, new AccessPolicy(), tokenManagementService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 
@@ -213,6 +216,33 @@ class AccessControlTest {
             mvc.perform(get(V1 + "/admin/sync/status").header("Authorization", legacyGuestToken()))
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.code").value(2004));
+        }
+
+        @Test
+        @DisplayName("로그아웃(블랙리스트)된 토큰은 401 및 토큰 무효 반환")
+        void blacklistedTokenIsRejected() throws Exception {
+            when(tokenManagementService.isBlacklisted(any())).thenReturn(true);
+
+            mvc.perform(get(V1 + "/wishlist").header("Authorization", user()))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(2001))
+                    .andExpect(jsonPath("$.message").value("로그아웃된 토큰입니다. 다시 로그인해 주세요."));
+
+            when(tokenManagementService.isBlacklisted(any())).thenReturn(false);
+        }
+
+        @Test
+        @DisplayName("비밀번호 변경/탈퇴로 이전 발급 시각이 무효화된 토큰은 401 및 토큰 무효 반환")
+        void invalidatedTokenIsRejected() throws Exception {
+            when(tokenManagementService.isBlacklisted(any())).thenReturn(false);
+            when(tokenManagementService.isTokenInvalidated(any(), any())).thenReturn(true);
+
+            mvc.perform(get(V1 + "/wishlist").header("Authorization", user()))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(2001))
+                    .andExpect(jsonPath("$.message").value("비밀번호가 변경되었거나 탈퇴된 계정입니다. 다시 로그인해 주세요."));
+
+            when(tokenManagementService.isTokenInvalidated(any(), any())).thenReturn(false);
         }
     }
 }

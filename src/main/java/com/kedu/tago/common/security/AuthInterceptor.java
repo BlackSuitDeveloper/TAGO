@@ -19,6 +19,7 @@ public class AuthInterceptor implements HandlerInterceptor {
 
     private final JwtUtil jwtUtil;
     private final AccessPolicy accessPolicy;
+    private final TokenManagementService tokenManagementService;
 
     /** 공개 경로 통과, 그 외 토큰 검증 후 필요 권한 확인 */
     @Override
@@ -53,11 +54,27 @@ public class AuthInterceptor implements HandlerInterceptor {
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             throw new ApiException(ErrorCode.LOGIN_REQUIRED);
         }
+
+        String rawToken = authHeader.substring(7).trim();
+
+        // 1. 블랙리스트 검사 (로그아웃된 토큰 차단)
+        if (tokenManagementService.isBlacklisted(rawToken)) {
+            throw new ApiException(ErrorCode.INVALID_TOKEN, "로그아웃된 토큰입니다. 다시 로그인해 주세요.");
+        }
+
+        DecodedJWT decoded;
         try {
-            return jwtUtil.verifyToken(authHeader.substring(7));
+            decoded = jwtUtil.verifyToken(rawToken);
         } catch (Exception e) {
             throw new ApiException(ErrorCode.INVALID_TOKEN);
         }
+
+        // 2. 비밀번호 변경 / 회원탈퇴 등으로 인한 이전 토큰 무효화 검사
+        if (tokenManagementService.isTokenInvalidated(decoded.getSubject(), decoded.getIssuedAt())) {
+            throw new ApiException(ErrorCode.INVALID_TOKEN, "비밀번호가 변경되었거나 탈퇴된 계정입니다. 다시 로그인해 주세요.");
+        }
+
+        return decoded;
     }
 
     // 경로 규칙과 @RequireRole(메서드 > 클래스) 중 더 높은 권한

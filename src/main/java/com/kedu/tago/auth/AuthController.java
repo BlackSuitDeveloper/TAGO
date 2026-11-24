@@ -28,6 +28,7 @@ public class AuthController {
     private final MemberService memberService;
     private final JwtUtil jwtUtil;
     private final LoginAttemptService loginAttemptService;
+    private final com.kedu.tago.common.security.TokenManagementService tokenManagementService;
 
     /** 로그인 및 토큰 발급 (POST /api/v1/auth/login) - 입력값 사전 검증 및 계정/IP 잠금 적용 */
     @PostMapping("/login")
@@ -194,6 +195,20 @@ public class AuthController {
         // 비밀번호 재설정 성공 시 계정 잠금 해제
         loginAttemptService.unlockAccount(verifiedMemberId);
 
+        // 이전 발급된 모든 세션의 토큰 일괄 무효화
+        tokenManagementService.invalidateMemberTokens(verifiedMemberId);
+
         return ResWrapper.done("비밀번호가 성공적으로 변경되었습니다. 새로운 비밀번호로 로그인해 주세요.");
+    }
+
+    /** 로그아웃 및 토큰 블랙리스트 등록 (POST /api/v1/auth/logout) */
+    @PostMapping("/logout")
+    public ResWrapper<Void> logout(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String rawToken = authHeader.substring(7).trim();
+            tokenManagementService.blacklistToken(rawToken);
+        }
+        return ResWrapper.done("로그아웃되었습니다.");
     }
 }
