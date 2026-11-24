@@ -5,6 +5,7 @@ import Footer from '../../components/Footer/Footer';
 import QuickMenu from '../../components/QuickMenu/QuickMenu';
 import useWishStore from '../../store/useWishStore';
 import client from '../Api/client';
+import { dialog, notify } from '../../components/Dialog/dialogService';
 import './SchedulePage.css';
 
 const DEFAULT_STATIONS = ['서울', '용산', '광명', '대전', '동대구', '부산', '광주송정', '강릉', '포항'];
@@ -171,18 +172,16 @@ export default function SchedulePage() {
   };
 
   const handlePassengerChange = (delta) => {
-    setPassengers((prev) => {
-      const nextVal = prev.adult + delta;
-      if (nextVal > 9) {
-        alert('승차권은 1회 최대 9명까지 예매하실 수 있습니다.');
-        return prev;
-      }
-      if (nextVal < 1) {
-        alert('최소 1명 이상의 승객을 선택해야 합니다.');
-        return prev;
-      }
-      return { adult: nextVal };
-    });
+    const nextVal = passengers.adult + delta;
+    if (nextVal > 9) {
+      notify.warning('승차권은 1회 최대 9명까지 예매하실 수 있습니다.');
+      return;
+    }
+    if (nextVal < 1) {
+      notify.warning('최소 1명 이상의 승객을 선택해야 합니다.');
+      return;
+    }
+    setPassengers({ adult: nextVal });
   };
 
   // 찜하기 중앙 스토어 연동 (메인·시각표·마이페이지 공통)
@@ -323,8 +322,7 @@ export default function SchedulePage() {
       }, 3000);
     } catch (err) {
       if (err.response?.status === 401) {
-        alert('로그인 후 승차권 예매가 가능합니다.');
-        navigate('/login');
+        dialog.alert('로그인 후 승차권 예매가 가능합니다.', { title: '로그인 필요' }).then(() => navigate('/login'));
         return;
       }
       goToReservation(train);

@@ -6,6 +6,7 @@ import QuickMenu from '../../components/QuickMenu/QuickMenu';
 import RouteLine from '../../components/RouteLine/RouteLine';
 import PaymentPanel, { PaymentOverlay } from './PaymentPanel';
 import client from '../Api/client';
+import errorText from '../Api/errorText';
 import { dialog, notify } from '../../components/Dialog/dialogService';
 import { autoPickSeats } from '../../lib/trainDomain';
 import './ReservationPage.css';
@@ -157,13 +158,6 @@ async function fetchOccupiedSeats(scheduleSeq, carNo, onSummary) {
   }
   return null;
 }
-
-const errorText = (err, fallback) => {
-  const data = err?.response?.data;
-  if (typeof data?.message === 'string' && data.message) return data.message;
-  if (typeof data === 'string' && data) return data;
-  return fallback;
-};
 
 /* ---- 결제 단계 카운트다운 바 ----
    매초 갱신되므로 페이지 전체가 아니라 이 컴포넌트만 다시 그린다.
