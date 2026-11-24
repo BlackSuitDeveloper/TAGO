@@ -1,7 +1,7 @@
 package com.kedu.tago;
 
+import com.kedu.tago.sync.ScheduleSyncService;
 import com.kedu.tago.sync.dto.SyncResultDTO;
-import com.kedu.tago.sync.service.ScheduleSyncService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -12,6 +12,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/** Mock 샘플 데이터 적재 테스트 */
 @SpringBootTest
 class TagoSyncMockInsertTest {
 
@@ -57,6 +58,6 @@ class TagoSyncMockInsertTest {
         assertTrue(stationCount != null && stationCount >= 6);
         assertTrue(trainCount != null && trainCount >= 3);
         assertTrue(scheduleCount != null && scheduleCount >= 3);
-        assertTrue(seatCount != null && seatCount >= 2805); // 935석 * 3회차 = 2805석
+        assertTrue(seatCount != null && seatCount >= 2805); // 935석 * 3회차
     }
 }

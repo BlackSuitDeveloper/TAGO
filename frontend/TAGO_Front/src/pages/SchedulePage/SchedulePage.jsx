@@ -5,6 +5,7 @@ import Footer from '../../components/Footer/Footer';
 import QuickMenu from '../../components/QuickMenu/QuickMenu';
 import useWishStore from '../../store/useWishStore';
 import client from '../Api/client';
+import { dialog, notify } from '../../components/Dialog/dialogService';
 import './SchedulePage.css';
 
 const DEFAULT_STATIONS = ['서울', '용산', '광명', '대전', '동대구', '부산', '광주송정', '강릉', '포항'];
@@ -54,23 +55,23 @@ function calcDurationText(depTimestamp, arrTimestamp) {
 }
 
 function mapScheduleItem(item) {
-  const trainNoStr = String(item.trainno ?? '').padStart(3, '0');
+  const trainNoStr = String(item.trainNo ?? '').padStart(3, '0');
   const availableCount = item.availableSeats ?? 0;
 
   return {
-    id: item.schedule_seq,
+    id: item.scheduleSeq,
     trainNo: trainNoStr,
     name: `KTX ${trainNoStr}`,
-    type: item.vehiclekndnm || 'KTX',
-    depStationName: item.depStationName || item.depplacename || '-',
-    arrStationName: item.arrStationName || item.arrplacename || '-',
-    depTime: formatTimeHHMM(item.depplandtime),
-    arrTime: formatTimeHHMM(item.arrplandtime),
-    duration: calcDurationText(item.depplandtime, item.arrplandtime),
-    generalPrice: Number(item.standard_price || 0).toLocaleString(),
+    type: item.vehicleKndNm || 'KTX',
+    depStationName: item.depStationName || item.depPlaceName || '-',
+    arrStationName: item.arrStationName || item.arrPlaceName || '-',
+    depTime: formatTimeHHMM(item.depPlandTime),
+    arrTime: formatTimeHHMM(item.arrPlandTime),
+    duration: calcDurationText(item.depPlandTime, item.arrPlandTime),
+    generalPrice: Number(item.standardPrice || 0).toLocaleString(),
     generalStatus: availableCount > 0 ? '예매가능' : '매진',
     availableSeats: availableCount,
-    depDateRaw: item.depplandtime ? formatLocalDateYMD(item.depplandtime) : '',
+    depDateRaw: item.depPlandTime ? formatLocalDateYMD(item.depPlandTime) : '',
   };
 }
 
@@ -137,7 +138,7 @@ export default function SchedulePage() {
       .then((res) => {
         if (Array.isArray(res.data) && res.data.length > 0) {
           const names = Array.from(
-            new Set(res.data.map((st) => st.nodename).filter(Boolean))
+            new Set(res.data.map((st) => st.nodeName).filter(Boolean))
           );
           if (names.length > 0) {
             setStationOptions(names);
@@ -171,18 +172,16 @@ export default function SchedulePage() {
   };
 
   const handlePassengerChange = (delta) => {
-    setPassengers((prev) => {
-      const nextVal = prev.adult + delta;
-      if (nextVal > 9) {
-        alert('승차권은 1회 최대 9명까지 예매하실 수 있습니다.');
-        return prev;
-      }
-      if (nextVal < 1) {
-        alert('최소 1명 이상의 승객을 선택해야 합니다.');
-        return prev;
-      }
-      return { adult: nextVal };
-    });
+    const nextVal = passengers.adult + delta;
+    if (nextVal > 9) {
+      notify.warning('승차권은 1회 최대 9명까지 예매하실 수 있습니다.');
+      return;
+    }
+    if (nextVal < 1) {
+      notify.warning('최소 1명 이상의 승객을 선택해야 합니다.');
+      return;
+    }
+    setPassengers({ adult: nextVal });
   };
 
   // 찜하기 중앙 스토어 연동 (메인·시각표·마이페이지 공통)
@@ -209,12 +208,12 @@ export default function SchedulePage() {
         if (date) params.date = date;
 
         const res = await client.get('/schedule', { params });
-        const data = res.data || {};
-        const rows = Array.isArray(data.schedules) ? data.schedules.map(mapScheduleItem) : [];
+        const rows = Array.isArray(res.data) ? res.data.map(mapScheduleItem) : [];
+        const total = res.totalCount ?? rows.length;
 
         setScheduleList(rows);
-        setTotalCount(data.totalCount ?? rows.length);
-        setTotalPages(data.totalPages ?? 1);
+        setTotalCount(total);
+        setTotalPages(Math.ceil(total / params.size));
       } catch (err) {
         setScheduleList([]);
         setTotalCount(0);
@@ -323,8 +322,7 @@ export default function SchedulePage() {
       }, 3000);
     } catch (err) {
       if (err.response?.status === 401) {
-        alert('로그인 후 승차권 예매가 가능합니다.');
-        navigate('/login');
+        dialog.alert('로그인 후 승차권 예매가 가능합니다.', { title: '로그인 필요' }).then(() => navigate('/login'));
         return;
       }
       goToReservation(train);

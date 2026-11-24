@@ -5,7 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -15,13 +14,14 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
+/** Redis 기반 대기열 서비스 (Redis 장애 시 인메모리 대체) */
 @Slf4j
 @Service
 public class QueueService {
 
     private final StringRedisTemplate redisTemplate;
 
-    // Redis 장애/미구동 시 안전하게 동작하기 위한 In-Memory Fallback
+    // Redis 장애/미구동 시 사용하는 인메모리 대체 저장소
     private final Map<String, Long> inMemoryQueue = new ConcurrentSkipListMap<>();
     private final Set<String> inMemoryAdmittedTokens = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
@@ -31,10 +31,10 @@ public class QueueService {
     private static final String ADMITTED_SET_KEY = "tago:queue:admitted";
     private static final String SCHEDULE_SET_KEY = "tago:queue:schedules";
 
-    // 원자적 대기열 진입 Lua 스크립트:
-    // KEYS[1]=activeKey, KEYS[2]=queueKey, KEYS[3]=admittedSetKey, KEYS[4]=scheduleSetKey
-    // ARGV[1]=token, ARGV[2]=now, ARGV[3]=expiresAt, ARGV[4]=maxActiveUsers, ARGV[5]=scheduleSeq
-    // 반환값: 0이면 즉시 입장, 1 이상이면 대기 순번(1-based)
+    // 대기열 진입 Lua 스크립트
+    // KEYS: activeKey, queueKey, admittedSetKey, scheduleSetKey
+    // ARGV: token, now, expiresAt, maxActiveUsers, scheduleSeq
+    // 반환: 0이면 즉시 입장, 1 이상이면 대기 순번(1부터)
     private static final DefaultRedisScript<Long> ENTER_QUEUE_SCRIPT = new DefaultRedisScript<>("""
             redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[2])
             local activeCount = redis.call('ZCARD', KEYS[1])
@@ -50,9 +50,9 @@ public class QueueService {
             end
             """, Long.class);
 
-    // 원자적 대기열 순차 입장 Lua 스크립트:
-    // KEYS[1]=activeKey, KEYS[2]=queueKey, KEYS[3]=admittedSetKey
-    // ARGV[1]=now, ARGV[2]=expiresAt, ARGV[3]=maxActiveUsers, ARGV[4]=admitBatchSize
+    // 대기열 순차 입장 Lua 스크립트
+    // KEYS: activeKey, queueKey, admittedSetKey
+    // ARGV: now, expiresAt, maxActiveUsers, admitBatchSize
     private static final DefaultRedisScript<Long> ADMIT_BATCH_SCRIPT = new DefaultRedisScript<>("""
             redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[1])
             local activeCount = redis.call('ZCARD', KEYS[1])
@@ -73,7 +73,7 @@ public class QueueService {
             return #tokens
             """, Long.class);
 
-    // EC2(16GB/i5) 단일 서버 기준 적정 제어치: 열차당 동시 입장 200명, 3초마다 30명 유입, 입장권 TTL 5분(300초)
+    // 단일 서버 기준 제어치: 열차당 동시 입장 200명, 3초마다 30명 입장, 입장권 TTL 5분
     @Value("${tago.queue.max-active:200}")
     private long maxActiveUsers = 200;
 
@@ -87,11 +87,7 @@ public class QueueService {
         this.redisTemplate = redisTemplate;
     }
 
-    /**
-     * 대기열 진입 (R001: ZSet 점수 = 진입 시각, ZADD NX 로 기존 점수 보호)
-     * - 열차별 동시 입장 인원(maxActiveUsers, 기본 200명) 미만이면 즉시 입장 허용 (5분 TTL)
-     * - 초과 시 대기열(ZSet)에 등록하고 대기 순번 반환
-     */
+    /** 대기열 진입 (동시 입장 한도 미만이면 즉시 입장, 초과 시 대기 순번 반환) */
     public QueueResponseDTO enterQueue(Long scheduleSeq, String memberId) {
         String token = UUID.randomUUID().toString();
         long now = System.currentTimeMillis();
@@ -121,7 +117,7 @@ public class QueueService {
                             .build();
                 }
 
-                // 대기 상태: 폴링 시 정확한 순번 조회를 위해 스케줄 매핑 저장
+                // 폴링 시 순번 조회를 위해 토큰-스케줄 매핑 저장
                 redisTemplate.opsForValue().set(META_KEY_PREFIX + token, String.valueOf(scheduleSeq), Duration.ofMinutes(30));
 
                 return QueueResponseDTO.builder()
@@ -135,7 +131,7 @@ public class QueueService {
             }
         }
 
-        // In-Memory Fallback
+        // 인메모리 대체 처리
         inMemoryQueue.put(token, now);
         int currentSize = inMemoryQueue.size();
         if (currentSize <= maxActiveUsers) {
@@ -156,9 +152,7 @@ public class QueueService {
                 .build();
     }
 
-    /**
-     * 대기열 순번 조회 (3초 간격 폴링용)
-     */
+    /** 대기열 순번 조회 (폴링용) */
     public QueueResponseDTO checkQueueRank(String queueToken) {
         if (redisTemplate != null) {
             try {
@@ -196,7 +190,7 @@ public class QueueService {
             }
         }
 
-        // In-Memory Fallback
+        // 인메모리 대체 처리
         if (inMemoryAdmittedTokens.contains(queueToken)) {
             return QueueResponseDTO.builder()
                     .queueToken(queueToken)
@@ -214,9 +208,7 @@ public class QueueService {
                 .build();
     }
 
-    /**
-     * 주기적으로 만료된 입장권을 비우고, 여유 슬롯만큼 대기열 상위 인원 입장 허용 (3초마다 최대 30명씩)
-     */
+    /** 만료된 입장권 정리 후 여유 슬롯만큼 대기열 상위 인원 입장 (3초마다) */
     @Scheduled(fixedDelay = 3000)
     public void scheduleAdmitQueue() {
         if (redisTemplate != null) {

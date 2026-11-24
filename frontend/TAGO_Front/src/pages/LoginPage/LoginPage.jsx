@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import client from '../Api/client';
+import errorText from '../Api/errorText';
+import { dialog, notify } from '../../components/Dialog/dialogService';
 import useAuthStore from '../../store/useAuthStore';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
@@ -56,13 +58,13 @@ export default function LoginPage() {
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     if (!userId || !password) {
-      alert('아이디와 비밀번호를 모두 입력해 주세요.');
+      notify.warning('아이디와 비밀번호를 모두 입력해 주세요.');
       return;
     }
 
     setLoading(true);
     try {
-      const response = await client.post('/member/login', {
+      const response = await client.post('/auth/login', {
         id: userId,
         pw: password,
       });
@@ -83,15 +85,11 @@ export default function LoginPage() {
         localStorage.removeItem('savedUserId');
       }
 
-      alert(`${loggedInId}님, 로그인이 완료되었습니다.`);
+      notify.success(`${loggedInId}님, 로그인되었습니다.`);
       navigate('/');
     } catch (error) {
       console.error('로그인 에러:', error);
-      const message =
-        error.response?.data?.message ||
-        (typeof error.response?.data === 'string' ? error.response.data : null) ||
-        '아이디 또는 비밀번호가 올바르지 않습니다.';
-      alert(message);
+      dialog.alert(errorText(error, '아이디 또는 비밀번호가 올바르지 않습니다.'), { title: '로그인 실패', tone: 'error' });
     } finally {
       setLoading(false);
     }
@@ -103,7 +101,7 @@ export default function LoginPage() {
   const handleSendFindIdCode = async (e) => {
     e.preventDefault();
     if (!findIdName.trim() || !findIdEmail.trim()) {
-      alert('이름과 가입 이메일을 입력해 주세요.');
+      notify.warning('이름과 가입 이메일을 입력해 주세요.');
       return;
     }
 
@@ -113,11 +111,11 @@ export default function LoginPage() {
         name: findIdName.trim(),
         email: findIdEmail.trim(),
       });
-      alert(res.data?.message || '가입된 이메일로 인증번호가 발송되었습니다.');
+      notify.success(res.message || '가입된 이메일로 인증번호가 발송되었습니다.');
       setFindIdStep(2);
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.message || err.response?.data || '일치하는 회원 정보를 찾을 수 없습니다.');
+      dialog.alert(errorText(err, '일치하는 회원 정보를 찾을 수 없습니다.'), { title: '아이디 찾기 실패', tone: 'error' });
     } finally {
       setFindIdLoading(false);
     }
@@ -126,7 +124,7 @@ export default function LoginPage() {
   const handleVerifyFindIdCode = async (e) => {
     e.preventDefault();
     if (!findIdCode.trim() || findIdCode.trim().length !== 6) {
-      alert('6자리 인증번호를 정확히 입력해 주세요.');
+      notify.warning('6자리 인증번호를 정확히 입력해 주세요.');
       return;
     }
 
@@ -141,7 +139,7 @@ export default function LoginPage() {
       setFindIdStep(3);
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.message || err.response?.data || '인증번호가 일치하지 않거나 만료되었습니다.');
+      dialog.alert(errorText(err, '인증번호가 일치하지 않거나 만료되었습니다.'), { title: '인증 실패', tone: 'error' });
     } finally {
       setFindIdLoading(false);
     }
@@ -160,7 +158,7 @@ export default function LoginPage() {
   const handleSendResetPwCode = async (e) => {
     e.preventDefault();
     if (!resetId.trim() || !resetEmail.trim()) {
-      alert('아이디와 가입 이메일을 입력해 주세요.');
+      notify.warning('아이디와 가입 이메일을 입력해 주세요.');
       return;
     }
 
@@ -170,11 +168,11 @@ export default function LoginPage() {
         id: resetId.trim(),
         email: resetEmail.trim(),
       });
-      alert(res.data?.message || '가입된 이메일로 인증번호가 발송되었습니다.');
+      notify.success(res.message || '가입된 이메일로 인증번호가 발송되었습니다.');
       setResetStep(2);
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.message || err.response?.data || '입력하신 아이디와 이메일이 일치하는 회원을 찾을 수 없습니다.');
+      dialog.alert(errorText(err, '입력하신 아이디와 이메일이 일치하는 회원을 찾을 수 없습니다.'), { title: '비밀번호 재설정 실패', tone: 'error' });
     } finally {
       setResetLoading(false);
     }
@@ -183,7 +181,7 @@ export default function LoginPage() {
   const handleVerifyResetPwCode = async (e) => {
     e.preventDefault();
     if (!resetCode.trim() || resetCode.trim().length !== 6) {
-      alert('6자리 인증번호를 정확히 입력해 주세요.');
+      notify.warning('6자리 인증번호를 정확히 입력해 주세요.');
       return;
     }
 
@@ -198,7 +196,7 @@ export default function LoginPage() {
       setResetStep(3);
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.message || err.response?.data || '인증번호가 일치하지 않거나 만료되었습니다.');
+      dialog.alert(errorText(err, '인증번호가 일치하지 않거나 만료되었습니다.'), { title: '인증 실패', tone: 'error' });
     } finally {
       setResetLoading(false);
     }
@@ -207,11 +205,11 @@ export default function LoginPage() {
   const handleResetPasswordSubmit = async (e) => {
     e.preventDefault();
     if (newPassword !== confirmNewPassword) {
-      alert('새 비밀번호가 일치하지 않습니다.');
+      notify.warning('새 비밀번호가 일치하지 않습니다.');
       return;
     }
     if (newPassword.length < 8) {
-      alert('비밀번호는 최소 8자리 이상이어야 합니다.');
+      notify.warning('비밀번호는 최소 8자리 이상이어야 합니다.');
       return;
     }
 
@@ -223,13 +221,16 @@ export default function LoginPage() {
         resetToken: resetToken,
         newPassword: newPassword,
       });
-      alert(res.data?.message || '비밀번호가 성공적으로 변경되었습니다. 새로운 비밀번호로 로그인해 주세요.');
       setUserId(resetId.trim());
       setPassword('');
       handleCloseModal();
+      dialog.alert(res.message || '비밀번호가 성공적으로 변경되었습니다. 새로운 비밀번호로 로그인해 주세요.', {
+        title: '비밀번호 변경 완료',
+        tone: 'success',
+      });
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.message || err.response?.data || '비밀번호 재설정에 실패했습니다.');
+      dialog.alert(errorText(err, '비밀번호 재설정에 실패했습니다.'), { title: '비밀번호 재설정 실패', tone: 'error' });
     } finally {
       setResetLoading(false);
     }
@@ -247,7 +248,7 @@ export default function LoginPage() {
             <p className="login-desc">TAGO 계정으로 로그인해 주세요.</p>
           </div>
 
-          <form onSubmit={handleLoginSubmit} className="login-form">
+          <form noValidate onSubmit={handleLoginSubmit} className="login-form">
             <div className="form-group">
               <label>아이디</label>
               <div className="input-wrap">
@@ -355,7 +356,7 @@ export default function LoginPage() {
                   </p>
 
                   {findIdStep === 1 && (
-                    <form onSubmit={handleSendFindIdCode} className="modal-form">
+                    <form noValidate onSubmit={handleSendFindIdCode} className="modal-form">
                       <div className="form-group">
                         <label>이름</label>
                         <div className="input-wrap">
@@ -389,7 +390,7 @@ export default function LoginPage() {
                   )}
 
                   {findIdStep === 2 && (
-                    <form onSubmit={handleVerifyFindIdCode} className="modal-form">
+                    <form noValidate onSubmit={handleVerifyFindIdCode} className="modal-form">
                       <div className="email-sent-badge">
                         <span>{findIdEmail}</span>(으)로 인증번호 6자리가 발송되었습니다.
                       </div>
@@ -444,7 +445,7 @@ export default function LoginPage() {
                   </p>
 
                   {resetStep === 1 && (
-                    <form onSubmit={handleSendResetPwCode} className="modal-form">
+                    <form noValidate onSubmit={handleSendResetPwCode} className="modal-form">
                       <div className="form-group">
                         <label>아이디</label>
                         <div className="input-wrap">
@@ -478,7 +479,7 @@ export default function LoginPage() {
                   )}
 
                   {resetStep === 2 && (
-                    <form onSubmit={handleVerifyResetPwCode} className="modal-form">
+                    <form noValidate onSubmit={handleVerifyResetPwCode} className="modal-form">
                       <div className="email-sent-badge">
                         <span>{resetEmail}</span>(으)로 인증번호 6자리가 발송되었습니다.
                       </div>
@@ -512,7 +513,7 @@ export default function LoginPage() {
                   )}
 
                   {resetStep === 3 && (
-                    <form onSubmit={handleResetPasswordSubmit} className="modal-form">
+                    <form noValidate onSubmit={handleResetPasswordSubmit} className="modal-form">
                       <div className="form-group">
                         <label>새 비밀번호 (8자리 이상)</label>
                         <div className="input-wrap">

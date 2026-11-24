@@ -2,13 +2,16 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="MasterSync">
+<mapper namespace="com.kedu.tago.sync.MasterSyncMapper">
 
+    <!-- 역 데이터 건수 조회 | POST /api/v1/admin/sync/master, 서버 시작 시 SyncStartupRunner (MasterSyncService.isStationTableEmpty) -->
     <select id="countStations" resultType="int">
-        SELECT COUNT(*) FROM station
+        SELECT COUNT(*)
+        FROM station
     </select>
 
-    <select id="selectAllStations" resultType="com.kedu.tago.sync.dto.TagoStationDTO">
+    <!-- 전체 역 목록 조회 | POST /api/v1/admin/sync/master, 서버 시작 시 SyncStartupRunner (MasterSyncService.refreshStationCacheFromDb) -->
+    <select id="selectAllStations" resultType="com.kedu.tago.openapi.dto.TagoStationDTO">
         SELECT
             nodeid,
             nodename,
@@ -18,9 +21,15 @@
         FROM station
     </select>
 
+    <!-- 역 일괄 upsert(같은 역명이 다른 nodeid로 있으면 제외) | POST /api/v1/admin/sync/master, 서버 시작 시 SyncStartupRunner (MasterSyncService.syncStationsFromTago) -->
     <insert id="upsertStations" parameterType="java.util.List">
         INSERT INTO station (nodeid, nodename, citycode, cityname, node_address)
-        SELECT v.nodeid, v.nodename, v.citycode, v.cityname, v.node_address
+        SELECT
+            v.nodeid,
+            v.nodename,
+            v.citycode,
+            v.cityname,
+            v.node_address
         FROM (
             VALUES
             <foreach collection="list" item="st" separator=",">
@@ -28,7 +37,10 @@
             </foreach>
         ) AS v(nodeid, nodename, citycode, cityname, node_address)
         WHERE NOT EXISTS (
-            SELECT 1 FROM station s WHERE s.nodename = v.nodename AND s.nodeid &lt;&gt; v.nodeid
+            SELECT 1
+            FROM station s
+            WHERE s.nodename = v.nodename
+              AND s.nodeid &lt;&gt; v.nodeid
         )
         ON CONFLICT (nodeid) DO UPDATE SET
             nodename = EXCLUDED.nodename,
@@ -37,6 +49,7 @@
             node_address = EXCLUDED.node_address
     </insert>
 
+    <!-- KTX 열차 일괄 upsert | POST /api/v1/admin/sync/master, 서버 시작 시 SyncStartupRunner (MasterSyncService.upsertKtxTrains) -->
     <insert id="upsertKtxTrains" parameterType="java.util.List">
         INSERT INTO train (trainno, vehiclekndnm, line_category)
         VALUES

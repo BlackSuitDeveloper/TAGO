@@ -4,6 +4,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.kedu.tago.reservation.ReservationMapper">
 
+    <!-- 좌석 선점(예약 생성) | POST /api/v1/reservation (ReservationService.holdSeats) -->
     <insert id="insertReservation" parameterType="com.kedu.tago.reservation.dto.ReservationDTO"
             useGeneratedKeys="true" keyProperty="reservationSeq" keyColumn="reservation_seq">
         INSERT INTO reservation (
@@ -26,6 +27,7 @@
         )
     </insert>
 
+    <!-- 결제·취소 전 예약 조회 | POST /api/v1/payment (PaymentService.processPayment), POST /api/v1/reservation/{reservationId}/cancel (ReservationService.cancelReservation) -->
     <select id="selectReservationById" resultType="com.kedu.tago.reservation.dto.ReservationDTO">
         SELECT
             reservation_seq AS reservationSeq,
@@ -43,6 +45,7 @@
         WHERE reservation_seq = #{reservationSeq}
     </select>
 
+    <!-- 예약 취소 | POST /api/v1/reservation/{reservationId}/cancel (ReservationService.cancelReservation), 자동 해제 스케줄러(ReservationService.autoReclaimExpiredHeldSeats) -->
     <update id="updateReservationStatus">
         UPDATE reservation
         SET status = #{status},
@@ -54,6 +57,7 @@
         WHERE reservation_seq = #{reservationSeq}
     </update>
 
+    <!-- 결제 후 예약 확정(CONFIRMED) | POST /api/v1/payment (PaymentService.processPayment) -->
     <update id="confirmReservation">
         UPDATE reservation
         SET status = 'CONFIRMED',
@@ -61,7 +65,7 @@
         WHERE reservation_seq = #{reservationSeq}
     </update>
 
-    <!-- TTL 만료된 선점(HELD) 예약 목록 조회 -->
+    <!-- 선점 만료 예약 조회 | 자동 해제 스케줄러(ReservationService.autoReclaimExpiredHeldSeats) -->
     <select id="selectExpiredHeldReservations" resultType="com.kedu.tago.reservation.dto.ReservationDTO">
         SELECT
             reservation_seq AS reservationSeq,
@@ -77,17 +81,17 @@
           AND expires_at &lt; NOW()
     </select>
 
-    <!-- 내 예매 내역 조회 (MA001) -->
+    <!-- 내 승차권 목록 조회 | GET /api/v1/reservation/me (ReservationService.getMyReservations) -->
     <select id="selectMyReservations" resultType="com.kedu.tago.reservation.dto.MyTicketResponseDTO">
         SELECT
             r.reservation_seq AS reservationSeq,
             r.schedule_seq AS scheduleSeq,
-            s.trainno,
-            t.vehiclekndnm,
+            s.trainno AS trainNo,
+            t.vehiclekndnm AS vehicleKndNm,
             ds.nodename AS depStation,
             as2.nodename AS arrStation,
-            s.depplandtime,
-            s.arrplandtime,
+            s.depplandtime AS depPlandTime,
+            s.arrplandtime AS arrPlandTime,
             st.car_no AS carNo,
             st.seat_no AS seatNo,
             st.seat_grade AS seatGrade,
