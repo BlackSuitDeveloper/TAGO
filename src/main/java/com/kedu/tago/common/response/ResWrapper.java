@@ -38,17 +38,17 @@ public class ResWrapper<T> {
 
     /** 일반 응답 + 안내 문구 */
     public static <T> ResWrapper<T> ok(T data, String message) {
-        return new ResWrapper<>(true, null, null, message, data, null);
+        return new ResWrapper<>(true, 200, null, message, data, null);
     }
 
     /** 본문 없이 안내 문구만 응답 */
     public static ResWrapper<Void> done(String message) {
-        return new ResWrapper<>(true, null, null, message, null, null);
+        return new ResWrapper<>(true, 200, null, message, null, null);
     }
 
     /** 목록 응답 (totalCount 는 조건에 맞는 전체 건수) */
     public static <T> ResWrapper<List<T>> list(List<T> data, long totalCount) {
-        return new ResWrapper<>(true, null, null, null, data, totalCount);
+        return new ResWrapper<>(true, 200, null, null, data, totalCount);
     }
 
     /** 페이징 없는 목록 (totalCount 는 목록 크기) */
