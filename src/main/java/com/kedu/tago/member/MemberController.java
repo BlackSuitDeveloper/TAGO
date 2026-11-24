@@ -1,6 +1,5 @@
 package com.kedu.tago.member;
 
-import com.kedu.tago.auth.dto.AuthLoginRequestDTO;
 import com.kedu.tago.common.ApiPaths;
 import com.kedu.tago.common.exception.ApiException;
 import com.kedu.tago.common.exception.ErrorCode;
@@ -24,10 +23,21 @@ public class MemberController {
 
     private final MemberService memberService;
     private final MailService mailService;
+    private final MemberValidator memberValidator;
 
-    /** 회원가입 (POST /api/v1/member) */
+    /** 회원가입 (POST /api/v1/member) - EXC-1 정밀 유효성 검증 적용 */
     @PostMapping
     public ResWrapper<Void> signup(@RequestBody MemberSignupRequestDTO dto) {
+        // 1. 아이디, 비밀번호, 이름, 이메일, 전화번호, 주소 정밀 검증
+        memberValidator.validateSignup(dto);
+
+        // 2. 이메일 인증 토큰 검증 및 1회성 소멸
+        boolean verified = mailService.validateAndConsumeSignupToken(dto.getSignupToken(), dto.getEmail());
+        if (!verified) {
+            throw new ApiException(ErrorCode.EMAIL_VERIFICATION_REQUIRED);
+        }
+
+        // 3. 회원 정보 저장
         if (memberService.insertMember(dto) != 1) {
             throw new ApiException(ErrorCode.SIGNUP_FAILED);
         }
@@ -74,7 +84,7 @@ public class MemberController {
             throw new ApiException(ErrorCode.EMAIL_NOT_REGISTERED);
         }
 
-        mailService.sendMypagePasswordCode(profile.getEmail().trim());
+        mailService.sendMypagePasswordCode(id, profile.getEmail().trim());
         return ResWrapper.ok(
                 Map.of("email", profile.getEmail()),
                 "회원님의 가입 이메일(" + profile.getEmail() + ")로 인증번호가 발송되었습니다.");
@@ -93,7 +103,7 @@ public class MemberController {
             throw new ApiException(ErrorCode.CODE_REQUIRED);
         }
 
-        boolean isValid = mailService.verifyMypagePasswordCode(profile.getEmail().trim(), dto.getCode().trim());
+        boolean isValid = mailService.verifyMypagePasswordCode(id, dto.getCode().trim());
         if (!isValid) {
             throw new ApiException(ErrorCode.CODE_MISMATCH);
         }
@@ -113,7 +123,7 @@ public class MemberController {
             throw new ApiException(ErrorCode.PASSWORD_TOO_SHORT);
         }
 
-        boolean hasPermission = mailService.consumeMypageVerification(profile.getEmail().trim());
+        boolean hasPermission = mailService.consumeMypageVerification(id);
         if (!hasPermission) {
             throw new ApiException(ErrorCode.EMAIL_VERIFICATION_REQUIRED);
         }
