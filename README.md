@@ -65,6 +65,7 @@
 | 에러 | `{ "success": false, "status": 409, "code": 4003, "message": "..." }` | `status` 는 HTTP 상태 코드, `code` 는 아래 에러 코드 |
 
 - 서버: 성공은 `ResWrapper.ok / done / list`, 에러는 `throw new ApiException(ErrorCode.XXX)` 를 던지면 `GlobalExceptionHandler` 가 위 형식으로 바꾼다. 상황별 문구가 필요하면 `new ApiException(ErrorCode.XXX, "문구")`.
+- 페이징: 목록 검색 요청 DTO 가 `PageParam`(`page`, `size`)을 상속하고, 서비스는 `PageResult` 를 반환하고, 컨트롤러는 `ResWrapper.list(pageResult)` 로 응답한다. `page` 는 1부터, `size` 기본 10 / 최대 100.
 
 #### 🔢 에러 코드
 

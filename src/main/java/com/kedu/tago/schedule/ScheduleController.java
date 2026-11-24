@@ -3,7 +3,6 @@ package com.kedu.tago.schedule;
 import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.common.exception.ApiException;
 import com.kedu.tago.common.response.ResWrapper;
-import com.kedu.tago.schedule.dto.SchedulePageResponseDTO;
 import com.kedu.tago.schedule.dto.ScheduleResponseDTO;
 import com.kedu.tago.schedule.dto.ScheduleSearchRequestDTO;
 import lombok.RequiredArgsConstructor;
@@ -22,11 +21,10 @@ public class ScheduleController {
 
     private final ScheduleService scheduleService;
 
-    /** 운행 시간표 목록. data = 현재 페이지 목록, totalCount = 조건에 맞는 전체 건수 */
+    /** 운행 시간표 목록 (page, size 로 페이징). data = 현재 페이지 목록, totalCount = 조건에 맞는 전체 건수 */
     @GetMapping
     public ResWrapper<List<ScheduleResponseDTO>> getSchedules(@ModelAttribute ScheduleSearchRequestDTO searchDTO) {
-        SchedulePageResponseDTO page = scheduleService.getScheduleList(searchDTO);
-        return ResWrapper.list(page.getSchedules(), page.getTotalCount());
+        return ResWrapper.list(scheduleService.getScheduleList(searchDTO));
     }
 
     @GetMapping("/{scheduleSeq}")

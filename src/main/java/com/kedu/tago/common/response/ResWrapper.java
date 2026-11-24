@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import lombok.Getter;
 import com.kedu.tago.common.exception.ErrorCode;
+import com.kedu.tago.common.paging.PageResult;
 import org.springframework.http.HttpStatusCode;
 
 import java.util.List;
@@ -68,6 +69,11 @@ public class ResWrapper<T> {
     /** 페이징이 없는 목록: totalCount = 목록 크기 */
     public static <T> ResWrapper<List<T>> list(List<T> data) {
         return list(data, data == null ? 0 : data.size());
+    }
+
+    /** 페이징 목록: totalCount = 전체 건수 */
+    public static <T> ResWrapper<List<T>> list(PageResult<T> page) {
+        return list(page.getItems(), page.getTotalCount());
     }
 
     /** 에러 응답 (ErrorCode 의 번호·HTTP 상태 사용, 문구는 상황에 맞게 지정) */
