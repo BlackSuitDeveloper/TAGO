@@ -4,14 +4,14 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.kedu.tago.wishlist.WishListMapper">
 
-    <!-- 찜 목록 조회 | GET /api/wishlist (WishListService.getWishList) -->
+    <!-- 찜 목록 조회 | GET /api/v1/wishlist (WishListService.getWishList) -->
     <select id="selectWishList" parameterType="string" resultType="long">
         SELECT schedule_seq
         FROM wishlist
         WHERE member_id = #{memberId}
     </select>
 
-    <!-- 찜 추가 | POST /api/wishlist/{scheduleSeq} (WishListService.addWish) -->
+    <!-- 찜 추가 | POST /api/v1/wishlist/{scheduleSeq} (WishListService.addWish) -->
     <insert id="insertWish">
         INSERT INTO wishlist (wishlist_seq, member_id, schedule_seq)
         VALUES (
@@ -24,7 +24,7 @@
         )
     </insert>
 
-    <!-- 찜 삭제 | DELETE /api/wishlist/{scheduleSeq} (WishListService.deleteWish) -->
+    <!-- 찜 삭제 | DELETE /api/v1/wishlist/{scheduleSeq} (WishListService.deleteWish) -->
     <delete id="deleteWish">
         DELETE FROM wishlist
         WHERE member_id = #{memberId}

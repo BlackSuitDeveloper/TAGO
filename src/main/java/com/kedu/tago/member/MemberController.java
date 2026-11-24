@@ -1,6 +1,7 @@
 package com.kedu.tago.member;
 
 import com.kedu.tago.auth.dto.AuthLoginRequestDTO;
+import com.kedu.tago.common.ApiPaths;
 import com.kedu.tago.common.exception.ApiException;
 import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.common.mail.MailService;
@@ -17,14 +18,14 @@ import java.util.Map;
 
 /** 회원 가입·정보 관리·비밀번호 변경 API */
 @RestController
-@RequestMapping("/member")
+@RequestMapping(ApiPaths.V1 + "/member")
 @RequiredArgsConstructor
 public class MemberController {
 
     private final MemberService memberService;
     private final MailService mailService;
 
-    /** 회원가입 (POST /api/member) */
+    /** 회원가입 (POST /api/v1/member) */
     @PostMapping
     public ResWrapper<Void> signup(@RequestBody MemberSignupRequestDTO dto) {
         if (memberService.insertMember(dto) != 1) {
@@ -33,20 +34,20 @@ public class MemberController {
         return ResWrapper.done("회원가입이 완료되었습니다.");
     }
 
-    /** 아이디 사용 가능 여부 (GET /api/member/checkId) */
+    /** 아이디 사용 가능 여부 (GET /api/v1/member/checkId) */
     @GetMapping("/checkId")
     public ResWrapper<Boolean> checkId(@RequestParam String id) {
         return ResWrapper.ok(memberService.checkId(id) == 0);
     }
 
-    /** 내 정보 조회 (GET /api/member/mypage) */
+    /** 내 정보 조회 (GET /api/v1/member/mypage) */
     @GetMapping("/mypage")
     public ResWrapper<MemberProfileResponseDTO> mypage(HttpServletRequest request) {
         String id = (String) request.getAttribute("id");
         return ResWrapper.ok(memberService.selectMember(id));
     }
 
-    /** 내 정보 수정 (PUT /api/member) */
+    /** 내 정보 수정 (PUT /api/v1/member) */
     @PutMapping
     public ResWrapper<Void> updateMember(@RequestBody MemberUpdateRequestDTO dto, HttpServletRequest request) {
         String id = (String) request.getAttribute("id");
@@ -55,7 +56,7 @@ public class MemberController {
         return ResWrapper.done("수정 완료");
     }
 
-    /** 회원 탈퇴 (DELETE /api/member) */
+    /** 회원 탈퇴 (DELETE /api/v1/member) */
     @DeleteMapping
     public ResWrapper<Void> deleteId(HttpServletRequest request) {
         String id = (String) request.getAttribute("id");
@@ -63,7 +64,7 @@ public class MemberController {
         return ResWrapper.done("탈퇴 완료");
     }
 
-    /** 비밀번호 변경용 이메일 인증번호 발송 (POST /api/member/password/send-code) */
+    /** 비밀번호 변경용 이메일 인증번호 발송 (POST /api/v1/member/password/send-code) */
     @PostMapping("/password/send-code")
     public ResWrapper<Map<String, String>> sendMypagePasswordCode(HttpServletRequest request) {
         String id = (String) request.getAttribute("id");
@@ -79,7 +80,7 @@ public class MemberController {
                 "회원님의 가입 이메일(" + profile.getEmail() + ")로 인증번호가 발송되었습니다.");
     }
 
-    /** 비밀번호 변경용 이메일 인증번호 확인 (POST /api/member/password/verify) */
+    /** 비밀번호 변경용 이메일 인증번호 확인 (POST /api/v1/member/password/verify) */
     @PostMapping("/password/verify")
     public ResWrapper<Void> verifyMypagePasswordCode(@RequestBody MypagePasswordRequestDTO dto, HttpServletRequest request) {
         String id = (String) request.getAttribute("id");
@@ -99,7 +100,7 @@ public class MemberController {
         return ResWrapper.done("이메일 본인인증이 완료되었습니다.");
     }
 
-    /** 비밀번호 변경 (PUT /api/member/password) */
+    /** 비밀번호 변경 (PUT /api/v1/member/password) */
     @PutMapping("/password")
     public ResWrapper<Void> updateMypagePassword(@RequestBody MypagePasswordRequestDTO dto, HttpServletRequest request) {
         String id = (String) request.getAttribute("id");

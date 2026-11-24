@@ -50,7 +50,7 @@
 
 ### 📑4. API 문서
 
-- **Base URL**: `http://{HOST}/api`
+- **Base URL**: `http://{HOST}/api/v1`
 - **인증 방식**: JWT 기반 인증
 - **인증 헤더**: `Authorization: Bearer <JWT_TOKEN>`
 

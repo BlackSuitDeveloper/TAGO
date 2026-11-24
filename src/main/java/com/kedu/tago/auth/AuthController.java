@@ -3,6 +3,7 @@ package com.kedu.tago.auth;
 import com.kedu.tago.auth.dto.AuthLoginRequestDTO;
 import com.kedu.tago.auth.dto.FindIdRequestDTO;
 import com.kedu.tago.auth.dto.ResetPasswordRequestDTO;
+import com.kedu.tago.common.ApiPaths;
 import com.kedu.tago.common.exception.ApiException;
 import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.common.mail.MailService;
@@ -17,7 +18,7 @@ import java.util.Map;
 
 /** 로그인, 아이디 찾기, 비밀번호 재설정 API (로그인 전 계정 접근) */
 @RestController
-@RequestMapping("/auth")
+@RequestMapping(ApiPaths.V1 + "/auth")
 @RequiredArgsConstructor
 public class AuthController {
 
@@ -25,7 +26,7 @@ public class AuthController {
     private final MemberService memberService;
     private final JwtUtil jwtUtil;
 
-    /** 로그인 및 토큰 발급 (POST /api/member/login) */
+    /** 로그인 및 토큰 발급 (POST /api/v1/auth/login) */
     @PostMapping("/login")
     public ResWrapper<Map<String, String>> login(@RequestBody AuthLoginRequestDTO dto) {
         if (!memberService.isMember(dto.getId(), dto.getPw())) {
@@ -36,7 +37,7 @@ public class AuthController {
         return ResWrapper.ok(Map.of("token", token, "id", dto.getId(), "role", role.name()));
     }
 
-    /** 아이디 찾기 인증번호 발송 (POST /api/auth/find-id/send-code) */
+    /** 아이디 찾기 인증번호 발송 (POST /api/v1/auth/find-id/send-code) */
     @PostMapping("/find-id/send-code")
     public ResWrapper<Void> sendFindIdCode(@RequestBody FindIdRequestDTO dto) {
         if (dto.getName() == null || dto.getName().trim().isEmpty() ||
@@ -53,7 +54,7 @@ public class AuthController {
         return ResWrapper.done("인증번호가 가입된 이메일로 발송되었습니다. (5분 유효)");
     }
 
-    /** 아이디 찾기 인증번호 확인 및 아이디 반환 (POST /api/auth/find-id/verify) */
+    /** 아이디 찾기 인증번호 확인 및 아이디 반환 (POST /api/v1/auth/find-id/verify) */
     @PostMapping("/find-id/verify")
     public ResWrapper<Map<String, String>> verifyFindIdCode(@RequestBody FindIdRequestDTO dto) {
         if (dto.getEmail() == null || dto.getCode() == null) {
@@ -81,7 +82,7 @@ public class AuthController {
         return ResWrapper.ok(Map.of("id", memberId, "maskedId", maskedId), "인증이 완료되었습니다.");
     }
 
-    /** 비밀번호 재설정 인증번호 발송 (POST /api/auth/reset-password/send-code) */
+    /** 비밀번호 재설정 인증번호 발송 (POST /api/v1/auth/reset-password/send-code) */
     @PostMapping("/reset-password/send-code")
     public ResWrapper<Void> sendResetPwCode(@RequestBody ResetPasswordRequestDTO dto) {
         if (dto.getId() == null || dto.getId().trim().isEmpty() ||
@@ -98,7 +99,7 @@ public class AuthController {
         return ResWrapper.done("인증번호가 가입된 이메일로 발송되었습니다. (5분 유효)");
     }
 
-    /** 비밀번호 재설정 인증번호 확인 및 재설정 토큰 발급 (POST /api/auth/reset-password/verify) */
+    /** 비밀번호 재설정 인증번호 확인 및 재설정 토큰 발급 (POST /api/v1/auth/reset-password/verify) */
     @PostMapping("/reset-password/verify")
     public ResWrapper<Map<String, String>> verifyResetPwCode(@RequestBody ResetPasswordRequestDTO dto) {
         if (dto.getEmail() == null || dto.getCode() == null) {
@@ -113,7 +114,7 @@ public class AuthController {
         return ResWrapper.ok(Map.of("resetToken", resetToken), "이메일 인증이 완료되었습니다.");
     }
 
-    /** 새 비밀번호 재설정 (POST /api/auth/reset-password) */
+    /** 새 비밀번호 재설정 (POST /api/v1/auth/reset-password) */
     @PostMapping("/reset-password")
     public ResWrapper<Void> resetPassword(@RequestBody ResetPasswordRequestDTO dto) {
         if (dto.getId() == null || dto.getEmail() == null ||

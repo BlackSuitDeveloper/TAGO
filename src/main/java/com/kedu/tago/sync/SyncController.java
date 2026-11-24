@@ -1,5 +1,6 @@
 package com.kedu.tago.sync;
 
+import com.kedu.tago.common.ApiPaths;
 import com.kedu.tago.common.response.ResWrapper;
 import com.kedu.tago.common.security.RequireRole;
 import com.kedu.tago.member.Role;
@@ -23,7 +24,7 @@ import java.util.Map;
 /** 공공데이터(TAGO) 역·시간표 동기화 관리자 API */
 @RequireRole(Role.ADMIN)
 @RestController
-@RequestMapping("/admin/sync")
+@RequestMapping(ApiPaths.V1 + "/admin/sync")
 @RequiredArgsConstructor
 public class SyncController {
 
@@ -33,19 +34,19 @@ public class SyncController {
     private final ScheduleSyncService scheduleSyncService;
     private final TagoRouteConfig routeConfig;
 
-    /** 역·열차 마스터 데이터 동기화 (POST /api/admin/sync/master) */
+    /** 역·열차 마스터 데이터 동기화 (POST /api/v1/admin/sync/master) */
     @PostMapping("/master")
     public ResWrapper<SyncResultDTO> syncMasterData() {
         return ResWrapper.ok(masterSyncService.syncAllMasterData());
     }
 
-    /** 목업 샘플 데이터 적재 (POST /api/admin/sync/mock) */
+    /** 목업 샘플 데이터 적재 (POST /api/v1/admin/sync/mock) */
     @PostMapping("/mock")
     public ResWrapper<SyncResultDTO> syncMockSampleData() {
         return ResWrapper.ok(scheduleSyncService.insertMockSampleData());
     }
 
-    /** 특정 날짜 시간표 동기화 (POST /api/admin/sync/schedules) */
+    /** 특정 날짜 시간표 동기화 (POST /api/v1/admin/sync/schedules) */
     @PostMapping("/schedules")
     public ResWrapper<SyncResultDTO> syncSchedulesByDate(
             @RequestParam(value = "date", required = false) String date) {
@@ -57,7 +58,7 @@ public class SyncController {
         return ResWrapper.ok(scheduleSyncService.syncSchedulesByDate(targetDate));
     }
 
-    /** 기간별 시간표 동기화 (POST /api/admin/sync/schedules/range) */
+    /** 기간별 시간표 동기화 (POST /api/v1/admin/sync/schedules/range) */
     @PostMapping("/schedules/range")
     public ResWrapper<List<SyncResultDTO>> syncSchedulesByRange(
             @RequestParam(value = "startDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
@@ -69,7 +70,7 @@ public class SyncController {
         return ResWrapper.list(scheduleSyncService.syncSchedulesByDateRange(start, end));
     }
 
-    /** 동기화 설정 상태 조회 (GET /api/admin/sync/status) */
+    /** 동기화 설정 상태 조회 (GET /api/v1/admin/sync/status) */
     @GetMapping("/status")
     public ResWrapper<Map<String, Object>> getSyncStatus() {
         Map<String, String> cachedStations = masterSyncService.getStationNameToIdCache();

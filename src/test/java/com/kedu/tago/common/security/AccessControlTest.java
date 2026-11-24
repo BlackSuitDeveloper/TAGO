@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Date;
 
+import static com.kedu.tago.common.ApiPaths.V1;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -45,26 +46,27 @@ class AccessControlTest {
         @Test
         @DisplayName("공개는 메서드까지 일치해야 한다 (같은 경로라도 다른 메서드는 보호)")
         void publicRoutesAreMethodAware() {
-            assertTrue(policy.isPublic("POST", "/member"));            // 회원가입
-            assertFalse(policy.isPublic("DELETE", "/member"));         // 회원 탈퇴
-            assertFalse(policy.isPublic("PUT", "/member"));
-            assertTrue(policy.isPublic("POST", "/auth/login"));
-            assertTrue(policy.isPublic("GET", "/member/checkId"));
-            assertFalse(policy.isPublic("GET", "/member/mypage"));
-            assertTrue(policy.isPublic("POST", "/auth/find-id/send-code"));
-            assertTrue(policy.isPublic("GET", "/station"));
-            assertTrue(policy.isPublic("GET", "/schedule"));
-            assertTrue(policy.isPublic("GET", "/schedule/12"));
-            assertFalse(policy.isPublic("POST", "/schedule/12"));
-            assertTrue(policy.isPublic("GET", "/seat"));
-            assertTrue(policy.isPublic("GET", "/seat/stream"));
+            assertTrue(policy.isPublic("POST", V1 + "/member"));            // 회원가입
+            assertFalse(policy.isPublic("DELETE", V1 + "/member"));         // 회원 탈퇴
+            assertFalse(policy.isPublic("PUT", V1 + "/member"));
+            assertTrue(policy.isPublic("POST", V1 + "/auth/login"));
+            assertTrue(policy.isPublic("GET", V1 + "/member/checkId"));
+            assertFalse(policy.isPublic("GET", V1 + "/member/mypage"));
+            assertTrue(policy.isPublic("POST", V1 + "/auth/find-id/send-code"));
+            assertTrue(policy.isPublic("GET", V1 + "/station"));
+            assertTrue(policy.isPublic("GET", V1 + "/schedule"));
+            assertTrue(policy.isPublic("GET", V1 + "/schedule/12"));
+            assertFalse(policy.isPublic("POST", V1 + "/schedule/12"));
+            assertTrue(policy.isPublic("GET", V1 + "/seat"));
+            assertTrue(policy.isPublic("GET", V1 + "/seat/stream"));
         }
 
         @Test
         @DisplayName("그 밖의 경로(새 API 포함)는 기본적으로 로그인 필요")
         void everythingElseIsProtected() {
-            for (String path : new String[]{"/queue", "/queue/abc", "/reservation", "/reservation/me", "/reservation/3/cancel",
-                    "/payment", "/wishlist", "/wishlist/5", "/anything/new"}) {
+            for (String path : new String[]{V1 + "/queue", V1 + "/queue/abc", V1 + "/reservation", V1 + "/reservation/me",
+                    V1 + "/reservation/3/cancel", V1 + "/payment", V1 + "/wishlist", V1 + "/wishlist/5",
+                    V1 + "/anything/new"}) {
                 assertFalse(policy.isPublic("GET", path), path);
                 assertFalse(policy.isPublic("POST", path), path);
             }
@@ -73,16 +75,16 @@ class AccessControlTest {
         @Test
         @DisplayName("/admin/** 은 경로만으로 ADMIN, 나머지는 USER")
         void requiredRoleByPath() {
-            assertEquals(Role.ADMIN, policy.requiredRole("/admin/sync/mock"));
-            assertEquals(Role.ADMIN, policy.requiredRole("/admin/anything"));
-            assertEquals(Role.USER, policy.requiredRole("/member/mypage"));
-            assertEquals(Role.USER, policy.requiredRole("/reservation"));
+            assertEquals(Role.ADMIN, policy.requiredRole(V1 + "/admin/sync/mock"));
+            assertEquals(Role.ADMIN, policy.requiredRole(V1 + "/admin/anything"));
+            assertEquals(Role.USER, policy.requiredRole(V1 + "/member/mypage"));
+            assertEquals(Role.USER, policy.requiredRole(V1 + "/reservation"));
         }
     }
 
     /** /admin 경로가 아니어도 @RequireRole 만으로 권한이 걸리는지 확인하는 시험용 컨트롤러 */
     @RestController
-    @RequestMapping("/secret")
+    @RequestMapping(V1 + "/secret")
     static class SecretController {
         @RequireRole(Role.ADMIN)
         @GetMapping("/admin-only")
@@ -98,7 +100,7 @@ class AccessControlTest {
 
     @RestController
     @RequireRole(Role.ADMIN)
-    @RequestMapping("/vault")
+    @RequestMapping(V1 + "/vault")
     static class VaultController {
         @GetMapping("/a")
         public String a() {
@@ -139,13 +141,13 @@ class AccessControlTest {
         @Test
         @DisplayName("공개 경로는 토큰 없이 통과")
         void publicWithoutToken() throws Exception {
-            mvc.perform(get("/station")).andExpect(status().isOk());
+            mvc.perform(get(V1 + "/station")).andExpect(status().isOk());
         }
 
         @Test
         @DisplayName("보호 경로: 토큰 없음 -> 401 / 2000")
         void protectedWithoutToken() throws Exception {
-            mvc.perform(get("/wishlist"))
+            mvc.perform(get(V1 + "/wishlist"))
                     .andExpect(status().isUnauthorized())
                     .andExpect(jsonPath("$.success").value(false))
                     .andExpect(jsonPath("$.status").value(401))
@@ -156,7 +158,7 @@ class AccessControlTest {
         @Test
         @DisplayName("보호 경로: 잘못된 토큰 -> 401 / 2001")
         void protectedWithBadToken() throws Exception {
-            mvc.perform(get("/wishlist").header("Authorization", "Bearer not-a-jwt"))
+            mvc.perform(get(V1 + "/wishlist").header("Authorization", "Bearer not-a-jwt"))
                     .andExpect(status().isUnauthorized())
                     .andExpect(jsonPath("$.code").value(2001));
         }
@@ -164,23 +166,23 @@ class AccessControlTest {
         @Test
         @DisplayName("일반 API: USER 도 ADMIN 도 사용 가능")
         void userApisAreOpenToBothRoles() throws Exception {
-            mvc.perform(get("/wishlist").header("Authorization", user())).andExpect(status().isOk());
-            mvc.perform(get("/wishlist").header("Authorization", admin())).andExpect(status().isOk());
+            mvc.perform(get(V1 + "/wishlist").header("Authorization", user())).andExpect(status().isOk());
+            mvc.perform(get(V1 + "/wishlist").header("Authorization", admin())).andExpect(status().isOk());
         }
 
         @Test
         @DisplayName("/admin/**: 토큰 없음 401, USER 403 / 2004, ADMIN 통과")
         void adminRoutes() throws Exception {
-            mvc.perform(get("/admin/sync/status"))
+            mvc.perform(get(V1 + "/admin/sync/status"))
                     .andExpect(status().isUnauthorized())
                     .andExpect(jsonPath("$.code").value(2000));
 
-            mvc.perform(get("/admin/sync/status").header("Authorization", user()))
+            mvc.perform(get(V1 + "/admin/sync/status").header("Authorization", user()))
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.status").value(403))
                     .andExpect(jsonPath("$.code").value(2004));
 
-            mvc.perform(get("/admin/sync/status").header("Authorization", admin()))
+            mvc.perform(get(V1 + "/admin/sync/status").header("Authorization", admin()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true));
         }
@@ -188,27 +190,27 @@ class AccessControlTest {
         @Test
         @DisplayName("@RequireRole 은 경로와 상관없이 적용된다 (메서드 단위)")
         void requireRoleOnMethod() throws Exception {
-            mvc.perform(get("/secret/admin-only").header("Authorization", user()))
+            mvc.perform(get(V1 + "/secret/admin-only").header("Authorization", user()))
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.code").value(2004));
-            mvc.perform(get("/secret/admin-only").header("Authorization", admin())).andExpect(status().isOk());
+            mvc.perform(get(V1 + "/secret/admin-only").header("Authorization", admin())).andExpect(status().isOk());
 
             // 같은 컨트롤러의 어노테이션 없는 API 는 로그인한 회원이면 가능
-            mvc.perform(get("/secret/any-member").header("Authorization", user())).andExpect(status().isOk());
+            mvc.perform(get(V1 + "/secret/any-member").header("Authorization", user())).andExpect(status().isOk());
         }
 
         @Test
         @DisplayName("@RequireRole 은 클래스에 붙이면 컨트롤러 전체에 적용된다")
         void requireRoleOnClass() throws Exception {
-            mvc.perform(get("/vault/a").header("Authorization", user())).andExpect(status().isForbidden());
-            mvc.perform(get("/vault/a").header("Authorization", admin())).andExpect(status().isOk());
+            mvc.perform(get(V1 + "/vault/a").header("Authorization", user())).andExpect(status().isForbidden());
+            mvc.perform(get(V1 + "/vault/a").header("Authorization", admin())).andExpect(status().isOk());
         }
 
         @Test
         @DisplayName("ROLE 도입 전에 발급된 토큰(role=guest)은 USER 로 취급")
         void legacyTokenIsUser() throws Exception {
-            mvc.perform(get("/wishlist").header("Authorization", legacyGuestToken())).andExpect(status().isOk());
-            mvc.perform(get("/admin/sync/status").header("Authorization", legacyGuestToken()))
+            mvc.perform(get(V1 + "/wishlist").header("Authorization", legacyGuestToken())).andExpect(status().isOk());
+            mvc.perform(get(V1 + "/admin/sync/status").header("Authorization", legacyGuestToken()))
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.code").value(2004));
         }

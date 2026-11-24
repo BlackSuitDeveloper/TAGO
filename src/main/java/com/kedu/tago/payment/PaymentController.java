@@ -1,5 +1,6 @@
 package com.kedu.tago.payment;
 
+import com.kedu.tago.common.ApiPaths;
 import com.kedu.tago.common.response.ResWrapper;
 import com.kedu.tago.payment.dto.PaymentRequestDTO;
 import com.kedu.tago.payment.dto.PaymentResponseDTO;
@@ -12,13 +13,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 /** 결제 API */
 @RestController
-@RequestMapping("/payment")
+@RequestMapping(ApiPaths.V1 + "/payment")
 @RequiredArgsConstructor
 public class PaymentController {
 
     private final PaymentService paymentService;
 
-    /** 결제 및 발권 확정 (POST /api/payment) */
+    /** 결제 및 발권 확정 (POST /api/v1/payment) */
     @PostMapping
     public ResWrapper<PaymentResponseDTO> processPayment(
             @RequestBody PaymentRequestDTO requestDTO,

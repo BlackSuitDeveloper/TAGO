@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.List;
 
+import static com.kedu.tago.common.ApiPaths.V1;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -93,7 +94,7 @@ class PagingTest {
         });
         MockMvc mvc = MockMvcBuilders.standaloneSetup(new ScheduleController(service)).build();
 
-        mvc.perform(get("/schedule?page=2&size=5&depStation=서울"))
+        mvc.perform(get(V1 + "/schedule?page=2&size=5&depStation=서울"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.length()").value(1))

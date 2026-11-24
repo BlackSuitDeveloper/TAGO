@@ -143,7 +143,7 @@ function carLevel(remaining, total) {
 }
 const CAR_LEVEL_LABEL = { ok: '여유', normal: '보통', busy: '혼잡', low: '마감 임박', sold: '매진' };
 
-// GET /api/seat: 한 호차의 점유(AVAILABLE 이 아닌) 좌석 번호 목록. 실패하면 null.
+// GET /api/v1/seat: 한 호차의 점유(AVAILABLE 이 아닌) 좌석 번호 목록. 실패하면 null.
 // onSummary: 같은 응답의 carSummaryList(호차별 잔여석)를 넘겨 받는 콜백(선택).
 async function fetchOccupiedSeats(scheduleSeq, carNo, onSummary) {
   try {
@@ -413,7 +413,7 @@ export default function ReservationPage() {
     [loadCarSeats]
   );
 
-  // 호차 변경 또는 스케줄 변경 시 백엔드 좌석 목록(GET /api/seat) 실시간 연동
+  // 호차 변경 또는 스케줄 변경 시 백엔드 좌석 목록(GET /api/v1/seat) 실시간 연동
   useEffect(() => {
     let isMounted = true;
     fetchOccupiedSeats(bookingInfo.scheduleSeq, selectedCarNo, (list) => {
@@ -425,11 +425,11 @@ export default function ReservationPage() {
       }
     });
 
-    // SSE 실시간 좌석 스트림 연결 (GET /api/seat/stream)
+    // SSE 실시간 좌석 스트림 연결 (GET /api/v1/seat/stream)
     let eventSource = null;
     try {
       eventSource = new EventSource(
-        `http://localhost:80/api/seat/stream?scheduleSeq=${bookingInfo.scheduleSeq}`
+        `http://localhost:80/api/v1/seat/stream?scheduleSeq=${bookingInfo.scheduleSeq}`
       );
       eventSource.addEventListener('SEAT_UPDATE', (e) => {
         try {
@@ -603,7 +603,7 @@ export default function ReservationPage() {
     [refreshCars]
   );
 
-  // 1) 좌석 확정: POST /api/reservation(선점)만 호출하고 결제 단계로 넘어간다
+  // 1) 좌석 확정: POST /api/v1/reservation(선점)만 호출하고 결제 단계로 넘어간다
   const handleHoldSeats = async () => {
     if (!isOutboundComplete) {
       notify.warning(`가는 편 좌석을 모두 선택해 주세요. (현재 ${outboundSeats.length}/${targetSeatCount}석 선택됨)`);
@@ -681,7 +681,7 @@ export default function ReservationPage() {
     resetToSeatStep(hold.seats.map((s) => s.carNo));
   }, [resetToSeatStep]);
 
-  // 2) 결제: POST /api/payment (폼 검증을 통과한 뒤에만 호출된다)
+  // 2) 결제: POST /api/v1/payment (폼 검증을 통과한 뒤에만 호출된다)
   //    payLabel: 폼이 만든 마스킹 요약(예: "신용/체크카드 · 신한 ****1234"). 화면 state 에만 둔다.
   const handlePay = async (payLabel) => {
     if (isPaying || payingRef.current || isReleasing || step !== 'pay' || !holds) return;
