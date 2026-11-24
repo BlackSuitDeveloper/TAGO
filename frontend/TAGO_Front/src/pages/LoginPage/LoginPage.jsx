@@ -113,7 +113,7 @@ export default function LoginPage() {
         name: findIdName.trim(),
         email: findIdEmail.trim(),
       });
-      alert(res.data?.message || '가입된 이메일로 인증번호가 발송되었습니다.');
+      alert(res.message || '가입된 이메일로 인증번호가 발송되었습니다.');
       setFindIdStep(2);
     } catch (err) {
       console.error(err);
@@ -170,7 +170,7 @@ export default function LoginPage() {
         id: resetId.trim(),
         email: resetEmail.trim(),
       });
-      alert(res.data?.message || '가입된 이메일로 인증번호가 발송되었습니다.');
+      alert(res.message || '가입된 이메일로 인증번호가 발송되었습니다.');
       setResetStep(2);
     } catch (err) {
       console.error(err);
@@ -223,7 +223,7 @@ export default function LoginPage() {
         resetToken: resetToken,
         newPassword: newPassword,
       });
-      alert(res.data?.message || '비밀번호가 성공적으로 변경되었습니다. 새로운 비밀번호로 로그인해 주세요.');
+      alert(res.message || '비밀번호가 성공적으로 변경되었습니다. 새로운 비밀번호로 로그인해 주세요.');
       setUserId(resetId.trim());
       setPassword('');
       handleCloseModal();

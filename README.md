@@ -66,6 +66,7 @@
 
 - 서버: 성공은 `ResWrapper.ok / done / list`, 에러는 `throw new ApiException(ErrorCode.XXX)` 를 던지면 `GlobalExceptionHandler` 가 위 형식으로 바꾼다. 상황별 문구가 필요하면 `new ApiException(ErrorCode.XXX, "문구")`.
 - 페이징: 목록 검색 요청 DTO 가 `PageParam`(`page`, `size`)을 상속하고, 서비스는 `PageResult` 를 반환하고, 컨트롤러는 `ResWrapper.list(pageResult)` 로 응답한다. `page` 는 1부터, `size` 기본 10 / 최대 100.
+- 프론트: `client.js` 의 응답 인터셉터가 이 형식을 풀어서 `res.data`(본문), `res.totalCount`, `res.message` 로 쓸 수 있게 한다.
 
 #### 🔢 에러 코드
 
