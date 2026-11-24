@@ -105,9 +105,12 @@ public class PaymentService {
 
         paymentMapper.insertPayment(payment);
 
-        // 5. 전체 예약 확정
+        // 5. 전체 예약 조건부 확정 (HELD && 만료 전일 때만 CONFIRMED, 경합 시 롤백)
         for (ReservationDTO reservation : reservations) {
-            reservationMapper.confirmReservation(reservation.getReservationSeq());
+            int updated = reservationMapper.confirmReservation(reservation.getReservationSeq());
+            if (updated == 0) {
+                throw new ApiException(ErrorCode.PAYMENT_NOT_AVAILABLE, "결제 처리 중 예약이 만료되었거나 이미 처리되었습니다.");
+            }
         }
 
         log.info("[Payment Success] 승차권 발권 완료: 티켓번호={}, 예약Seq목록={}, 금액={}",

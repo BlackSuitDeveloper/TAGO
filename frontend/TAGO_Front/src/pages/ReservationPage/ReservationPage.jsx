@@ -613,13 +613,15 @@ export default function ReservationPage() {
 
     const seatNoList = outboundSeats.map((s) => s.seatId);
     const outboundCarNo = outboundSeats[0]?.carNo || selectedCarNo;
+    const seatSelections = outboundSeats.map((s) => ({ carNo: s.carNo, seatNo: s.seatId }));
 
     try {
       const resHold = await client.post('/reservation', {
         scheduleSeq: bookingInfo.scheduleSeq,
         carNo: outboundCarNo,
         seatList: seatNoList,
-        count: seatNoList.length,
+        seats: seatSelections,
+        count: seatSelections.length,
       });
 
       const data = resHold.data || {};
