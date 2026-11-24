@@ -34,6 +34,11 @@ public class MemberService {
         return memberMapper.checkId(id);
     }
 
+    /** 이메일 중복 건수 조회 */
+    public int checkEmail(String email) {
+        return memberMapper.checkEmail(email);
+    }
+
     /** 회원가입 (비밀번호 BCrypt 해시) */
     public int insertMember(MemberSignupRequestDTO dto) {
         String encodedPw = bcrypt.hashPassword(dto.getPw());

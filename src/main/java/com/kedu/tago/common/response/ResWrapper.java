@@ -33,7 +33,7 @@ public class ResWrapper<T> {
 
     /** 일반 응답 */
     public static <T> ResWrapper<T> ok(T data) {
-        return new ResWrapper<>(true, null, null, null, data, null);
+        return new ResWrapper<>(true, 200, null, null, data, null);
     }
 
     /** 일반 응답 + 안내 문구 */
