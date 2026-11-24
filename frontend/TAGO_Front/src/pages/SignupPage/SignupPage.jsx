@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import client from '../Api/client';
+import errorText from '../Api/errorText';
 import { dialog, notify, validateForm } from '../../components/Dialog/dialogService';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
@@ -52,13 +53,64 @@ export default function SignupPage() {
   const [isIdChecked, setIsIdChecked] = useState(false);
   const [checkedId, setCheckedId] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // 이메일 인증 관련 상태
+  const [emailCode, setEmailCode] = useState('');
+  const [isEmailCodeSent, setIsEmailCodeSent] = useState(false);
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [signupToken, setSignupToken] = useState('');
+  const [emailTimer, setEmailTimer] = useState(300); // 5분 = 300초
+  const [emailCooldown, setEmailCooldown] = useState(0); // 60초 쿨다운
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailVerifying, setEmailVerifying] = useState(false);
+
   const navigate = useNavigate();
+
+  // 5분 카운트다운 타이머
+  useEffect(() => {
+    let timerId = null;
+    if (isEmailCodeSent && !isEmailVerified && emailTimer > 0) {
+      timerId = setInterval(() => {
+        setEmailTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (timerId) clearInterval(timerId);
+    };
+  }, [isEmailCodeSent, isEmailVerified, emailTimer]);
+
+  // 재발송 쿨다운 타이머 (60초)
+  useEffect(() => {
+    let timerId = null;
+    if (emailCooldown > 0) {
+      timerId = setInterval(() => {
+        setEmailCooldown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (timerId) clearInterval(timerId);
+    };
+  }, [emailCooldown]);
+
+  const formatTimer = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === 'userId') {
       setIsIdChecked(false);
       setCheckedId('');
+    }
+    if (name === 'email') {
+      // 이메일 변경 시 인증 상태 초기화
+      setIsEmailCodeSent(false);
+      setIsEmailVerified(false);
+      setSignupToken('');
+      setEmailCode('');
+      setEmailTimer(300);
     }
     setFormData((prev) => {
       const next = { ...prev, [name]: value };
@@ -139,6 +191,89 @@ export default function SignupPage() {
     }
   };
 
+  // 회원가입 이메일 인증번호 발송 (POST /auth/signup/send-code)
+  const handleSendEmailCode = async () => {
+    const email = formData.email.trim();
+    if (!email) {
+      notify.warning('이메일 주소를 입력해 주세요.');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      notify.warning('올바른 이메일 형식을 입력해 주세요.');
+      return;
+    }
+
+    if (emailCooldown > 0) {
+      notify.warning(`재발송 대기 시간입니다. ${emailCooldown}초 후에 다시 시도해 주세요.`);
+      return;
+    }
+
+    setEmailSending(true);
+    try {
+      const res = await client.post('/auth/signup/send-code', { email });
+      notify.success(res.message || '인증번호가 이메일로 발송되었습니다. (5분 유효)');
+      setIsEmailCodeSent(true);
+      setEmailTimer(300); // 5분
+      setEmailCooldown(60); // 60초 쿨다운
+      setEmailCode('');
+    } catch (err) {
+      console.error('이메일 인증번호 발송 에러:', err);
+      dialog.alert(errorText(err, '인증번호 발송에 실패했습니다. 다시 시도해 주세요.'), {
+        title: '인증번호 발송 실패',
+        tone: 'error',
+      });
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
+  // 회원가입 이메일 인증번호 검증 (POST /auth/signup/verify)
+  const handleVerifyEmailCode = async () => {
+    const email = formData.email.trim();
+    const code = emailCode.trim();
+
+    if (!code || code.length !== 6) {
+      notify.warning('6자리 인증번호를 정확히 입력해 주세요.');
+      return;
+    }
+
+    if (emailTimer <= 0) {
+      notify.error('인증 시간이 만료되었습니다. 인증번호를 다시 발송해 주세요.');
+      return;
+    }
+
+    setEmailVerifying(true);
+    try {
+      const res = await client.post('/auth/signup/verify', { email, code });
+      const token = res.data?.signupToken;
+      if (token) {
+        setSignupToken(token);
+        setIsEmailVerified(true);
+        notify.success('이메일 인증이 완료되었습니다.');
+      } else {
+        notify.error('인증 토큰 발급에 실패했습니다. 다시 시도해 주세요.');
+      }
+    } catch (err) {
+      console.error('이메일 인증 확인 에러:', err);
+      dialog.alert(errorText(err, '인증번호가 일치하지 않거나 만료되었습니다.'), {
+        title: '인증 실패',
+        tone: 'error',
+      });
+    } finally {
+      setEmailVerifying(false);
+    }
+  };
+
+  // 다른 이메일로 재인증
+  const handleResetEmail = () => {
+    setIsEmailCodeSent(false);
+    setIsEmailVerified(false);
+    setSignupToken('');
+    setEmailCode('');
+    setEmailTimer(300);
+  };
+
   // 회원가입 (POST /member)
   // MemberController: public int signup(@RequestBody MemberDTO dto) -> 성공 시 1 반환
   const handleSignupSubmit = async (e) => {
@@ -153,6 +288,12 @@ export default function SignupPage() {
 
     if (formData.password !== formData.confirmPassword) {
       notify.warning('비밀번호가 일치하지 않습니다. 다시 확인해 주세요.');
+      return;
+    }
+
+    // 이메일 선행 인증 검증
+    if (!isEmailVerified || !signupToken) {
+      notify.warning('이메일 인증을 먼저 완료해 주세요.');
       return;
     }
 
@@ -173,7 +314,8 @@ export default function SignupPage() {
         pw: formData.password,
         name: formData.name,
         phone: formData.phone.replace(/[^0-9]/g, ''),
-        email: formData.email,
+        email: formData.email.trim(),
+        signupToken: signupToken,
         zipcode: formData.postcode,
         address1: formData.address,
         address2: formData.detailAddress,
@@ -305,17 +447,82 @@ export default function SignupPage() {
 
             <div className="ui-field">
               <label className="ui-field__label" htmlFor="signup-email">이메일 <span className="req">*</span></label>
-              <input
-                id="signup-email"
-                className="ui-field__control"
-                type="email"
-                name="email"
-                autoComplete="email"
-                placeholder="예: user@example.com"
-                value={formData.email}
-                onChange={handleChange}
-                required
-              />
+              <div className="signup-row">
+                <input
+                  id="signup-email"
+                  className="ui-field__control"
+                  type="email"
+                  name="email"
+                  autoComplete="email"
+                  placeholder="예: user@example.com"
+                  value={formData.email}
+                  onChange={handleChange}
+                  readOnly={isEmailVerified}
+                  required
+                />
+                {!isEmailVerified ? (
+                  <button
+                    type="button"
+                    className="ui-btn ui-btn--weak signup-btn-sub"
+                    onClick={handleSendEmailCode}
+                    disabled={emailSending || emailCooldown > 0}
+                  >
+                    {emailSending ? '발송 중...' : isEmailCodeSent ? (emailCooldown > 0 ? `재발송(${emailCooldown}s)` : '재발송') : '인증번호 발송'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="ui-btn ui-btn--weak signup-btn-sub"
+                    onClick={handleResetEmail}
+                  >
+                    변경
+                  </button>
+                )}
+              </div>
+
+              {/* 인증 완료 메시지 */}
+              {isEmailVerified && (
+                <p className="ui-field__help signup-msg signup-ok">
+                  <CheckIcon />
+                  <span>이메일 인증이 완료되었습니다.</span>
+                </p>
+              )}
+
+              {/* 인증코드 입력 영역 */}
+              {isEmailCodeSent && !isEmailVerified && (
+                <div className="signup-email-verify-block">
+                  <div className="signup-row signup-row--code">
+                    <div className="signup-code-input-wrap">
+                      <input
+                        id="signup-emailCode"
+                        className="ui-field__control signup-code-input"
+                        type="text"
+                        maxLength={6}
+                        placeholder="인증번호 6자리"
+                        value={emailCode}
+                        onChange={(e) => setEmailCode(e.target.value.replace(/[^0-9]/g, ''))}
+                      />
+                      <span className={`signup-timer ${emailTimer <= 60 ? 'signup-timer--warn' : ''}`}>
+                        {formatTimer(emailTimer)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="ui-btn ui-btn--solid signup-btn-sub"
+                      onClick={handleVerifyEmailCode}
+                      disabled={emailVerifying || emailTimer <= 0 || emailCode.length !== 6}
+                    >
+                      {emailVerifying ? '확인 중...' : '인증 확인'}
+                    </button>
+                  </div>
+                  {emailTimer <= 0 && (
+                    <p className="ui-field__error signup-msg" role="alert">
+                      <AlertIcon />
+                      <span>인증 유효시간이 만료되었습니다. '재발송' 버튼을 눌러 다시 시도해 주세요.</span>
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="ui-field">

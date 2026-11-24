@@ -7,6 +7,7 @@ import QuickMenu from '../../components/QuickMenu/QuickMenu';
 import RouteLine from '../../components/RouteLine/RouteLine';
 import { dialog, notify } from '../../components/Dialog/dialogService';
 import useWishStore from '../../store/useWishStore';
+import useAuthStore from '../../store/useAuthStore';
 import './MyPage.css';
 
 // 날짜/시간 포맷 변환 헬퍼 함수
@@ -141,6 +142,7 @@ const IconCheck = () => (
 
 export default function MyPage() {
   const navigate = useNavigate();
+  const logout = useAuthStore((state) => state.logout);
   const [activeMenu, setActiveMenu] = useState('ticket');
 
   // 실제 예매 목록 및 선택된 승차권 상태
@@ -225,10 +227,7 @@ export default function MyPage() {
 
   // 백엔드에서 받아온 찜 목록 번호(wishList)에 해당하는 실제 스케줄 상세 정보를 조회해 마이페이지에 표시
   useEffect(() => {
-    if (!Array.isArray(wishList) || wishList.length === 0) {
-      setFavorites([]);
-      return;
-    }
+    let ignore = false;
 
     const calcDuration = (depStr, arrStr) => {
       if (!depStr || !arrStr) return '-';
@@ -241,6 +240,10 @@ export default function MyPage() {
     };
 
     const loadFavoriteSchedules = async () => {
+      if (!Array.isArray(wishList) || wishList.length === 0) {
+        if (!ignore) setFavorites([]);
+        return;
+      }
       try {
         const results = await Promise.all(
           wishList.map((seq) =>
@@ -275,13 +278,18 @@ export default function MyPage() {
             };
           });
 
-        setFavorites(parsed);
+        if (!ignore) {
+          setFavorites(parsed);
+        }
       } catch (err) {
         console.error('찜 목록 스케줄 변환 실패:', err);
       }
     };
 
     loadFavoriteSchedules();
+    return () => {
+      ignore = true;
+    };
   }, [wishList]);
 
   // 마이페이지 찜 삭제 클릭 시 백엔드 DELETE 및 화면 즉시 갱신
@@ -502,6 +510,40 @@ export default function MyPage() {
     } catch (err) {
       console.error(err);
       notify.error(err.response?.data?.message || err.response?.data || '비밀번호 변경에 실패했습니다.');
+    }
+  };
+
+  // 회원 탈퇴 (DELETE /member)
+  const handleDeleteAccount = async () => {
+    const ok = await dialog.confirm(
+      '정말 TAGO 서비스를 탈퇴하시겠습니까?\n\n탈퇴 시 모든 승차권 예매 내역 및 계정 정보가 영구 삭제되며, 삭제된 데이터는 복구할 수 없습니다.',
+      {
+        title: '회원 탈퇴',
+        confirmLabel: '탈퇴하기',
+        cancelLabel: '취소',
+        danger: true,
+      }
+    );
+    if (!ok) return;
+
+    try {
+      await client.delete('/member');
+      await dialog.alert('회원 탈퇴가 정상적으로 완료되었습니다.\n그동안 TAGO를 이용해 주셔서 감사합니다.', {
+        title: '탈퇴 완료',
+        tone: 'info',
+      });
+      logout();
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('id');
+      localStorage.removeItem('token');
+      localStorage.removeItem('userId');
+      navigate('/');
+    } catch (err) {
+      console.error('회원 탈퇴 실패:', err);
+      dialog.alert(err.response?.data?.message || '회원 탈퇴 처리 중 오류가 발생했습니다. 다시 시도해 주세요.', {
+        title: '탈퇴 실패',
+        tone: 'error',
+      });
     }
   };
 
@@ -800,6 +842,25 @@ export default function MyPage() {
                     </>
                   )}
                 </form>
+              </div>
+
+              {/* 회원 탈퇴 */}
+              <div className="pf pf--danger">
+                <div className="pf__head">
+                  <h2 className="ui-heading ui-heading--danger">회원 탈퇴</h2>
+                </div>
+                <p className="pf__lead">
+                  회원 탈퇴 시 모든 승차권 예매 내역 및 계정 정보가 영구 삭제되며, 삭제된 데이터는 복구할 수 없습니다.
+                </p>
+                <div className="pf-actions">
+                  <button
+                    type="button"
+                    className="ui-btn ui-btn--danger"
+                    onClick={handleDeleteAccount}
+                  >
+                    회원 탈퇴
+                  </button>
+                </div>
               </div>
             </>
           )}

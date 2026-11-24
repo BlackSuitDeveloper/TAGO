@@ -16,6 +16,9 @@ public interface MemberMapper {
     /** 아이디 중복 건수 */
     int checkId(@Param("id") String id);
 
+    /** 이메일 중복 건수 */
+    int checkEmail(@Param("email") String email);
+
     /** 회원 등록 */
     int insertMember(MemberSignupRequestDTO dto);
 
