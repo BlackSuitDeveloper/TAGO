@@ -19,19 +19,7 @@ public class WebConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(authInterceptor)
                 .addPathPatterns("/**")
-                .excludePathPatterns(
-                        "/error",
-                        "/actuator/**",
-                        "/ping",
-                        "/auth/**",
-                        "/member/checkId",
-                        "/member/login",
-                        "/login",
-                        "/station",
-                        "/schedule/**",
-                        "/seat/**",
-                        "/admin/sync/**"
-                );
+                .excludePathPatterns("/error"); // 공개/관리자 경로는 AccessPolicy 에서 관리
     }
 
     @Override
