@@ -1,5 +1,7 @@
 package com.kedu.tago.payment;
 
+import com.kedu.tago.common.exception.ErrorCode;
+import com.kedu.tago.common.exception.ApiException;
 import com.kedu.tago.payment.dto.PaymentDTO;
 import com.kedu.tago.payment.dto.PaymentRequestDTO;
 import com.kedu.tago.payment.dto.PaymentResponseDTO;
@@ -7,10 +9,8 @@ import com.kedu.tago.reservation.ReservationMapper;
 import com.kedu.tago.reservation.dto.ReservationDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -44,7 +44,7 @@ public class PaymentService {
         }
 
         if (targetIdSet.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "예약 번호(reservationId)가 필요합니다.");
+            throw new ApiException(ErrorCode.RESERVATION_ID_REQUIRED);
         }
 
         List<Long> targetIds = new ArrayList<>(targetIdSet);
@@ -59,15 +59,15 @@ public class PaymentService {
         for (Long resId : targetIds) {
             ReservationDTO reservation = reservationMapper.selectReservationById(resId);
             if (reservation == null) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "예약 내역을 찾을 수 없습니다.");
+                throw new ApiException(ErrorCode.RESERVATION_NOT_FOUND);
             }
 
             if (!"HELD".equals(reservation.getStatus())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "결제 가능한 상태가 아닙니다. 현재 상태: " + reservation.getStatus());
+                throw new ApiException(ErrorCode.PAYMENT_NOT_AVAILABLE, "결제 가능한 상태가 아닙니다. 현재 상태: " + reservation.getStatus());
             }
 
             if (reservation.getExpiresAt().isBefore(now)) {
-                throw new ResponseStatusException(HttpStatus.GONE, "좌석 선점 유효시간(5분)이 만료되었습니다. 다시 예매해 주세요.");
+                throw new ApiException(ErrorCode.HOLD_EXPIRED);
             }
 
             reservations.add(reservation);
@@ -77,7 +77,7 @@ public class PaymentService {
         // 2. 서버 금액 위변조 검증 (P001)
         if (requestedPrice != null && !requestedPrice.equals(expectedTotalPrice)) {
             log.warn("[Payment Error] 결제 금액 불일치! 요청금액: {}, 실제금액: {}", requestedPrice, expectedTotalPrice);
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "결제 요청 금액이 유효하지 않습니다.");
+            throw new ApiException(ErrorCode.PAYMENT_AMOUNT_INVALID);
         }
 
         // 3. 발권용 승차권 번호(ticketNumber) 생성 (형식: 1029-3847-5690-11)

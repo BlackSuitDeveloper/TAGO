@@ -1,10 +1,10 @@
 package com.kedu.tago.payment;
 
+import com.kedu.tago.common.response.ResWrapper;
 import com.kedu.tago.payment.dto.PaymentRequestDTO;
 import com.kedu.tago.payment.dto.PaymentResponseDTO;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,11 +21,11 @@ public class PaymentController {
      * 결제 및 발권 확정 POST /api/payment
      */
     @PostMapping
-    public ResponseEntity<PaymentResponseDTO> processPayment(
+    public ResWrapper<PaymentResponseDTO> processPayment(
             @RequestBody PaymentRequestDTO requestDTO,
             HttpServletRequest request) {
+
         String memberId = (String) request.getAttribute("id");
-        PaymentResponseDTO response = paymentService.processPayment(requestDTO, memberId);
-        return ResponseEntity.ok(response);
+        return ResWrapper.ok(paymentService.processPayment(requestDTO, memberId));
     }
 }

@@ -1,5 +1,6 @@
 package com.kedu.tago.wishlist;
 
+import com.kedu.tago.common.response.ResWrapper;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -13,22 +14,24 @@ public class WishListController {
 
     private final WishListService wishListService;
 
+    /** 찜한 운행 일정 번호 목록 */
     @GetMapping
-    public List<Long> getWishList(HttpServletRequest request) {
+    public ResWrapper<List<Long>> getWishList(HttpServletRequest request) {
         String memberId = (String) request.getAttribute("id");
-        return wishListService.getWishList(memberId);
+        return ResWrapper.list(wishListService.getWishList(memberId));
     }
 
     @PostMapping("/{scheduleSeq}")
-    public int addWish(@PathVariable Long scheduleSeq, HttpServletRequest request) {
-        System.out.println(scheduleSeq + " : " + request.getAttribute(("id")));
+    public ResWrapper<Void> addWish(@PathVariable Long scheduleSeq, HttpServletRequest request) {
         String memberId = (String) request.getAttribute("id");
-        return wishListService.addWish(memberId, scheduleSeq);
+        wishListService.addWish(memberId, scheduleSeq);
+        return ResWrapper.done("찜 목록에 추가했습니다.");
     }
 
     @DeleteMapping("/{scheduleSeq}")
-    public int deleteWish(@PathVariable Long scheduleSeq, HttpServletRequest request) {
+    public ResWrapper<Void> deleteWish(@PathVariable Long scheduleSeq, HttpServletRequest request) {
         String memberId = (String) request.getAttribute("id");
-        return wishListService.deleteWish(memberId, scheduleSeq);
+        wishListService.deleteWish(memberId, scheduleSeq);
+        return ResWrapper.done("찜 목록에서 삭제했습니다.");
     }
 }

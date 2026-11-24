@@ -1,15 +1,19 @@
 package com.kedu.tago.schedule;
 
+import com.kedu.tago.common.exception.ErrorCode;
+import com.kedu.tago.common.exception.ApiException;
+import com.kedu.tago.common.response.ResWrapper;
 import com.kedu.tago.schedule.dto.SchedulePageResponseDTO;
 import com.kedu.tago.schedule.dto.ScheduleResponseDTO;
 import com.kedu.tago.schedule.dto.ScheduleSearchRequestDTO;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/schedule")
@@ -18,17 +22,19 @@ public class ScheduleController {
 
     private final ScheduleService scheduleService;
 
+    /** 운행 시간표 목록. data = 현재 페이지 목록, totalCount = 조건에 맞는 전체 건수 */
     @GetMapping
-    public ResponseEntity<SchedulePageResponseDTO> getSchedules(@ModelAttribute ScheduleSearchRequestDTO searchDTO) {
-        return ResponseEntity.ok(scheduleService.getScheduleList(searchDTO));
+    public ResWrapper<List<ScheduleResponseDTO>> getSchedules(@ModelAttribute ScheduleSearchRequestDTO searchDTO) {
+        SchedulePageResponseDTO page = scheduleService.getScheduleList(searchDTO);
+        return ResWrapper.list(page.getSchedules(), page.getTotalCount());
     }
 
     @GetMapping("/{scheduleSeq}")
-    public ResponseEntity<ScheduleResponseDTO> getScheduleDetail(@PathVariable Long scheduleSeq) {
+    public ResWrapper<ScheduleResponseDTO> getScheduleDetail(@PathVariable Long scheduleSeq) {
         ScheduleResponseDTO detail = scheduleService.getScheduleDetail(scheduleSeq);
         if (detail == null) {
-            return ResponseEntity.notFound().build();
+            throw new ApiException(ErrorCode.SCHEDULE_NOT_FOUND);
         }
-        return ResponseEntity.ok(detail);
+        return ResWrapper.ok(detail);
     }
 }
