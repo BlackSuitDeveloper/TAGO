@@ -1,14 +1,14 @@
 package com.kedu.tago.config;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 /** Redis 문자열 값 저장/조회 헬퍼 */
-@Configuration
+@Component
 @RequiredArgsConstructor
 public class RedisConfig {
 

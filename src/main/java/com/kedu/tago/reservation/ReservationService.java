@@ -2,6 +2,7 @@ package com.kedu.tago.reservation;
 
 import com.kedu.tago.common.exception.ApiException;
 import com.kedu.tago.common.exception.ErrorCode;
+import com.kedu.tago.queue.QueueService;
 import com.kedu.tago.reservation.dto.MyTicketResponseDTO;
 import com.kedu.tago.reservation.dto.ReservationDTO;
 import com.kedu.tago.reservation.dto.ReservationRequestDTO;
@@ -33,12 +34,13 @@ public class ReservationService {
     private final SeatService seatService;
     private final ScheduleService scheduleService;
     private final SeatTemplateGenerator seatTemplateGenerator;
+    private final QueueService queueService;
 
     public static final int HOLD_TTL_MINUTES = 5; // 좌석 선점 유효시간(분)
 
-    /** 좌석 선점 및 예매 생성 */
+    /** 좌석 선점 및 예매 생성 (대기열 입장권 검증 포함) */
     @Transactional
-    public ReservationResponseDTO holdSeats(ReservationRequestDTO request, String memberId) {
+    public ReservationResponseDTO holdSeats(ReservationRequestDTO request, String memberId, String queueToken) {
         Long scheduleSeq = request.getScheduleSeq();
         Integer carNo = request.getCarNo();
         List<String> seatList = request.getSeatList();
@@ -46,6 +48,9 @@ public class ReservationService {
         if (scheduleSeq == null || carNo == null || seatList == null || seatList.isEmpty()) {
             throw new ApiException(ErrorCode.SEAT_NOT_SELECTED);
         }
+
+        // 대기열 입장권 원자적 검증 및 선점 유효시간만큼 만료 연장
+        queueService.validateAndExtendForHold(queueToken, scheduleSeq, memberId, HOLD_TTL_MINUTES * 60L);
 
         // 운행 일정 확인 및 요금 계산
         ScheduleResponseDTO schedule = scheduleService.getScheduleDetail(scheduleSeq);
@@ -141,6 +146,9 @@ public class ReservationService {
             seatMapper.deleteSeatBySeq(reservation.getSeatSeq());
         }
 
+        // 3. 대기열 슬롯 반납
+        queueService.releaseSlot(reservation.getScheduleSeq(), memberId);
+
         // TODO: 좌석 정보 조회 후 SSE 알림 전송
     }
 
@@ -170,6 +178,9 @@ public class ReservationService {
             if (r.getSeatSeq() != null) {
                 seatMapper.deleteSeatBySeq(r.getSeatSeq());
             }
+
+            // 3. 대기열 슬롯 반납
+            queueService.releaseSlot(r.getScheduleSeq(), r.getMemberId());
             log.info("[TTL Scheduler] 예약 번호 {} (좌석 {}) 만료 해제 완료", r.getReservationSeq(), r.getSeatSeq());
         }
     }

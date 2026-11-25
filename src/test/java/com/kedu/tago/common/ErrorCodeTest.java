@@ -22,11 +22,11 @@ class ErrorCodeTest {
     }
 
     @Test
-    @DisplayName("번호 대역이 종류와 맞다: 1xxx 공통, 2xxx 인증, 3xxx 회원, 4xxx 운행/좌석, 5xxx 예매/결제, 9xxx 서버")
+    @DisplayName("번호 대역이 종류와 맞다: 1xxx 공통, 2xxx 인증, 3xxx 회원, 4xxx 운행/좌석, 5xxx 예매/결제, 6xxx 대기열, 9xxx 서버")
     void codeRangesMatchCategory() {
         for (ErrorCode c : ErrorCode.values()) {
             int band = c.getCode() / 1000;
-            assertTrue(Set.of(1, 2, 3, 4, 5, 9).contains(band), c + " 은(는) 정의되지 않은 대역: " + c.getCode());
+            assertTrue(Set.of(1, 2, 3, 4, 5, 6, 9).contains(band), c + " 은(는) 정의되지 않은 대역: " + c.getCode());
             String name = c.name();
             if (band == 2) {
                 assertTrue(c.getStatus().value() == 401 || c.getStatus().value() == 403 || c.getStatus().value() == 429,

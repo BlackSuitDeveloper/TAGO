@@ -24,9 +24,8 @@ import static org.junit.jupiter.api.Assertions.*;
 public class QueueServiceTest {
 
     private static final Long TEST_SCHEDULE_SEQ = 999999L;
-    private static final String QUEUE_KEY = "tago:queue:" + TEST_SCHEDULE_SEQ;
+    private static final String QUEUE_KEY = "tago:queue:wait:" + TEST_SCHEDULE_SEQ;
     private static final String ACTIVE_KEY = "tago:queue:active:" + TEST_SCHEDULE_SEQ;
-    private static final String ADMITTED_SET_KEY = "tago:queue:admitted";
     private static final String SCHEDULE_SET_KEY = "tago:queue:schedules";
 
     private LettuceConnectionFactory connectionFactory;
@@ -59,11 +58,13 @@ public class QueueServiceTest {
         redisTemplate.delete(ACTIVE_KEY);
         redisTemplate.opsForSet().remove(SCHEDULE_SET_KEY, String.valueOf(TEST_SCHEDULE_SEQ));
         if (!createdTokens.isEmpty()) {
-            redisTemplate.opsForSet().remove(ADMITTED_SET_KEY, createdTokens.toArray());
             for (String token : createdTokens) {
                 redisTemplate.delete("tago:queue:meta:" + token);
             }
             createdTokens.clear();
+        }
+        for (int i = 1; i <= 250; i++) {
+            redisTemplate.delete("tago:queue:user:" + TEST_SCHEDULE_SEQ + ":queueTester" + i);
         }
     }
 

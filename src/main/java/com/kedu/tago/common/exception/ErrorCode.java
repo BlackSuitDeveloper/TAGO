@@ -3,7 +3,7 @@ package com.kedu.tago.common.exception;
 import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
-/** API 에러 코드 (1000 공통, 2000 인증/인가, 3000 회원, 4000 운행/좌석, 5000 예매/결제, 9000 서버) */
+/** API 에러 코드 (1000 공통, 2000 인증/인가, 3000 회원, 4000 운행/좌석, 5000 예매/결제, 6000 대기열, 9000 서버) */
 @Getter
 public enum ErrorCode {
 
@@ -52,6 +52,11 @@ public enum ErrorCode {
     PAYMENT_NOT_AVAILABLE(5010, HttpStatus.BAD_REQUEST, "결제 가능한 상태가 아닙니다."),
     HOLD_EXPIRED(5011, HttpStatus.GONE, "좌석 선점 유효시간(5분)이 만료되었습니다. 다시 예매해 주세요."),
     PAYMENT_AMOUNT_INVALID(5012, HttpStatus.BAD_REQUEST, "결제 요청 금액이 유효하지 않습니다."),
+
+    QUEUE_TOKEN_REQUIRED(6000, HttpStatus.BAD_REQUEST, "대기열 입장 토큰(X-Queue-Token)이 필요합니다."),
+    QUEUE_TOKEN_INVALID(6001, HttpStatus.FORBIDDEN, "유효하지 않거나 만료된 대기열 토큰입니다."),
+    QUEUE_NOT_ADMITTED(6002, HttpStatus.FORBIDDEN, "아직 대기열 입장 차례가 아닙니다."),
+    QUEUE_SERVICE_UNAVAILABLE(6003, HttpStatus.SERVICE_UNAVAILABLE, "대기열 서비스가 일시적으로 불안정합니다. 잠시 후 다시 시도해 주세요."),
 
     INTERNAL_ERROR(9000, HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다.");
 
