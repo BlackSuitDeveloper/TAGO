@@ -5,6 +5,7 @@ import Footer from '../../components/Footer/Footer';
 import QuickMenu from '../../components/QuickMenu/QuickMenu';
 import useWishStore from '../../store/useWishStore';
 import client from '../Api/client';
+import errorText from '../Api/errorText';
 import { dialog, notify } from '../../components/Dialog/dialogService';
 import './SchedulePage.css';
 
@@ -294,6 +295,10 @@ export default function SchedulePage() {
   }, [selectedOutboundTrain, page, selectedFilter, fetchSchedules]);
 
   const goToReservation = useCallback((train, queueToken) => {
+    if (queueToken && train?.id) {
+      sessionStorage.setItem(`tago_queue_token_${train.id}`, queueToken);
+    }
+
     if (tripType === '왕복' && !selectedOutboundTrain) {
       const nextDep = train.arrStationName || arrStation;
       const nextArr = train.depStationName || depStation;
@@ -305,6 +310,7 @@ export default function SchedulePage() {
 
       setSelectedOutboundTrain({
         train,
+        queueToken: queueToken || null,
         depStation,
         arrStation,
         depDate: currentDate,
@@ -341,8 +347,7 @@ export default function SchedulePage() {
       navigate('/reservation', {
         state: {
           scheduleSeq: outbound.id,
-          queueToken: outboundToken,
-          returnQueueToken: returnToken,
+          queueToken: selectedOutboundTrain.queueToken || null,
           trainName: outbound.name,
           trainType: outbound.type || 'KTX',
           depTime: outbound.depTime,
@@ -352,6 +357,7 @@ export default function SchedulePage() {
           arrStation: outbound.arrStationName,
           depDate: formatDateWithDay(outbound.depDateRaw || selectedOutboundTrain.depDate),
           returnScheduleSeq: train.id,
+          returnQueueToken: queueToken || null,
           returnTrainName: train.name,
           returnTrainType: train.type || 'KTX',
           returnDepTime: train.depTime,
@@ -370,15 +376,10 @@ export default function SchedulePage() {
       });
       return;
     }
-
-    if (queueToken) {
-      sessionStorage.setItem(`tago:queueToken:${train.id}`, queueToken);
-    }
-
     navigate('/reservation', {
       state: {
         scheduleSeq: train.id,
-        queueToken: queueToken || '',
+        queueToken: queueToken || null,
         trainName: train.name,
         trainType: 'KTX',
         depTime: train.depTime,
@@ -404,7 +405,7 @@ export default function SchedulePage() {
       const data = res.data || {};
       const token = data.queueToken;
       if (data.isAvailable) {
-        goToReservation(train, token);
+        goToReservation(train, data.queueToken);
         return;
       }
 
@@ -424,13 +425,10 @@ export default function SchedulePage() {
         } catch (pollErr) {
           console.error('대기열 순번 조회 실패:', pollErr);
           const status = pollErr.response?.status;
-          if (status === 401 || status === 403 || status === 404 || status === 410 || status === 503) {
+          if (status === 400 || status === 403 || status === 503) {
             clearQueuePolling();
             setQueueModal(null);
-            dialog.alert(
-              pollErr.response?.data?.message || '대기열 세션이 만료되었습니다. 다시 시도해 주세요.',
-              { title: '대기열 안내', tone: 'warning' }
-            );
+            dialog.alert(errorText(pollErr, '대기열 연결이 만료되었습니다. 다시 시도해 주세요.'), { title: '대기열 안내', tone: 'warning' });
           }
         }
       }, 3000);
@@ -439,11 +437,7 @@ export default function SchedulePage() {
         dialog.alert('로그인 후 승차권 예매가 가능합니다.', { title: '로그인 필요' }).then(() => navigate('/login'));
         return;
       }
-      // Fail-closed: 대기열 API 실패 시 예매 페이지로 우회 이동하지 않음
-      dialog.alert(
-        err.response?.data?.message || '현재 대기열 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
-        { title: '대기열 접속 불가', tone: 'error' }
-      );
+      dialog.alert(errorText(err, '대기열 진입에 실패했습니다. 잠시 후 다시 시도해 주세요.'), { title: '대기열 안내', tone: 'error' });
     }
   };
 
