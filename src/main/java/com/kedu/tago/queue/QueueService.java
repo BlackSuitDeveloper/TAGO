@@ -6,19 +6,31 @@ import com.kedu.tago.queue.dto.QueueResponseDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.HashOperations;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-/** Redis 기반 대기열 서비스 (Fail-closed 정책, 회원+열차별 멱등 토큰, 유령 토큰 정리) */
+/**
+ * Redis 기반 대기열 서비스 (Fail-closed 정책, 회원+열차별 멱등 토큰, 유령 토큰 정리).
+ *
+ * tago:queue:wait:{s}           ZSet(token, 진입 시각)  대기열
+ * tago:queue:active:{s}:{token} = memberId (TTL)        입장 허용 (TTL 이 지나면 자동 퇴장)
+ * tago:queue:meta:{token}       Hash(memberId, scheduleSeq, lastSeen)
+ * tago:queue:user:{s}:{member}  = token                 회원+열차별 토큰 (멱등 진입)
+ * tago:queue:schedules          Set(scheduleSeq)        대기자가 있는 운행 목록
+ *
+ * 입장은 QueueScheduler 가 1초마다 처리한다 (빈 자리만큼 대기열 앞에서부터).
+ * 입장 처리를 스케줄러 한 곳에서만 하므로 Lua 스크립트 없이도 동시 입장 한도를 넘지 않는다.
+ */
 @Slf4j
 @Service
 public class QueueService {
@@ -32,95 +44,6 @@ public class QueueService {
     public static final String SCHEDULE_SET_KEY = "tago:queue:schedules";
 
     private static final long META_TTL_MINUTES = 30L;
-
-    // 대기열 진입 Lua 스크립트
-    // KEYS: activeKey, queueKey, scheduleSetKey
-    // ARGV: token, now, expiresAt, maxActiveUsers, scheduleSeq
-    // 반환: 0이면 즉시 입장, 1 이상이면 대기 순번(1부터)
-    private static final DefaultRedisScript<Long> ENTER_QUEUE_SCRIPT = new DefaultRedisScript<>("""
-            redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[2])
-            local activeCount = redis.call('ZCARD', KEYS[1])
-            if activeCount < tonumber(ARGV[4]) then
-                redis.call('ZADD', KEYS[1], ARGV[3], ARGV[1])
-                return 0
-            else
-                redis.call('ZADD', KEYS[2], 'NX', ARGV[2], ARGV[1])
-                redis.call('SADD', KEYS[3], ARGV[5])
-                local rank = redis.call('ZRANK', KEYS[2], ARGV[1])
-                return (rank or 0) + 1
-            end
-            """, Long.class);
-
-    // 대기열 순차 입장 Lua 스크립트 (유령 토큰 스킵 + userKey 정리 포함)
-    // KEYS: activeKey, queueKey
-    // ARGV: now, expiresAt, maxActiveUsers, admitBatchSize, ghostCutoff, metaKeyPrefix, userKeyPrefix, scheduleSeq
-    private static final DefaultRedisScript<Long> ADMIT_BATCH_SCRIPT = new DefaultRedisScript<>("""
-            redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[1])
-            local activeCount = redis.call('ZCARD', KEYS[1])
-            local slots = tonumber(ARGV[3]) - activeCount
-            if slots <= 0 then
-                return 0
-            end
-            local target = math.min(slots, tonumber(ARGV[4]))
-            if target <= 0 then
-                return 0
-            end
-            local admitted = 0
-            while admitted < target do
-                local head = redis.call('ZRANGE', KEYS[2], 0, 0)
-                if #head == 0 then
-                    break
-                end
-                local token = head[1]
-                redis.call('ZREM', KEYS[2], token)
-                local metaKey = ARGV[6] .. token
-                local lastSeen = redis.call('HGET', metaKey, 'lastSeen')
-                if lastSeen and tonumber(lastSeen) >= tonumber(ARGV[5]) then
-                    redis.call('ZADD', KEYS[1], ARGV[2], token)
-                    admitted = admitted + 1
-                else
-                    local ghostMember = redis.call('HGET', metaKey, 'memberId')
-                    redis.call('DEL', metaKey)
-                    if ghostMember then
-                        redis.call('DEL', ARGV[7] .. ARGV[8] .. ':' .. ghostMember)
-                    end
-                end
-            end
-            return admitted
-            """, Long.class);
-
-    // 좌석 선점 전 입장권 원자적 검증 및 만료 연장 Lua 스크립트
-    // KEYS: activeKey, metaKey, userKey
-    // ARGV: token, memberId, scheduleSeq, now, extendedExpiresAt, metaTtlSeconds
-    // 반환: 1 성공, -1 소유자/열차 불일치 또는 없음, -2 미입장 또는 만료
-    private static final DefaultRedisScript<Long> VALIDATE_AND_EXTEND_SCRIPT = new DefaultRedisScript<>("""
-            local metaMember = redis.call('HGET', KEYS[2], 'memberId')
-            local metaSchedule = redis.call('HGET', KEYS[2], 'scheduleSeq')
-            if not metaMember or metaMember ~= ARGV[2] or metaSchedule ~= ARGV[3] then
-                return -1
-            end
-            local score = redis.call('ZSCORE', KEYS[1], ARGV[1])
-            if not score or tonumber(score) <= tonumber(ARGV[4]) then
-                return -2
-            end
-            local newScore = math.max(tonumber(score), tonumber(ARGV[5]))
-            redis.call('ZADD', KEYS[1], newScore, ARGV[1])
-            redis.call('HSET', KEYS[2], 'lastSeen', ARGV[4])
-            redis.call('EXPIRE', KEYS[2], tonumber(ARGV[6]))
-            redis.call('EXPIRE', KEYS[3], tonumber(ARGV[6]))
-            return 1
-            """, Long.class);
-
-    // 슬롯 반납 Lua 스크립트
-    // KEYS: activeKey, queueKey, userKey, metaKey
-    // ARGV: token
-    private static final DefaultRedisScript<Long> RELEASE_SLOT_SCRIPT = new DefaultRedisScript<>("""
-            redis.call('ZREM', KEYS[1], ARGV[1])
-            redis.call('ZREM', KEYS[2], ARGV[1])
-            redis.call('DEL', KEYS[3])
-            redis.call('DEL', KEYS[4])
-            return 1
-            """, Long.class);
 
     @Value("${tago.queue.max-active:200}")
     private long maxActiveUsers = 200;
@@ -138,7 +61,7 @@ public class QueueService {
         this.redisTemplate = redisTemplate;
     }
 
-    /** 대기열 진입 (회원+열차별 멱등 진입, 동시 입장 한도 미만이면 즉시 입장) */
+    /** 대기열 진입 (회원+열차별 멱등 진입). 입장은 스케줄러가 처리한다 */
     public QueueResponseDTO enterQueue(Long scheduleSeq, String memberId) {
         if (scheduleSeq == null) {
             throw new ApiException(ErrorCode.SCHEDULE_NOT_FOUND);
@@ -150,50 +73,26 @@ public class QueueService {
         StringRedisTemplate redis = requireRedis();
         long now = System.currentTimeMillis();
         String queueKey = QUEUE_KEY_PREFIX + scheduleSeq;
-        String activeKey = ACTIVE_KEY_PREFIX + scheduleSeq;
         String userKey = userKey(scheduleSeq, memberId);
 
         try {
             // 1. 기존 유효 토큰이 있으면 멱등 반환 (중복 진입 방지)
             String existingToken = redis.opsForValue().get(userKey);
             if (existingToken != null && !existingToken.isBlank()) {
-                QueueResponseDTO existingStatus = tryReuseExistingToken(redis, activeKey, queueKey, existingToken, now);
+                QueueResponseDTO existingStatus = tryReuseExistingToken(redis, scheduleSeq, existingToken, now);
                 if (existingStatus != null) {
                     return existingStatus;
                 }
             }
 
-            // 2. 신규 토큰 발급, 메타 선저장(스케줄러 유령 오판 방지) 후 Lua 진입 처리
+            // 2. 신규 토큰 발급: 메타를 먼저 저장(스케줄러 유령 오판 방지)한 뒤 대기열에 넣는다
             String token = UUID.randomUUID().toString();
-            long expiresAt = now + (tokenTtlSeconds * 1000L);
-
             saveTokenMetadata(redis, token, memberId, scheduleSeq, now, userKey);
+            redis.opsForZSet().addIfAbsent(queueKey, token, now);
+            redis.opsForSet().add(SCHEDULE_SET_KEY, String.valueOf(scheduleSeq));
 
-            Long result = redis.execute(
-                    ENTER_QUEUE_SCRIPT,
-                    List.of(activeKey, queueKey, SCHEDULE_SET_KEY),
-                    token,
-                    String.valueOf(now),
-                    String.valueOf(expiresAt),
-                    String.valueOf(maxActiveUsers),
-                    String.valueOf(scheduleSeq)
-            );
-
-            if (result != null && result == 0L) {
-                return QueueResponseDTO.builder()
-                        .queueToken(token)
-                        .queueRank(0L)
-                        .isAvailable(true)
-                        .message("즉시 예매 가능합니다.")
-                        .build();
-            }
-
-            return QueueResponseDTO.builder()
-                    .queueToken(token)
-                    .queueRank(result != null ? result : 1L)
-                    .isAvailable(false)
-                    .message("대기 중입니다.")
-                    .build();
+            Long rank = redis.opsForZSet().rank(queueKey, token);
+            return waiting(token, rank);
         } catch (ApiException e) {
             throw e;
         } catch (Exception e) {
@@ -202,7 +101,7 @@ public class QueueService {
         }
     }
 
-    /** 대기열 순번 조회 (폴링용, lastSeen 갱신 및 active ZSET 단일 기준 판별) */
+    /** 대기열 순번 조회 (폴링용, lastSeen 갱신) */
     public QueueResponseDTO checkQueueRank(String queueToken) {
         if (queueToken == null || queueToken.isBlank()) {
             throw new ApiException(ErrorCode.QUEUE_TOKEN_REQUIRED);
@@ -220,35 +119,21 @@ public class QueueService {
 
             String scheduleSeqStr = String.valueOf(meta.get("scheduleSeq"));
             String memberId = meta.get("memberId") != null ? String.valueOf(meta.get("memberId")) : null;
-            long now = System.currentTimeMillis();
 
             // 생존 신호(lastSeen) 갱신
-            hashOps.put(metaKey, "lastSeen", String.valueOf(now));
+            hashOps.put(metaKey, "lastSeen", String.valueOf(System.currentTimeMillis()));
             redis.expire(metaKey, Duration.ofMinutes(META_TTL_MINUTES));
 
-            String activeKey = ACTIVE_KEY_PREFIX + scheduleSeqStr;
-            Double activeScore = redis.opsForZSet().score(activeKey, queueToken);
-            if (activeScore != null && activeScore.longValue() > now) {
-                return QueueResponseDTO.builder()
-                        .queueToken(queueToken)
-                        .queueRank(0L)
-                        .isAvailable(true)
-                        .message("입장 차례입니다. 예매를 진행해 주세요.")
-                        .build();
+            if (Boolean.TRUE.equals(redis.hasKey(activeKey(scheduleSeqStr, queueToken)))) {
+                return admitted(queueToken, "입장 차례입니다. 예매를 진행해 주세요.");
             }
 
-            String queueKey = QUEUE_KEY_PREFIX + scheduleSeqStr;
-            Long rank = redis.opsForZSet().rank(queueKey, queueToken);
+            Long rank = redis.opsForZSet().rank(QUEUE_KEY_PREFIX + scheduleSeqStr, queueToken);
             if (rank != null) {
-                return QueueResponseDTO.builder()
-                        .queueToken(queueToken)
-                        .queueRank(rank + 1)
-                        .isAvailable(false)
-                        .message("대기 중입니다.")
-                        .build();
+                return waiting(queueToken, rank);
             }
 
-            // 만료되었거나 유령 토큰으로 정리된 경우 메타/유저 매핑 정리 후 예외
+            // 입장 시간이 끝났거나 유령 토큰으로 정리된 경우 메타/유저 매핑 정리 후 예외
             redis.delete(metaKey);
             if (memberId != null) {
                 redis.delete(USER_KEY_PREFIX + scheduleSeqStr + ":" + memberId);
@@ -262,7 +147,7 @@ public class QueueService {
         }
     }
 
-    /** 좌석 선점 시 대기열 입장권 원자적 검증 및 만료 시간 연장 */
+    /** 좌석 선점 시 입장권 검증 (본인·같은 열차·입장 상태) 및 입장 시간 연장 */
     public void validateAndExtendForHold(String queueToken, Long scheduleSeq, String memberId, long extendSeconds) {
         if (queueToken == null || queueToken.isBlank()) {
             throw new ApiException(ErrorCode.QUEUE_TOKEN_REQUIRED);
@@ -275,30 +160,31 @@ public class QueueService {
         }
 
         StringRedisTemplate redis = requireRedis();
-        long now = System.currentTimeMillis();
-        long extendedExpiresAt = now + (extendSeconds * 1000L);
-        String activeKey = ACTIVE_KEY_PREFIX + scheduleSeq;
         String metaKey = META_KEY_PREFIX + queueToken;
-        String userKey = userKey(scheduleSeq, memberId);
+        String activeKey = activeKey(String.valueOf(scheduleSeq), queueToken);
 
         try {
-            Long result = redis.execute(
-                    VALIDATE_AND_EXTEND_SCRIPT,
-                    List.of(activeKey, metaKey, userKey),
-                    queueToken,
-                    memberId,
-                    String.valueOf(scheduleSeq),
-                    String.valueOf(now),
-                    String.valueOf(extendedExpiresAt),
-                    String.valueOf(Duration.ofMinutes(META_TTL_MINUTES).toSeconds())
-            );
-
-            if (result == null || result == -1L) {
+            // 1. 토큰 주인·열차 확인
+            Map<Object, Object> meta = redis.opsForHash().entries(metaKey);
+            if (meta == null || !memberId.equals(meta.get("memberId"))
+                    || !String.valueOf(scheduleSeq).equals(meta.get("scheduleSeq"))) {
                 throw new ApiException(ErrorCode.QUEUE_TOKEN_INVALID);
             }
-            if (result == -2L) {
+
+            // 2. 입장 상태 확인 + 남은 시간이 선점 시간보다 짧으면 연장
+            Long remaining = redis.getExpire(activeKey);
+            if (remaining == null || remaining == -2L) {
                 throw new ApiException(ErrorCode.QUEUE_NOT_ADMITTED);
             }
+            if (remaining >= 0 && remaining < extendSeconds
+                    && !Boolean.TRUE.equals(redis.expire(activeKey, Duration.ofSeconds(extendSeconds)))) {
+                throw new ApiException(ErrorCode.QUEUE_NOT_ADMITTED); // 확인과 연장 사이에 만료됨
+            }
+
+            // 3. 생존 신호 갱신
+            redis.opsForHash().put(metaKey, "lastSeen", String.valueOf(System.currentTimeMillis()));
+            redis.expire(metaKey, Duration.ofMinutes(META_TTL_MINUTES));
+            redis.expire(userKey(scheduleSeq, memberId), Duration.ofMinutes(META_TTL_MINUTES));
         } catch (ApiException e) {
             throw e;
         } catch (Exception e) {
@@ -314,8 +200,7 @@ public class QueueService {
         }
         StringRedisTemplate redis = requireRedis();
         try {
-            Double score = redis.opsForZSet().score(ACTIVE_KEY_PREFIX + scheduleSeq, queueToken);
-            if (score == null || score.longValue() <= System.currentTimeMillis()) {
+            if (!Boolean.TRUE.equals(redis.hasKey(activeKey(String.valueOf(scheduleSeq), queueToken)))) {
                 throw new ApiException(ErrorCode.QUEUE_NOT_ADMITTED);
             }
         } catch (ApiException e) {
@@ -326,7 +211,7 @@ public class QueueService {
         }
     }
 
-    /** 결제 완료·예매 취소·만료 시 대기열 슬롯 즉시 반납 */
+    /** 결제 완료·예매 취소·이탈 시 대기열 슬롯 즉시 반납 */
     public void releaseSlot(Long scheduleSeq, String memberId) {
         if (redisTemplate == null || scheduleSeq == null || memberId == null || memberId.isBlank()) {
             return;
@@ -338,59 +223,82 @@ public class QueueService {
             if (token == null || token.isBlank()) {
                 return;
             }
-
-            redisTemplate.execute(
-                    RELEASE_SLOT_SCRIPT,
-                    List.of(ACTIVE_KEY_PREFIX + scheduleSeq, QUEUE_KEY_PREFIX + scheduleSeq, userKey, META_KEY_PREFIX + token),
-                    token
-            );
+            redisTemplate.delete(activeKey(String.valueOf(scheduleSeq), token));
+            redisTemplate.opsForZSet().remove(QUEUE_KEY_PREFIX + scheduleSeq, token);
+            redisTemplate.delete(List.of(userKey, META_KEY_PREFIX + token));
         } catch (Exception e) {
             log.warn("[QueueService] Redis releaseSlot warning: {}", e.getMessage());
         }
     }
 
-    /** 만료된 입장권 정리 후 여유 슬롯만큼 대기열 상위 인원 입장 (3초마다) */
-    @Scheduled(fixedDelay = 3000)
-    public void scheduleAdmitQueue() {
+    /** 대기자가 있는 운행 목록 (스케줄러용) */
+    public Set<String> getWaitingSchedules() {
         if (redisTemplate == null) {
-            return;
+            return Set.of();
         }
+        Set<String> ids = redisTemplate.opsForSet().members(SCHEDULE_SET_KEY);
+        return ids != null ? ids : Set.of();
+    }
 
-        try {
-            Set<String> scheduleIds = redisTemplate.opsForSet().members(SCHEDULE_SET_KEY);
-            if (scheduleIds == null || scheduleIds.isEmpty()) {
-                return;
+    /** 현재 입장 인원 (개별 키 카운트, SCAN 으로 블로킹 방지) */
+    public long getActiveCount(String scheduleSeq) {
+        ScanOptions options = ScanOptions.scanOptions()
+                .match(ACTIVE_KEY_PREFIX + scheduleSeq + ":*")
+                .count(100)
+                .build();
+        long count = 0;
+        try (Cursor<String> cursor = redisTemplate.scan(options)) {
+            while (cursor.hasNext()) {
+                cursor.next();
+                count++;
             }
+        }
+        return count;
+    }
 
-            long now = System.currentTimeMillis();
-            long expiresAt = now + (tokenTtlSeconds * 1000L);
-            long ghostCutoff = now - (ghostTimeoutSeconds * 1000L);
+    /**
+     * 빈 자리만큼 대기열 앞에서부터 입장 (QueueScheduler 가 1초마다 호출).
+     * 마지막 폴링이 ghostTimeoutSeconds 보다 오래된 토큰(창을 닫은 사용자)은 입장시키지 않고 정리한다.
+     * 반환: 이번에 입장한 인원
+     */
+    public int admitWaiting(String scheduleSeq) {
+        String queueKey = QUEUE_KEY_PREFIX + scheduleSeq;
+        long slots = Math.min(maxActiveUsers - getActiveCount(scheduleSeq), admitBatchSize);
+        long ghostCutoff = System.currentTimeMillis() - ghostTimeoutSeconds * 1000L;
+        int admitted = 0;
 
-            for (String scheduleId : scheduleIds) {
-                String queueKey = QUEUE_KEY_PREFIX + scheduleId;
-                String activeKey = ACTIVE_KEY_PREFIX + scheduleId;
-
-                redisTemplate.execute(
-                        ADMIT_BATCH_SCRIPT,
-                        List.of(activeKey, queueKey),
-                        String.valueOf(now),
-                        String.valueOf(expiresAt),
-                        String.valueOf(maxActiveUsers),
-                        String.valueOf(admitBatchSize),
-                        String.valueOf(ghostCutoff),
-                        META_KEY_PREFIX,
-                        USER_KEY_PREFIX,
-                        scheduleId
-                );
-
-                Long remaining = redisTemplate.opsForZSet().zCard(queueKey);
-                if (remaining == null || remaining == 0L) {
-                    redisTemplate.opsForSet().remove(SCHEDULE_SET_KEY, scheduleId);
+        while (admitted < slots) {
+            Set<String> head = redisTemplate.opsForZSet().range(queueKey, 0, slots - admitted - 1);
+            if (head == null || head.isEmpty()) {
+                break;
+            }
+            List<String> done = new ArrayList<>();
+            for (String token : head) {
+                Map<Object, Object> meta = redisTemplate.opsForHash().entries(META_KEY_PREFIX + token);
+                Object memberId = meta.get("memberId");
+                Object lastSeen = meta.get("lastSeen");
+                if (memberId != null && lastSeen != null && Long.parseLong(String.valueOf(lastSeen)) >= ghostCutoff) {
+                    // 입장 키를 먼저 만든 뒤 대기열에서 뺀다 (어느 순간에도 둘 중 하나에는 있도록)
+                    redisTemplate.opsForValue().set(activeKey(scheduleSeq, token), String.valueOf(memberId),
+                            Duration.ofSeconds(tokenTtlSeconds));
+                    admitted++;
+                } else {
+                    // 유령 토큰: 메타·회원 매핑 정리
+                    redisTemplate.delete(META_KEY_PREFIX + token);
+                    if (memberId != null) {
+                        redisTemplate.delete(USER_KEY_PREFIX + scheduleSeq + ":" + memberId);
+                    }
                 }
+                done.add(token);
             }
-        } catch (Exception e) {
-            log.warn("[QueueService] Redis scheduler error: {}", e.getMessage());
+            redisTemplate.opsForZSet().remove(queueKey, done.toArray());
         }
+
+        Long remaining = redisTemplate.opsForZSet().zCard(queueKey);
+        if (remaining == null || remaining == 0L) {
+            redisTemplate.opsForSet().remove(SCHEDULE_SET_KEY, scheduleSeq);
+        }
+        return admitted;
     }
 
     private StringRedisTemplate requireRedis() {
@@ -400,34 +308,17 @@ public class QueueService {
         return redisTemplate;
     }
 
-    private QueueResponseDTO tryReuseExistingToken(
-            StringRedisTemplate redis, String activeKey, String queueKey, String existingToken, long now) {
+    private QueueResponseDTO tryReuseExistingToken(StringRedisTemplate redis, Long scheduleSeq, String existingToken, long now) {
         String metaKey = META_KEY_PREFIX + existingToken;
-        Double activeScore = redis.opsForZSet().score(activeKey, existingToken);
-        if (activeScore != null && activeScore.longValue() > now) {
-            redis.opsForHash().put(metaKey, "lastSeen", String.valueOf(now));
-            redis.expire(metaKey, Duration.ofMinutes(META_TTL_MINUTES));
-            return QueueResponseDTO.builder()
-                    .queueToken(existingToken)
-                    .queueRank(0L)
-                    .isAvailable(true)
-                    .message("즉시 예매 가능합니다.")
-                    .build();
+        boolean active = Boolean.TRUE.equals(redis.hasKey(activeKey(String.valueOf(scheduleSeq), existingToken)));
+        Long rank = active ? null : redis.opsForZSet().rank(QUEUE_KEY_PREFIX + scheduleSeq, existingToken);
+        if (!active && rank == null) {
+            return null;
         }
 
-        Long rank = redis.opsForZSet().rank(queueKey, existingToken);
-        if (rank != null) {
-            redis.opsForHash().put(metaKey, "lastSeen", String.valueOf(now));
-            redis.expire(metaKey, Duration.ofMinutes(META_TTL_MINUTES));
-            return QueueResponseDTO.builder()
-                    .queueToken(existingToken)
-                    .queueRank(rank + 1)
-                    .isAvailable(false)
-                    .message("대기 중입니다.")
-                    .build();
-        }
-
-        return null;
+        redis.opsForHash().put(metaKey, "lastSeen", String.valueOf(now));
+        redis.expire(metaKey, Duration.ofMinutes(META_TTL_MINUTES));
+        return active ? admitted(existingToken, "즉시 예매 가능합니다.") : waiting(existingToken, rank);
     }
 
     private void saveTokenMetadata(
@@ -441,6 +332,28 @@ public class QueueService {
         ));
         redis.expire(metaKey, ttl);
         redis.opsForValue().set(userKey, token, ttl);
+    }
+
+    private static QueueResponseDTO admitted(String token, String message) {
+        return QueueResponseDTO.builder()
+                .queueToken(token)
+                .queueRank(0L)
+                .isAvailable(true)
+                .message(message)
+                .build();
+    }
+
+    private static QueueResponseDTO waiting(String token, Long rank) {
+        return QueueResponseDTO.builder()
+                .queueToken(token)
+                .queueRank(rank != null ? rank + 1 : 1L)
+                .isAvailable(false)
+                .message("대기 중입니다.")
+                .build();
+    }
+
+    public static String activeKey(String scheduleSeq, String token) {
+        return ACTIVE_KEY_PREFIX + scheduleSeq + ":" + token;
     }
 
     private String userKey(Long scheduleSeq, String memberId) {

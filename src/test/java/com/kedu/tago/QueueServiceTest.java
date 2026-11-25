@@ -1,5 +1,6 @@
 package com.kedu.tago;
 
+import com.kedu.tago.common.exception.ApiException;
 import com.kedu.tago.queue.QueueService;
 import com.kedu.tago.queue.dto.QueueResponseDTO;
 import org.junit.jupiter.api.AfterEach;
@@ -9,25 +10,27 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ZSetOperations;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Redis 대기열 입장/승격 테스트 (실 Redis 연결 필요) */
+/** Redis 대기열 진입/입장 테스트 (실 Redis 연결 필요) */
 public class QueueServiceTest {
 
     private static final Long TEST_SCHEDULE_SEQ = 999999L;
-    private static final String QUEUE_KEY = "tago:queue:wait:" + TEST_SCHEDULE_SEQ;
-    private static final String ACTIVE_KEY = "tago:queue:active:" + TEST_SCHEDULE_SEQ;
-    private static final String SCHEDULE_SET_KEY = "tago:queue:schedules";
+    private static final String SCHEDULE = String.valueOf(TEST_SCHEDULE_SEQ);
+    private static final String QUEUE_KEY = QueueService.QUEUE_KEY_PREFIX + TEST_SCHEDULE_SEQ;
 
     private LettuceConnectionFactory connectionFactory;
     private StringRedisTemplate redisTemplate;
@@ -48,7 +51,7 @@ public class QueueServiceTest {
         connectionFactory.afterPropertiesSet();
         redisTemplate = new StringRedisTemplate(connectionFactory);
         redisTemplate.afterPropertiesSet();
-        queueService = new QueueService(redisTemplate);
+        queueService = new QueueService(redisTemplate); // max-active 200, batch-size 30 (기본값)
 
         cleanupKeys();
     }
@@ -69,46 +72,50 @@ public class QueueServiceTest {
     private void cleanupKeys() {
         if (redisTemplate == null) return;
         redisTemplate.delete(QUEUE_KEY);
-        redisTemplate.delete(ACTIVE_KEY);
-        redisTemplate.opsForSet().remove(SCHEDULE_SET_KEY, String.valueOf(TEST_SCHEDULE_SEQ));
-        if (!createdTokens.isEmpty()) {
-            for (String token : createdTokens) {
-                redisTemplate.delete("tago:queue:meta:" + token);
-            }
-            createdTokens.clear();
+        deleteKeys(QueueService.ACTIVE_KEY_PREFIX + TEST_SCHEDULE_SEQ + ":*");
+        deleteKeys(QueueService.USER_KEY_PREFIX + TEST_SCHEDULE_SEQ + ":*");
+        redisTemplate.opsForSet().remove(QueueService.SCHEDULE_SET_KEY, SCHEDULE);
+        for (String token : createdTokens) {
+            redisTemplate.delete(QueueService.META_KEY_PREFIX + token);
         }
-        for (int i = 1; i <= 250; i++) {
-            redisTemplate.delete("tago:queue:user:" + TEST_SCHEDULE_SEQ + ":queueTester" + i);
+        createdTokens.clear();
+    }
+
+    private void deleteKeys(String pattern) {
+        Set<String> keys = redisTemplate.keys(pattern);
+        if (keys != null && !keys.isEmpty()) {
+            redisTemplate.delete(keys);
         }
     }
 
+    /** 스케줄러가 여러 번 도는 것처럼, 더 입장할 사람이 없을 때까지 입장 처리 */
+    private int admitUntilFull() {
+        int total = 0;
+        int admitted;
+        while ((admitted = queueService.admitWaiting(SCHEDULE)) > 0) {
+            total += admitted;
+        }
+        return total;
+    }
+
     @Test
-    @DisplayName("Redis 대기열 통합 테스트: 250명 동시 진입 -> 200명 즉시 입장, 50명 대기 -> 만료 후 30명 순차 입장")
-    void testRedisQueueLimitAndScheduledAdmit() throws InterruptedException {
+    @DisplayName("250명 동시 진입 -> 전원 대기열(순번 중복 없음) -> 스케줄러가 200명 입장 -> 30명 퇴장 후 다음 30명 입장")
+    void concurrentEnterThenSchedulerAdmits() throws InterruptedException {
         int totalUsers = 250;
-        ExecutorService executor = Executors.newCachedThreadPool();
-        CountDownLatch readyLatch = new CountDownLatch(totalUsers);
+        ExecutorService executor = Executors.newFixedThreadPool(50);
         CountDownLatch startLatch = new CountDownLatch(1);
         CountDownLatch doneLatch = new CountDownLatch(totalUsers);
-
-        List<QueueResponseDTO> admittedResponses = Collections.synchronizedList(new ArrayList<>());
-        List<QueueResponseDTO> waitingResponses = Collections.synchronizedList(new ArrayList<>());
+        List<QueueResponseDTO> responses = Collections.synchronizedList(new ArrayList<>());
 
         try {
             for (int i = 1; i <= totalUsers; i++) {
                 final String memberId = "queueTester" + i;
                 executor.submit(() -> {
                     try {
-                        readyLatch.countDown();
                         startLatch.await();
-
                         QueueResponseDTO resp = queueService.enterQueue(TEST_SCHEDULE_SEQ, memberId);
+                        responses.add(resp);
                         createdTokens.add(resp.getQueueToken());
-                        if (Boolean.TRUE.equals(resp.getIsAvailable())) {
-                            admittedResponses.add(resp);
-                        } else {
-                            waitingResponses.add(resp);
-                        }
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     } finally {
@@ -116,112 +123,107 @@ public class QueueServiceTest {
                     }
                 });
             }
-
-            readyLatch.await();
             startLatch.countDown();
-            doneLatch.await();
+            assertTrue(doneLatch.await(30, TimeUnit.SECONDS));
         } finally {
             executor.shutdown();
         }
 
-        Long activeCount = redisTemplate.opsForZSet().zCard(ACTIVE_KEY);
-        Long waitingCount = redisTemplate.opsForZSet().zCard(QUEUE_KEY);
+        // 1. 진입만으로는 아무도 입장하지 않는다 (입장은 스케줄러 몫)
+        assertEquals(totalUsers, responses.size());
+        assertTrue(responses.stream().noneMatch(r -> Boolean.TRUE.equals(r.getIsAvailable())));
+        assertEquals(totalUsers, redisTemplate.opsForZSet().zCard(QUEUE_KEY));
+        Set<String> tokens = new HashSet<>();
+        responses.forEach(r -> tokens.add(r.getQueueToken()));
+        assertEquals(totalUsers, tokens.size(), "회원마다 다른 토큰");
 
-        System.out.println("===================================================");
-        System.out.println("[1단계: 250명 동시 진입 결과]");
-        System.out.println("즉시 입장 허용: " + admittedResponses.size() + "명 (activeCount=" + activeCount + ")");
-        System.out.println("대기열 대기 중: " + waitingResponses.size() + "명 (queueSize=" + waitingCount + ")");
-        System.out.println("===================================================");
+        // 2. 스케줄러 1회는 batch-size(30)명까지만 입장
+        assertEquals(30, queueService.admitWaiting(SCHEDULE));
 
-        assertEquals(200, admittedResponses.size(), "정확히 200명까지 즉시 입장되어야 합니다.");
-        assertEquals(50, waitingResponses.size(), "나머지 50명은 대기열에 들어가야 합니다.");
-        assertEquals(200L, activeCount);
+        // 3. 계속 돌리면 정확히 200명에서 멈춘다
+        admitUntilFull();
+        assertEquals(200L, queueService.getActiveCount(SCHEDULE));
+        assertEquals(50L, redisTemplate.opsForZSet().zCard(QUEUE_KEY));
 
-        // 기존 입장자 30명이 TTL 만료된 상태로 시뮬레이션
-        Set<ZSetOperations.TypedTuple<String>> first30Active = redisTemplate.opsForZSet().rangeWithScores(ACTIVE_KEY, 0, 29);
-        assertNotNull(first30Active);
-        assertEquals(30, first30Active.size());
-        long expiredScore = System.currentTimeMillis() - 1000L;
-        for (ZSetOperations.TypedTuple<String> entry : first30Active) {
-            if (entry.getValue() != null) {
-                redisTemplate.opsForZSet().add(ACTIVE_KEY, entry.getValue(), expiredScore);
-            }
-        }
+        // 4. 입장자 30명 퇴장(TTL 만료와 같음) -> 다음 30명 입장
+        Set<String> activeKeys = redisTemplate.keys(QueueService.ACTIVE_KEY_PREFIX + TEST_SCHEDULE_SEQ + ":*");
+        assertNotNull(activeKeys);
+        redisTemplate.delete(new ArrayList<>(activeKeys).subList(0, 30));
+        String firstWaiting = redisTemplate.opsForZSet().range(QUEUE_KEY, 0, 0).iterator().next();
 
-        // 1번 대기자 토큰 확보 (ZSet 최소 score)
-        Set<String> nextInLine = redisTemplate.opsForZSet().range(QUEUE_KEY, 0, 0);
-        assertNotNull(nextInLine);
-        assertFalse(nextInLine.isEmpty());
-        String firstWaitingToken = nextInLine.iterator().next();
+        assertEquals(30, admitUntilFull());
+        assertEquals(200L, queueService.getActiveCount(SCHEDULE));
 
-        // 스케줄러 실행 (만료 30명 제거 후 대기열 상위 30명 입장)
-        queueService.scheduleAdmitQueue();
+        QueueResponseDTO promoted = queueService.checkQueueRank(firstWaiting);
+        assertTrue(promoted.getIsAvailable(), "1번 대기자는 입장 상태");
+        assertEquals(0L, promoted.getQueueRank());
 
-        QueueResponseDTO promotedCheck = queueService.checkQueueRank(firstWaitingToken);
-        Long activeAfterSchedule = redisTemplate.opsForZSet().zCard(ACTIVE_KEY);
-
-        // 남은 대기자 중 1번 토큰
-        Set<String> remainingFirst = redisTemplate.opsForZSet().range(QUEUE_KEY, 0, 0);
-        assertNotNull(remainingFirst);
-        String remainingFirstToken = remainingFirst.iterator().next();
-        QueueResponseDTO stillWaitingCheck = queueService.checkQueueRank(remainingFirstToken);
-
-        System.out.println("[2단계: 30명 TTL 만료 후 스케줄러 1회 실행 결과]");
-        System.out.println("승격된 1번 대기자 상태: isAvailable=" + promotedCheck.getIsAvailable() + ", rank=" + promotedCheck.getQueueRank());
-        System.out.println("남은 다음 대기자 상태: isAvailable=" + stillWaitingCheck.getIsAvailable() + ", rank=" + stillWaitingCheck.getQueueRank());
-        System.out.println("스케줄러 실행 후 활성 입장자 수: " + activeAfterSchedule + "명");
-        System.out.println("===================================================");
-
-        assertTrue(promotedCheck.getIsAvailable(), "1번 대기자는 입장 허용 상태여야 합니다.");
-        assertEquals(0L, promotedCheck.getQueueRank());
-        assertFalse(stillWaitingCheck.getIsAvailable(), "31번 대기자는 아직 대기 중이어야 합니다.");
-        assertEquals(1L, stillWaitingCheck.getQueueRank(), "앞의 30명이 빠졌으므로 남은 첫 대기자는 1번이어야 합니다.");
-        assertEquals(200L, activeAfterSchedule);
+        String nextWaiting = redisTemplate.opsForZSet().range(QUEUE_KEY, 0, 0).iterator().next();
+        QueueResponseDTO stillWaiting = queueService.checkQueueRank(nextWaiting);
+        assertFalse(stillWaiting.getIsAvailable());
+        assertEquals(1L, stillWaiting.getQueueRank(), "남은 첫 대기자는 1번");
     }
 
     @Test
-    @DisplayName("PDF 아키텍처 전체 시뮬레이션: 멱등 진입 -> 유령 토큰 스킵/userKey 삭제 -> 검증/연장/차단 -> 슬롯 반납")
-    void testFullQueueLifecycleSimulation() {
-        // 1. 1인 1토큰 멱등성 검증
+    @DisplayName("멱등 진입 -> 입장 -> 선점 검증·연장 -> 유령 토큰 정리 -> 슬롯 반납")
+    void fullQueueLifecycle() {
+        // 1. 같은 회원+열차는 같은 토큰
         QueueResponseDTO first = queueService.enterQueue(TEST_SCHEDULE_SEQ, "queueTester1");
         QueueResponseDTO second = queueService.enterQueue(TEST_SCHEDULE_SEQ, "queueTester1");
         createdTokens.add(first.getQueueToken());
-        assertEquals(first.getQueueToken(), second.getQueueToken(), "같은 회원+열차는 기존 토큰을 재사용해야 합니다.");
-        assertTrue(first.getIsAvailable());
+        assertEquals(first.getQueueToken(), second.getQueueToken());
+        assertFalse(first.getIsAvailable());
+        assertEquals(1L, first.getQueueRank());
 
-        // 2. VALIDATE_AND_EXTEND_SCRIPT: 본인/타인/타열차 검증
-        assertDoesNotThrow(() ->
+        // 입장 전에는 선점 불가
+        assertThrows(ApiException.class, () ->
                 queueService.validateAndExtendForHold(first.getQueueToken(), TEST_SCHEDULE_SEQ, "queueTester1", 300));
-        assertThrows(com.kedu.tago.common.exception.ApiException.class, () ->
+
+        // 2. 스케줄러 입장 후 재진입도 같은 토큰 + 입장 상태
+        assertEquals(1, queueService.admitWaiting(SCHEDULE));
+        QueueResponseDTO again = queueService.enterQueue(TEST_SCHEDULE_SEQ, "queueTester1");
+        assertEquals(first.getQueueToken(), again.getQueueToken());
+        assertTrue(again.getIsAvailable());
+
+        // 3. 본인만 통과, 남은 시간이 짧으면 선점 시간만큼 연장
+        String activeKey = QueueService.activeKey(SCHEDULE, first.getQueueToken());
+        redisTemplate.expire(activeKey, Duration.ofSeconds(10));
+        assertDoesNotThrow(() ->
+                queueService.validateAndExtendForHold(first.getQueueToken(), TEST_SCHEDULE_SEQ, "queueTester1", 600));
+        assertTrue(redisTemplate.getExpire(activeKey) > 590, "입장 시간이 600초로 연장");
+        assertThrows(ApiException.class, () ->
                 queueService.validateAndExtendForHold(first.getQueueToken(), TEST_SCHEDULE_SEQ, "otherUser", 300));
-        assertThrows(com.kedu.tago.common.exception.ApiException.class, () ->
+        assertThrows(ApiException.class, () ->
                 queueService.validateAndExtendForHold(first.getQueueToken(), TEST_SCHEDULE_SEQ + 1, "queueTester1", 300));
 
-        // 3. 유령 토큰 스킵 및 userKey 정리 검증
+        // 4. 유령 토큰(30초 넘게 폴링 없음)은 입장시키지 않고 정리
         String ghostToken = "ghost-token-test";
         String ghostMember = "queueTester2";
         String ghostMetaKey = QueueService.META_KEY_PREFIX + ghostToken;
         String ghostUserKey = QueueService.USER_KEY_PREFIX + TEST_SCHEDULE_SEQ + ":" + ghostMember;
-        long oldTime = System.currentTimeMillis() - 120_000L; // 2분 전 (30초 cutoff 초과)
-        redisTemplate.opsForHash().putAll(ghostMetaKey, java.util.Map.of(
+        long oldTime = System.currentTimeMillis() - 120_000L;
+        createdTokens.add(ghostToken);
+        redisTemplate.opsForHash().putAll(ghostMetaKey, Map.of(
                 "memberId", ghostMember,
-                "scheduleSeq", String.valueOf(TEST_SCHEDULE_SEQ),
+                "scheduleSeq", SCHEDULE,
                 "lastSeen", String.valueOf(oldTime)
         ));
         redisTemplate.opsForValue().set(ghostUserKey, ghostToken);
         redisTemplate.opsForZSet().add(QUEUE_KEY, ghostToken, oldTime);
-        redisTemplate.opsForSet().add(SCHEDULE_SET_KEY, String.valueOf(TEST_SCHEDULE_SEQ));
+        redisTemplate.opsForSet().add(QueueService.SCHEDULE_SET_KEY, SCHEDULE);
 
-        queueService.scheduleAdmitQueue();
+        assertEquals(0, queueService.admitWaiting(SCHEDULE));
+        assertFalse(Boolean.TRUE.equals(redisTemplate.hasKey(QueueService.activeKey(SCHEDULE, ghostToken))));
+        assertNull(redisTemplate.opsForZSet().score(QUEUE_KEY, ghostToken), "대기열에서 빠짐");
+        assertFalse(Boolean.TRUE.equals(redisTemplate.hasKey(ghostMetaKey)));
+        assertFalse(Boolean.TRUE.equals(redisTemplate.hasKey(ghostUserKey)));
+        assertFalse(Boolean.TRUE.equals(redisTemplate.opsForSet().isMember(QueueService.SCHEDULE_SET_KEY, SCHEDULE)),
+                "대기자가 없으면 운행 목록에서 빠짐");
 
-        assertNull(redisTemplate.opsForZSet().score(ACTIVE_KEY, ghostToken), "유령 토큰은 active 로 승격되면 안 됩니다.");
-        assertFalse(Boolean.TRUE.equals(redisTemplate.hasKey(ghostMetaKey)), "유령 토큰 meta 키가 삭제되어야 합니다.");
-        assertFalse(Boolean.TRUE.equals(redisTemplate.hasKey(ghostUserKey)), "유령 토큰 userKey 도 함께 삭제되어야 합니다.");
-
-        // 4. 슬롯 반납 (releaseSlot) 후 재검증 거부 확인
+        // 5. 슬롯 반납 후에는 입장 키가 없어 선점 불가
         queueService.releaseSlot(TEST_SCHEDULE_SEQ, "queueTester1");
-        assertNull(redisTemplate.opsForZSet().score(ACTIVE_KEY, first.getQueueToken()), "반납 후 active 에서 즉시 제거되어야 합니다.");
-        assertThrows(com.kedu.tago.common.exception.ApiException.class, () ->
+        assertFalse(Boolean.TRUE.equals(redisTemplate.hasKey(activeKey)));
+        assertThrows(ApiException.class, () ->
                 queueService.validateAndExtendForHold(first.getQueueToken(), TEST_SCHEDULE_SEQ, "queueTester1", 300));
     }
 }

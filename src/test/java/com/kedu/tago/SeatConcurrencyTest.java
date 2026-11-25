@@ -106,6 +106,7 @@ class SeatConcurrencyTest {
         for (int i = 0; i < USERS; i++) {
             tokens[i] = queueService.enterQueue(s, members[i]).getQueueToken();
         }
+        ReservationTestData.admitAll(queueService, s);
         return tokens;
     }
 
@@ -168,7 +169,7 @@ class SeatConcurrencyTest {
     @DisplayName("같은 멱등키로 결제 10번 동시 요청(더블클릭): 결제·확정은 딱 1번")
     void concurrentPaymentSameKeyPaysOnce() throws InterruptedException {
         String member = members[0];
-        String token = queueService.enterQueue(s, member).getQueueToken();
+        String token = ReservationTestData.admittedToken(queueService, s, member);
         reservationService.holdSeats(request("2A"), member, token);
         PaymentRequestDTO req = PaymentRequestDTO.builder().scheduleSeq(s).payMethod("CARD").build();
 

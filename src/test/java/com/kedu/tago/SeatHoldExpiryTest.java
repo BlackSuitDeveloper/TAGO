@@ -52,7 +52,7 @@ class SeatHoldExpiryTest {
     }
 
     private void hold(String member, String seatNo) {
-        String token = queueService.enterQueue(s, member).getQueueToken();
+        String token = ReservationTestData.admittedToken(queueService, s, member);
         ReservationRequestDTO req = ReservationRequestDTO.builder()
                 .scheduleSeq(s).seats(List.of(new SeatSelection(CAR, seatNo))).build();
         reservationService.holdSeats(req, member, token);

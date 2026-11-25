@@ -1,5 +1,6 @@
 package com.kedu.tago.support;
 
+import com.kedu.tago.queue.QueueService;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -23,6 +24,20 @@ public final class ReservationTestData {
                 """, Long.class);
     }
 
+    /** 대기열 진입 후 바로 입장 처리 (스케줄러 1초를 기다리지 않음). 입장권 토큰 반환 */
+    public static String admittedToken(QueueService queueService, Long scheduleSeq, String memberId) {
+        String token = queueService.enterQueue(scheduleSeq, memberId).getQueueToken();
+        admitAll(queueService, scheduleSeq);
+        return token;
+    }
+
+    /** 대기 중인 인원을 모두 입장 처리 (한 번에 batch-size 만큼 입장하므로 0명이 될 때까지 반복) */
+    public static void admitAll(QueueService queueService, Long scheduleSeq) {
+        while (queueService.admitWaiting(String.valueOf(scheduleSeq)) > 0) {
+            // 반복
+        }
+    }
+
     /** 해당 열차·호차의 예약/좌석과 Redis 선점·대기열·멱등키를 지운다 */
     public static void clean(JdbcTemplate jdbc, StringRedisTemplate redis, Long scheduleSeq, int carNo, String... members) {
         jdbc.update("DELETE FROM payment WHERE reservation_seq IN "
@@ -38,7 +53,7 @@ public final class ReservationTestData {
                     .forEach(m -> redis.opsForZSet().remove("held:expiry", m));
         }
         redis.delete("tago:queue:wait:" + scheduleSeq);
-        redis.delete("tago:queue:active:" + scheduleSeq);
+        deleteKeys(redis, "tago:queue:active:" + scheduleSeq + ":*");
         deleteKeys(redis, "tago:queue:user:" + scheduleSeq + ":*");
         for (String member : members) {
             deleteKeys(redis, "idem:payment:" + member + ":*");

@@ -6,6 +6,7 @@ import QuickMenu from '../../components/QuickMenu/QuickMenu';
 import useWishStore from '../../store/useWishStore';
 import client from '../Api/client';
 import errorText from '../Api/errorText';
+import { enterQueue } from '../Api/queue';
 import { dialog, notify } from '../../components/Dialog/dialogService';
 import './SchedulePage.css';
 
@@ -401,8 +402,7 @@ export default function SchedulePage() {
   const handleSelectTrain = async (train) => {
     clearQueuePolling();
     try {
-      const res = await client.post('/queue', { scheduleSeq: train.id });
-      const data = res.data || {};
+      const data = await enterQueue(train.id);
       const token = data.queueToken;
       if (data.isAvailable) {
         goToReservation(train, data.queueToken);

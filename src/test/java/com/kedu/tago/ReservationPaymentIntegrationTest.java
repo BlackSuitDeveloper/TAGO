@@ -63,7 +63,7 @@ class ReservationPaymentIntegrationTest {
     }
 
     private ReservationResponseDTO hold(String member, String... seatNos) {
-        String token = queueService.enterQueue(s, member).getQueueToken();
+        String token = ReservationTestData.admittedToken(queueService, s, member);
         ReservationRequestDTO req = ReservationRequestDTO.builder()
                 .scheduleSeq(s)
                 .seats(Arrays.stream(seatNos).map(no -> new SeatSelection(CAR, no)).toList())

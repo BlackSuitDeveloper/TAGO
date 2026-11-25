@@ -15,6 +15,7 @@ import {
   saveRecentRoute,
 } from '../../lib/trainDomain';
 import client from '../Api/client';
+import { enterQueue } from '../Api/queue';
 import { notify } from '../../components/Dialog/dialogService';
 import useWishStore from '../../store/useWishStore';
 import './MainPage.css';
@@ -368,8 +369,7 @@ export default function MainPage() {
     const scheduleSeq = train.scheduleSeq || train.id || 1;
     const formattedDate = formatDepartureDate(train.depDateRaw || departureDate);
     try {
-      const res = await client.post('/queue', { scheduleSeq });
-      const data = res.data || {};
+      const data = await enterQueue(scheduleSeq);
       const token = data.queueToken || '';
       if (!data.isAvailable) {
         // 대기 인원이 많으면 시간표 화면에서 대기열 모달을 통해 진입

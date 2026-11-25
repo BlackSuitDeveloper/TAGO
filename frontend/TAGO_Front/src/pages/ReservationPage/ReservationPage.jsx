@@ -7,6 +7,7 @@ import RouteLine from '../../components/RouteLine/RouteLine';
 import PaymentPanel, { PaymentOverlay } from './PaymentPanel';
 import client from '../Api/client';
 import errorText from '../Api/errorText';
+import { enterQueue } from '../Api/queue';
 import { dialog, notify } from '../../components/Dialog/dialogService';
 import { autoPickSeats } from '../../lib/trainDomain';
 import './ReservationPage.css';
@@ -660,8 +661,7 @@ export default function ReservationPage() {
     try {
       let activeToken = bookingInfo.queueToken;
       if (!activeToken) {
-        const qRes = await client.post('/queue', { scheduleSeq: bookingInfo.scheduleSeq });
-        const qData = qRes.data || {};
+                const qData = await enterQueue(bookingInfo.scheduleSeq);
         if (!qData.isAvailable || !qData.queueToken) {
           dialog.alert('현재 대기열이 혼잡합니다. 열차 선택 화면에서 대기열에 다시 진입해 주세요.', { title: '대기열 안내', tone: 'warning' })
             .then(() => navigate('/schedule'));
@@ -686,8 +686,7 @@ export default function ReservationPage() {
         const code = firstErr.response?.data?.code;
         if (code === 6000 || code === 6001) {
           sessionStorage.removeItem(`tago_queue_token_${bookingInfo.scheduleSeq}`);
-          const qRes = await client.post('/queue', { scheduleSeq: bookingInfo.scheduleSeq });
-          const qData = qRes.data || {};
+                    const qData = await enterQueue(bookingInfo.scheduleSeq);
           if (qData.isAvailable && qData.queueToken) {
             sessionStorage.setItem(`tago_queue_token_${bookingInfo.scheduleSeq}`, qData.queueToken);
             resHold = await sendHold(qData.queueToken);
@@ -718,8 +717,7 @@ export default function ReservationPage() {
         try {
           let returnToken = location.state?.returnQueueToken || sessionStorage.getItem(`tago_queue_token_${targetReturnScheduleSeq}`);
           if (!returnToken) {
-            const rqRes = await client.post('/queue', { scheduleSeq: targetReturnScheduleSeq });
-            const rqData = rqRes.data || {};
+            const rqData = await enterQueue(targetReturnScheduleSeq);
             if (rqData.isAvailable && rqData.queueToken) {
               returnToken = rqData.queueToken;
               sessionStorage.setItem(`tago_queue_token_${targetReturnScheduleSeq}`, returnToken);
