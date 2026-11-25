@@ -1,0 +1,11 @@
+$kind: http-request
+url: http://localhost/api/v1/queue
+method: POST
+body:
+  type: json
+  content: "{\r\n    \"scheduleSeq\" : \"1\"\r\n}"
+auth:
+  type: bearer
+  credentials:
+    token: https://github.com/BlackSuitDeveloper/TAGO.git
+order: 1000
