@@ -164,4 +164,50 @@ public class QueueServiceTest {
         assertEquals(1L, stillWaitingCheck.getQueueRank(), "앞의 30명이 빠졌으므로 남은 첫 대기자는 1번이어야 합니다.");
         assertEquals(200L, activeAfterSchedule);
     }
+
+    @Test
+    @DisplayName("PDF 아키텍처 전체 시뮬레이션: 멱등 진입 -> 유령 토큰 스킵/userKey 삭제 -> 검증/연장/차단 -> 슬롯 반납")
+    void testFullQueueLifecycleSimulation() {
+        // 1. 1인 1토큰 멱등성 검증
+        QueueResponseDTO first = queueService.enterQueue(TEST_SCHEDULE_SEQ, "queueTester1");
+        QueueResponseDTO second = queueService.enterQueue(TEST_SCHEDULE_SEQ, "queueTester1");
+        createdTokens.add(first.getQueueToken());
+        assertEquals(first.getQueueToken(), second.getQueueToken(), "같은 회원+열차는 기존 토큰을 재사용해야 합니다.");
+        assertTrue(first.getIsAvailable());
+
+        // 2. VALIDATE_AND_EXTEND_SCRIPT: 본인/타인/타열차 검증
+        assertDoesNotThrow(() ->
+                queueService.validateAndExtendForHold(first.getQueueToken(), TEST_SCHEDULE_SEQ, "queueTester1", 300));
+        assertThrows(com.kedu.tago.common.exception.ApiException.class, () ->
+                queueService.validateAndExtendForHold(first.getQueueToken(), TEST_SCHEDULE_SEQ, "otherUser", 300));
+        assertThrows(com.kedu.tago.common.exception.ApiException.class, () ->
+                queueService.validateAndExtendForHold(first.getQueueToken(), TEST_SCHEDULE_SEQ + 1, "queueTester1", 300));
+
+        // 3. 유령 토큰 스킵 및 userKey 정리 검증
+        String ghostToken = "ghost-token-test";
+        String ghostMember = "queueTester2";
+        String ghostMetaKey = QueueService.META_KEY_PREFIX + ghostToken;
+        String ghostUserKey = QueueService.USER_KEY_PREFIX + TEST_SCHEDULE_SEQ + ":" + ghostMember;
+        long oldTime = System.currentTimeMillis() - 120_000L; // 2분 전 (30초 cutoff 초과)
+        redisTemplate.opsForHash().putAll(ghostMetaKey, java.util.Map.of(
+                "memberId", ghostMember,
+                "scheduleSeq", String.valueOf(TEST_SCHEDULE_SEQ),
+                "lastSeen", String.valueOf(oldTime)
+        ));
+        redisTemplate.opsForValue().set(ghostUserKey, ghostToken);
+        redisTemplate.opsForZSet().add(QUEUE_KEY, ghostToken, oldTime);
+        redisTemplate.opsForSet().add(SCHEDULE_SET_KEY, String.valueOf(TEST_SCHEDULE_SEQ));
+
+        queueService.scheduleAdmitQueue();
+
+        assertNull(redisTemplate.opsForZSet().score(ACTIVE_KEY, ghostToken), "유령 토큰은 active 로 승격되면 안 됩니다.");
+        assertFalse(Boolean.TRUE.equals(redisTemplate.hasKey(ghostMetaKey)), "유령 토큰 meta 키가 삭제되어야 합니다.");
+        assertFalse(Boolean.TRUE.equals(redisTemplate.hasKey(ghostUserKey)), "유령 토큰 userKey 도 함께 삭제되어야 합니다.");
+
+        // 4. 슬롯 반납 (releaseSlot) 후 재검증 거부 확인
+        queueService.releaseSlot(TEST_SCHEDULE_SEQ, "queueTester1");
+        assertNull(redisTemplate.opsForZSet().score(ACTIVE_KEY, first.getQueueToken()), "반납 후 active 에서 즉시 제거되어야 합니다.");
+        assertThrows(com.kedu.tago.common.exception.ApiException.class, () ->
+                queueService.validateAndExtendForHold(first.getQueueToken(), TEST_SCHEDULE_SEQ, "queueTester1", 300));
+    }
 }

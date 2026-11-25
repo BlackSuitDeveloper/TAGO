@@ -293,6 +293,7 @@ export default function ReservationPage() {
 
     return {
       scheduleSeq: state.scheduleSeq || state.train?.scheduleSeq || 1,
+      queueToken: state.queueToken || sessionStorage.getItem(`tago:queueToken:${state.scheduleSeq || state.train?.scheduleSeq || 1}`) || '',
       trainName: state.trainName || state.train?.name || 'KTX 001',
       trainType: state.trainType || 'KTX',
       depTime: state.depTime || state.train?.depTime || '05:15',
@@ -637,16 +638,26 @@ export default function ReservationPage() {
     const seatNoList = outboundSeats.map((s) => s.seatId);
     const outboundCarNo = outboundSeats[0]?.carNo || selectedCarNo;
     const seatSelections = outboundSeats.map((s) => ({ carNo: s.carNo, seatNo: s.seatId }));
+    const outboundQueueToken =
+      bookingInfo.queueToken ||
+      sessionStorage.getItem(`tago:queueToken:${bookingInfo.scheduleSeq}`) ||
+      '';
 
     let outboundHoldIds = [];
     try {
-      const resHold = await client.post('/reservation', {
-        scheduleSeq: bookingInfo.scheduleSeq,
-        carNo: outboundCarNo,
-        seatList: seatNoList,
-        seats: seatSelections,
-        count: seatSelections.length,
-      });
+      const resHold = await client.post(
+        '/reservation',
+        {
+          scheduleSeq: bookingInfo.scheduleSeq,
+          carNo: outboundCarNo,
+          seatList: seatNoList,
+          seats: seatSelections,
+          count: seatSelections.length,
+        },
+        {
+          headers: outboundQueueToken ? { 'X-Queue-Token': outboundQueueToken } : {},
+        }
+      );
 
       const data = resHold.data || {};
       const outboundPrimaryId = data.reservationId || data.reservationSeq;
@@ -661,15 +672,25 @@ export default function ReservationPage() {
         const returnCarNo = returnSeats[0]?.carNo || selectedCarNo;
         const returnSeatSelections = returnSeats.map((s) => ({ carNo: s.carNo, seatNo: s.seatId }));
         const targetReturnScheduleSeq = bookingInfo.returnScheduleSeq || bookingInfo.scheduleSeq;
+        const returnQueueToken =
+          location.state?.returnQueueToken ||
+          sessionStorage.getItem(`tago:queueToken:${targetReturnScheduleSeq}`) ||
+          outboundQueueToken;
 
         try {
-          const resReturnHold = await client.post('/reservation', {
-            scheduleSeq: targetReturnScheduleSeq,
-            carNo: returnCarNo,
-            seatList: returnSeatNoList,
-            seats: returnSeatSelections,
-            count: returnSeatSelections.length,
-          });
+          const resReturnHold = await client.post(
+            '/reservation',
+            {
+              scheduleSeq: targetReturnScheduleSeq,
+              carNo: returnCarNo,
+              seatList: returnSeatNoList,
+              seats: returnSeatSelections,
+              count: returnSeatSelections.length,
+            },
+            {
+              headers: returnQueueToken ? { 'X-Queue-Token': returnQueueToken } : {},
+            }
+          );
           returnData = resReturnHold.data || {};
           const returnPrimaryId = returnData.reservationId || returnData.reservationSeq;
           returnHoldIds = returnData.reservationIds || (returnPrimaryId ? [returnPrimaryId] : []);

@@ -364,27 +364,56 @@ export default function MainPage() {
     return `${dateStr} (${days[d.getDay()]})`;
   };
 
-  const handleGoToScheduleBooking = (train) => {
+  const handleGoToScheduleBooking = async (train) => {
+    const scheduleSeq = train.scheduleSeq || train.id || 1;
     const formattedDate = formatDepartureDate(train.depDateRaw || departureDate);
-    navigate('/reservation', {
-      state: {
-        scheduleSeq: train.scheduleSeq || train.id || 1,
-        trainName: train.name,
-        trainType: 'KTX',
-        depTime: train.depTime,
-        arrTime: train.arrTime,
-        duration: train.duration,
-        depStation: train.depStationName || departureStation,
-        arrStation: train.arrStationName || arrivalStation,
-        depDate: formattedDate,
-        returnDate: tripType === '왕복' ? formatDepartureDate(returnDate) : null,
-        tripType,
-        passenger: passengerSummaryText,
-        passengerDetail: passengers,
-        seatType: '일반실',
-        price: train.price,
+    try {
+      const res = await client.post('/queue', { scheduleSeq });
+      const data = res.data || {};
+      const token = data.queueToken || '';
+      if (!data.isAvailable) {
+        // 대기 인원이 많으면 시간표 화면에서 대기열 모달을 통해 진입
+        navigate('/schedule', {
+          state: {
+            depStation: train.depStationName || departureStation,
+            arrStation: train.arrStationName || arrivalStation,
+            depDate: train.depDateRaw || departureDate,
+            tripType,
+            passengerDetail: passengers,
+          }
+        });
+        return;
       }
-    });
+      if (token) {
+        sessionStorage.setItem(`tago:queueToken:${scheduleSeq}`, token);
+      }
+      navigate('/reservation', {
+        state: {
+          scheduleSeq,
+          queueToken: token,
+          trainName: train.name,
+          trainType: 'KTX',
+          depTime: train.depTime,
+          arrTime: train.arrTime,
+          duration: train.duration,
+          depStation: train.depStationName || departureStation,
+          arrStation: train.arrStationName || arrivalStation,
+          depDate: formattedDate,
+          returnDate: tripType === '왕복' ? formatDepartureDate(returnDate) : null,
+          tripType,
+          passenger: passengerSummaryText,
+          passengerDetail: passengers,
+          seatType: '일반실',
+          price: train.price,
+        }
+      });
+    } catch (err) {
+      if (err.response?.status === 401) {
+        navigate('/login');
+        return;
+      }
+      console.error('메인 예매 대기열 진입 실패:', err);
+    }
   };
 
   // 찜하기 중앙 스토어 연동 (메인·시각표·마이페이지 공통)
