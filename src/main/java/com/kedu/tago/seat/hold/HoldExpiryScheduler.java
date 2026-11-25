@@ -2,6 +2,7 @@ package com.kedu.tago.seat.hold;
 
 import com.kedu.tago.seat.SeatEventPublisher;
 import com.kedu.tago.seat.SeatMapper;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -21,6 +22,7 @@ public class HoldExpiryScheduler {
     private final SeatHoldService seatHoldService;
     private final SeatEventPublisher seatEventPublisher;
     private final SeatMapper seatMapper;
+    private final MeterRegistry meterRegistry;
 
     @Scheduled(fixedDelay = 1000)
     public void broadcastExpiredHolds() {
@@ -30,6 +32,9 @@ public class HoldExpiryScheduler {
                 Long scheduleSeq = Long.valueOf(p[0]);
                 Integer carNo = Integer.valueOf(p[1]);
                 boolean sold = seatMapper.selectSeat(scheduleSeq, carNo, p[2]) != null;
+                if (!sold) {
+                    meterRegistry.counter("tago.seat.hold.expired").increment(); // 결제 없이 만료된 좌석
+                }
                 seatEventPublisher.publish(scheduleSeq, carNo, p[2], sold ? "CONFIRMED" : "AVAILABLE");
             }
             if (!expired.isEmpty()) {

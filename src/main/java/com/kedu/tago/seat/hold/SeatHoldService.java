@@ -5,6 +5,7 @@ import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.reservation.dto.ReservationRequestDTO.SeatSelection;
 import com.kedu.tago.seat.SeatMapper;
 import com.kedu.tago.seat.dto.SeatDTO;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
@@ -32,6 +33,8 @@ import java.util.concurrent.TimeUnit;
  * held:expiry                = ZSet("s:car:seat", 만료 시각)  만료 알림용
  * lock:seat:{s}:{car}:{seat}                 좌석 Redisson 락 (몇 ms만 유지)
  * lock:hold-user:{s}:{userId}                회원 Redisson 락 (같은 회원의 동시 선점이 1인 상한을 넘지 않도록)
+ *
+ * 메트릭: tago_seat_hold_total{result="success|conflict|limit"}
  */
 @Slf4j
 @Service
@@ -49,6 +52,7 @@ public class SeatHoldService {
     private final StringRedisTemplate redis;
     private final RedissonClient redisson;
     private final SeatMapper seatMapper;
+    private final MeterRegistry meterRegistry;
 
     @Value("${tago.hold.ttl-seconds:600}")
     private long holdTtlSeconds;
@@ -70,24 +74,28 @@ public class SeatHoldService {
         String userKey = userKey(scheduleSeq, userId);
         RLock lock = holdLock(scheduleSeq, userId, seats);
         if (!tryLock(lock, 0)) {
+            countHold("conflict");
             throw new ApiException(ErrorCode.SEAT_ALREADY_TAKEN, "다른 사용자가 같은 좌석을 선점하는 중입니다.");
         }
         try {
             // 1. 1인 상한: 실제로 내 것인 선점만 센다 (만료된 좌석은 목록에서 정리)
             int alreadyHeld = getMyHolds(scheduleSeq, userId).size();
             if (alreadyHeld + seats.size() > maxSeatsPerUser) {
+                countHold("limit");
                 throw new ApiException(ErrorCode.BAD_REQUEST, "1인 최대 " + maxSeatsPerUser + "석까지 선점할 수 있습니다.");
             }
             // 2. 이미 선점된 좌석 확인 (Redis)
             List<String> holders = redis.opsForValue().multiGet(seatKeys(scheduleSeq, seats));
             for (int i = 0; i < seats.size(); i++) {
                 if (holders != null && holders.get(i) != null) {
+                    countHold("conflict");
                     throw seatTaken(seats.get(i));
                 }
             }
             // 3. 이미 확정된 좌석 확인 (DB: seat 행이 있으면 판매 완료, 한 번에 조회)
             List<SeatDTO> sold = seatMapper.selectSeatsIn(scheduleSeq, seats);
             if (sold != null && !sold.isEmpty()) {
+                countHold("conflict");
                 throw seatTaken(new SeatSelection(sold.get(0).getCarNo(), sold.get(0).getSeatNo()));
             }
             // 4. 선점 저장
@@ -99,6 +107,7 @@ public class SeatHoldService {
                 redis.opsForZSet().add(HELD_EXPIRY, expiryMember(scheduleSeq, s), expireAtMs);
             }
             redis.expire(userKey, ttl);
+            countHold("success");
             return toLocalDateTime(expireAtMs);
         } finally {
             unlock(lock);
@@ -289,6 +298,10 @@ public class SeatHoldService {
         } catch (IllegalMonitorStateException e) {
             log.warn("[SeatHold] lock already released (lease expired): {}", e.getMessage());
         }
+    }
+
+    private void countHold(String result) {
+        meterRegistry.counter("tago.seat.hold", "result", result).increment();
     }
 
     private ApiException seatTaken(SeatSelection s) {

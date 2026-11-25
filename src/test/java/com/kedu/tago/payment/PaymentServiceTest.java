@@ -7,6 +7,7 @@ import com.kedu.tago.payment.dto.PaymentRequestDTO;
 import com.kedu.tago.payment.dto.PaymentResponseDTO;
 import com.kedu.tago.payment.event.PaymentConfirmedEvent;
 import com.kedu.tago.queue.QueuePassService;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import com.kedu.tago.reservation.ReservationMapper;
 import com.kedu.tago.reservation.ReservationService;
 import com.kedu.tago.reservation.dto.ReservationDTO;
@@ -58,9 +59,11 @@ class PaymentServiceTest {
     private final TransactionTemplate tx = mock(TransactionTemplate.class);
     private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private final PaymentIdempotencyService idempotency = mock(PaymentIdempotencyService.class);
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
 
     private final PaymentService service = new PaymentService(paymentMapper, reservationMapper, reservationService,
-            seatHoldService, seatMapper, seatEventPublisher, new SeatTemplateGenerator(), queuePassService, tx, events, idempotency);
+            seatHoldService, seatMapper, seatEventPublisher, new SeatTemplateGenerator(), queuePassService, tx, events, idempotency,
+            meterRegistry);
 
     private final AtomicLong seq = new AtomicLong(1);
 
@@ -119,6 +122,7 @@ class PaymentServiceTest {
 
         assertEquals("APPROVED", res.getStatus());
         assertEquals(PRICE * 2, res.getAmount());
+        assertEquals(1.0, meterRegistry.counter("tago.payment", "result", "approved").count(), "결제 메트릭: approved");
         verify(seatHoldService).verifyAndExtend(eq(S1), eq("me"), any(), anyLong());
         verify(seatMapper, times(2)).insertOccupiedSeat(any());
         verify(reservationMapper, times(2)).insertReservation(any());
@@ -150,6 +154,7 @@ class PaymentServiceTest {
         PaymentResponseDTO res = service.processPayment(pay(S1), "me", KEY);
 
         assertSame(saved, res);
+        assertEquals(1.0, meterRegistry.counter("tago.payment", "result", "replay").count(), "결제 메트릭: replay");
         verify(seatHoldService, never()).getMyHolds(anyLong(), any());
         verify(paymentMapper, never()).insertPayment(any(PaymentDTO.class));
     }
@@ -177,6 +182,7 @@ class PaymentServiceTest {
         ApiException e = assertThrows(ApiException.class, () -> service.processPayment(req, "me", KEY));
 
         assertEquals(ErrorCode.PAYMENT_DECLINED, e.getErrorCode());
+        assertEquals(1.0, meterRegistry.counter("tago.payment", "result", "declined").count(), "결제 메트릭: declined");
         verify(seatHoldService).release(S1, "me", mine);
         verify(queuePassService).releaseSlot(S1, "me");
         verify(seatMapper, never()).insertOccupiedSeat(any());

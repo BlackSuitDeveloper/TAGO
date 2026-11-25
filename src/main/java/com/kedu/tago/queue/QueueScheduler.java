@@ -8,6 +8,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -25,6 +26,7 @@ public class QueueScheduler {
     private static final long LOCK_LEASE_SECONDS = 10;
 
     private final QueueAdmissionService admissionService;
+    private final QueueMetrics queueMetrics;
     private final RedissonClient redisson;
 
     @Scheduled(fixedDelay = 1000)
@@ -44,9 +46,11 @@ public class QueueScheduler {
             return;
         }
         try {
-            for (String scheduleSeq : admissionService.getWaitingSchedules()) {
+            Set<String> waitingSchedules = admissionService.getWaitingSchedules();
+            for (String scheduleSeq : waitingSchedules) {
                 try {
                     int admitted = admissionService.admitWaiting(scheduleSeq);
+                    queueMetrics.admitted(admitted);
                     if (admitted > 0) {
                         log.info("[QueueScheduler] 운행 {}: 대기열 -> 입장 {}명", scheduleSeq, admitted);
                     }
@@ -54,11 +58,24 @@ public class QueueScheduler {
                     log.warn("[QueueScheduler] 운행 {} 입장 처리 실패: {}", scheduleSeq, e.getMessage());
                 }
             }
+            refreshMetrics(waitingSchedules);
         } finally {
             try {
                 lock.unlock();
             } catch (IllegalMonitorStateException e) {
                 log.warn("[QueueScheduler] 락이 이미 풀림: {}", e.getMessage());
+            }
+        }
+    }
+
+    /** 대기·입장 인원 메트릭 갱신 (대기자가 없어진 운행도 입장 인원이 0 이 될 때까지) */
+    private void refreshMetrics(Set<String> waitingSchedules) {
+        for (String scheduleSeq : queueMetrics.schedulesToRefresh(waitingSchedules)) {
+            try {
+                queueMetrics.update(scheduleSeq,
+                        admissionService.getWaitingCount(scheduleSeq), admissionService.getActiveCount(scheduleSeq));
+            } catch (Exception e) {
+                log.warn("[QueueScheduler] 운행 {} 메트릭 갱신 실패: {}", scheduleSeq, e.getMessage());
             }
         }
     }

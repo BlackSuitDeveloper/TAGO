@@ -17,6 +17,8 @@ import com.kedu.tago.seat.SeatMapper;
 import com.kedu.tago.seat.SeatEventPublisher;
 import com.kedu.tago.seat.SeatTemplateGenerator;
 import com.kedu.tago.seat.dto.SeatDTO;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -44,6 +46,9 @@ import java.util.concurrent.ThreadLocalRandom;
  * 2. 모의 PG 승인 (락 밖)
  * 3. DB 트랜잭션: seat 행 INSERT(UNIQUE 최종 방어선) + reservation CONFIRMED + payment
  * 4. 커밋 후: Redis 선점 키 삭제, 대기열 슬롯 반납, SSE (PaymentConfirmedListener)
+ *
+ * 메트릭: tago_payment_total{result}, tago_payment_duration_seconds{result}
+ *   result = approved | replay | declined | in_progress | hold_busy | hold_expired | seat_conflict | rejected | error
  */
 @Slf4j
 @Service
@@ -61,6 +66,7 @@ public class PaymentService {
     private final TransactionTemplate transactionTemplate;
     private final ApplicationEventPublisher eventPublisher;
     private final PaymentIdempotencyService idempotencyService;
+    private final MeterRegistry meterRegistry;
 
     @Value("${tago.hold.payment-extend-seconds:180}")
     private long paymentExtendSeconds;
@@ -70,17 +76,46 @@ public class PaymentService {
      * scheduleSeqs 로 왕복(가는 편 + 오는 편)을 한 트랜잭션에 확정할 수 있다.
      */
     public PaymentResponseDTO processPayment(PaymentRequestDTO request, String memberId, String idempotencyKey) {
-        if (memberId == null) {
-            throw new ApiException(ErrorCode.LOGIN_REQUIRED);
-        }
-        List<Long> schedules = targetSchedules(request);
+        Timer.Sample sample = Timer.start(meterRegistry);
+        String result = "error";
+        try {
+            if (memberId == null) {
+                throw new ApiException(ErrorCode.LOGIN_REQUIRED);
+            }
+            List<Long> schedules = targetSchedules(request);
 
-        PaymentResponseDTO replay = idempotencyService.begin(memberId, idempotencyKey);
-        if (replay != null) {
-            log.info("[Payment Idempotent] 같은 키 재요청: 회원={}, 티켓번호={}", memberId, replay.getTicketNumber());
-            return replay;
+            PaymentResponseDTO replay = idempotencyService.begin(memberId, idempotencyKey);
+            if (replay != null) {
+                log.info("[Payment Idempotent] 같은 키 재요청: 회원={}, 티켓번호={}", memberId, replay.getTicketNumber());
+                result = "replay";
+                return replay;
+            }
+            PaymentResponseDTO response = payOnce(request, memberId, idempotencyKey, schedules);
+            result = "approved";
+            return response;
+        } catch (ApiException e) {
+            result = paymentResult(e.getErrorCode());
+            throw e;
+        } finally {
+            meterRegistry.counter("tago.payment", "result", result).increment();
+            sample.stop(Timer.builder("tago.payment.duration").tag("result", result)
+                    .publishPercentileHistogram().register(meterRegistry));
         }
+    }
 
+    private static String paymentResult(ErrorCode code) {
+        return switch (code) {
+            case PAYMENT_DECLINED -> "declined";
+            case PAYMENT_IN_PROGRESS -> "in_progress";
+            case HOLD_BUSY -> "hold_busy";
+            case HOLD_EXPIRED -> "hold_expired";
+            case SEAT_ALREADY_TAKEN -> "seat_conflict";
+            default -> "rejected";
+        };
+    }
+
+    /** 멱등키를 잡은 요청의 실제 결제. 실패하면 키를 풀어 같은 키로 다시 시도할 수 있게 한다 */
+    private PaymentResponseDTO payOnce(PaymentRequestDTO request, String memberId, String idempotencyKey, List<Long> schedules) {
         PaymentResponseDTO response;
         try {
             response = pay(request, memberId, schedules);

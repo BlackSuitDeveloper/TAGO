@@ -52,6 +52,12 @@ public class QueueAdmissionService {
         return ids != null ? ids : Set.of();
     }
 
+    /** 현재 대기 인원 */
+    public long getWaitingCount(String scheduleSeq) {
+        Long size = redisTemplate.opsForZSet().zCard(QueueKeys.waiting(scheduleSeq));
+        return size != null ? size : 0L;
+    }
+
     /** 현재 입장 인원 (토큰별 키 개수, SCAN 으로 블로킹 방지) */
     public long getActiveCount(String scheduleSeq) {
         ScanOptions options = ScanOptions.scanOptions()
