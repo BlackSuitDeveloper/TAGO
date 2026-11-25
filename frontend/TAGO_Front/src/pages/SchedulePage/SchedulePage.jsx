@@ -273,25 +273,52 @@ export default function SchedulePage() {
 
   const handleResetOutbound = useCallback(() => {
     if (!selectedOutboundTrain) return;
-    setDepStation(selectedOutboundTrain.depStation);
-    setArrStation(selectedOutboundTrain.arrStation);
-    setCurrentDate(selectedOutboundTrain.depDate);
+    const origDep = selectedOutboundTrain.depStation;
+    const origArr = selectedOutboundTrain.arrStation;
+    const origDate = selectedOutboundTrain.depDate;
+    setDepStation(origDep);
+    setArrStation(origArr);
+    setCurrentDate(origDate);
     setSelectedOutboundTrain(null);
-    setPage(1);
-  }, [selectedOutboundTrain]);
+    if (page !== 1) {
+      setPage(1);
+    } else {
+      fetchSchedules({
+        dep: origDep,
+        arr: origArr,
+        date: origDate,
+        filter: selectedFilter,
+        targetPage: 1,
+      });
+    }
+  }, [selectedOutboundTrain, page, selectedFilter, fetchSchedules]);
 
   const goToReservation = useCallback((train) => {
     if (tripType === '왕복' && !selectedOutboundTrain) {
+      const nextDep = train.arrStationName || arrStation;
+      const nextArr = train.depStationName || depStation;
+      const nextDate = returnDate && returnDate >= currentDate ? returnDate : currentDate;
+
       setSelectedOutboundTrain({
         train,
         depStation,
         arrStation,
         depDate: currentDate,
       });
-      setDepStation(train.arrStationName || arrStation);
-      setArrStation(train.depStationName || depStation);
-      setCurrentDate(returnDate && returnDate >= currentDate ? returnDate : currentDate);
-      setPage(1);
+      setDepStation(nextDep);
+      setArrStation(nextArr);
+      setCurrentDate(nextDate);
+      if (page !== 1) {
+        setPage(1);
+      } else {
+        fetchSchedules({
+          dep: nextDep,
+          arr: nextArr,
+          date: nextDate,
+          filter: selectedFilter,
+          targetPage: 1,
+        });
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
@@ -348,7 +375,7 @@ export default function SchedulePage() {
         price: train.generalPrice,
       }
     });
-  }, [navigate, currentDate, depStation, arrStation, tripType, returnDate, selectedOutboundTrain, passengerSummaryText, passengers]);
+  }, [navigate, currentDate, depStation, arrStation, tripType, returnDate, selectedOutboundTrain, passengerSummaryText, passengers, page, selectedFilter, fetchSchedules]);
 
   const handleSelectTrain = async (train) => {
     clearQueuePolling();
