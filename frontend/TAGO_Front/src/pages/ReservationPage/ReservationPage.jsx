@@ -288,8 +288,10 @@ export default function ReservationPage() {
       ? parseInt(String(rawPrice).replace(/[^0-9]/g, ''), 10)
       : 59800;
 
+    const scheduleSeq = state.scheduleSeq || state.train?.scheduleSeq || 1;
     return {
-      scheduleSeq: state.scheduleSeq || state.train?.scheduleSeq || 1,
+      scheduleSeq,
+      queueToken: state.queueToken || sessionStorage.getItem(`tago_queue_token_${scheduleSeq}`) || null,
       trainName: state.trainName || state.train?.name || 'KTX 001',
       trainType: 'KTX',
       depTime: state.depTime || state.train?.depTime || '05:15',
@@ -615,12 +617,45 @@ export default function ReservationPage() {
     const outboundCarNo = outboundSeats[0]?.carNo || selectedCarNo;
 
     try {
-      const resHold = await client.post('/reservation', {
+      let activeToken = bookingInfo.queueToken;
+      if (!activeToken) {
+        const qRes = await client.post('/queue', { scheduleSeq: bookingInfo.scheduleSeq });
+        const qData = qRes.data || {};
+        if (!qData.isAvailable || !qData.queueToken) {
+          dialog.alert('현재 대기열이 혼잡합니다. 열차 선택 화면에서 대기열에 다시 진입해 주세요.', { title: '대기열 안내', tone: 'warning' })
+            .then(() => navigate('/schedule'));
+          return;
+        }
+        activeToken = qData.queueToken;
+        sessionStorage.setItem(`tago_queue_token_${bookingInfo.scheduleSeq}`, activeToken);
+      }
+
+      const sendHold = (token) => client.post('/reservation', {
         scheduleSeq: bookingInfo.scheduleSeq,
         carNo: outboundCarNo,
         seatList: seatNoList,
         count: seatNoList.length,
-      });
+      }, { headers: { 'X-Queue-Token': token } });
+
+      let resHold;
+      try {
+        resHold = await sendHold(activeToken);
+      } catch (firstErr) {
+        const code = firstErr.response?.data?.code;
+        if (code === 6000 || code === 6001) {
+          sessionStorage.removeItem(`tago_queue_token_${bookingInfo.scheduleSeq}`);
+          const qRes = await client.post('/queue', { scheduleSeq: bookingInfo.scheduleSeq });
+          const qData = qRes.data || {};
+          if (qData.isAvailable && qData.queueToken) {
+            sessionStorage.setItem(`tago_queue_token_${bookingInfo.scheduleSeq}`, qData.queueToken);
+            resHold = await sendHold(qData.queueToken);
+          } else {
+            throw firstErr;
+          }
+        } else {
+          throw firstErr;
+        }
+      }
 
       const data = resHold.data || {};
       const receivedAt = Date.now(); // 응답을 받은 시점 기준으로 deadline 을 만든다(서버 시계 차이 회피)
@@ -648,6 +683,10 @@ export default function ReservationPage() {
         );
         const fresh = await refreshCars(outboundSeatCarNos());
         setOutboundSeats((prev) => prev.filter((s) => !fresh[s.carNo]?.includes(s.seatId)));
+      } else if ([6000, 6001, 6002].includes(err.response?.data?.code)) {
+        sessionStorage.removeItem(`tago_queue_token_${bookingInfo.scheduleSeq}`);
+        dialog.alert(errorText(err, '대기열 입장이 필요합니다. 예매를 처음부터 다시 진행해 주세요.'), { title: '대기열 안내', tone: 'warning' })
+          .then(() => navigate('/schedule'));
       } else {
         dialog.alert(errorText(err, '좌석 선점 중 오류가 발생했습니다.'), { title: '예매 실패', tone: 'error' });
       }

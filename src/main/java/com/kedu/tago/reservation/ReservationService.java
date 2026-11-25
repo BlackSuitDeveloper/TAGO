@@ -146,9 +146,6 @@ public class ReservationService {
             seatMapper.deleteSeatBySeq(reservation.getSeatSeq());
         }
 
-        // 3. 대기열 슬롯 반납
-        queueService.releaseSlot(reservation.getScheduleSeq(), memberId);
-
         // TODO: 좌석 정보 조회 후 SSE 알림 전송
     }
 

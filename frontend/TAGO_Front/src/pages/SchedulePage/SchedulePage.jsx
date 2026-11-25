@@ -5,6 +5,7 @@ import Footer from '../../components/Footer/Footer';
 import QuickMenu from '../../components/QuickMenu/QuickMenu';
 import useWishStore from '../../store/useWishStore';
 import client from '../Api/client';
+import errorText from '../Api/errorText';
 import { dialog, notify } from '../../components/Dialog/dialogService';
 import './SchedulePage.css';
 
@@ -270,10 +271,14 @@ export default function SchedulePage() {
     return () => clearQueuePolling();
   }, [clearQueuePolling]);
 
-  const goToReservation = useCallback((train) => {
+  const goToReservation = useCallback((train, queueToken) => {
+    if (queueToken && train?.id) {
+      sessionStorage.setItem(`tago_queue_token_${train.id}`, queueToken);
+    }
     navigate('/reservation', {
       state: {
         scheduleSeq: train.id,
+        queueToken: queueToken || null,
         trainName: train.name,
         trainType: 'KTX',
         depTime: train.depTime,
@@ -298,7 +303,7 @@ export default function SchedulePage() {
       const res = await client.post('/queue', { scheduleSeq: train.id });
       const data = res.data || {};
       if (data.isAvailable) {
-        goToReservation(train);
+        goToReservation(train, data.queueToken);
         return;
       }
 
@@ -312,12 +317,18 @@ export default function SchedulePage() {
           if (pollData.isAvailable) {
             clearQueuePolling();
             setQueueModal(null);
-            goToReservation(train);
+            goToReservation(train, token);
           } else {
             setQueueModal((prev) => prev ? { ...prev, queueRank: pollData.queueRank ?? prev.queueRank } : null);
           }
         } catch (pollErr) {
           console.error('대기열 순번 조회 실패:', pollErr);
+          const status = pollErr.response?.status;
+          if (status === 400 || status === 403 || status === 503) {
+            clearQueuePolling();
+            setQueueModal(null);
+            dialog.alert(errorText(pollErr, '대기열 연결이 만료되었습니다. 다시 시도해 주세요.'), { title: '대기열 안내', tone: 'warning' });
+          }
         }
       }, 3000);
     } catch (err) {
@@ -325,7 +336,7 @@ export default function SchedulePage() {
         dialog.alert('로그인 후 승차권 예매가 가능합니다.', { title: '로그인 필요' }).then(() => navigate('/login'));
         return;
       }
-      goToReservation(train);
+      dialog.alert(errorText(err, '대기열 진입에 실패했습니다. 잠시 후 다시 시도해 주세요.'), { title: '대기열 안내', tone: 'error' });
     }
   };
 
