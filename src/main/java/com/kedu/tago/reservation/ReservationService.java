@@ -2,6 +2,7 @@ package com.kedu.tago.reservation;
 
 import com.kedu.tago.common.exception.ApiException;
 import com.kedu.tago.common.exception.ErrorCode;
+import com.kedu.tago.queue.QueueService;
 import com.kedu.tago.reservation.dto.MyTicketResponseDTO;
 import com.kedu.tago.reservation.dto.ReservationDTO;
 import com.kedu.tago.reservation.dto.ReservationRequestDTO;
@@ -38,13 +39,14 @@ public class ReservationService {
     private final SeatService seatService;
     private final ScheduleService scheduleService;
     private final SeatTemplateGenerator seatTemplateGenerator;
+    private final QueueService queueService;
 
     public static final int HOLD_TTL_MINUTES = 5; // 좌석 선점 유효시간(분)
     public static final int MAX_SEATS_PER_HOLD = 6; // 1회 최대 선점 가능 좌석 수
 
-    /** 좌석 선점 및 예매 생성 */
+    /** 좌석 선점 및 예매 생성 (대기열 입장권 검증 포함) */
     @Transactional
-    public ReservationResponseDTO holdSeats(ReservationRequestDTO request, String memberId) {
+    public ReservationResponseDTO holdSeats(ReservationRequestDTO request, String memberId, String queueToken) {
         Long scheduleSeq = request.getScheduleSeq();
         List<ReservationRequestDTO.SeatSelection> normalizedSeats = normalizeSelections(request);
 
@@ -52,6 +54,10 @@ public class ReservationService {
             throw new ApiException(ErrorCode.SEAT_NOT_SELECTED);
         }
 
+        // 대기열 입장권 원자적 검증 및 선점 유효시간만큼 만료 연장
+        queueService.validateAndExtendForHold(queueToken, scheduleSeq, memberId, HOLD_TTL_MINUTES * 60L);
+
+        // 운행 일정 확인 및 요금 계산
         if (normalizedSeats.size() > MAX_SEATS_PER_HOLD) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "1회 최대 " + MAX_SEATS_PER_HOLD + "석까지 예매할 수 있습니다.");
         }
@@ -205,6 +211,10 @@ public class ReservationService {
             seatMapper.deleteSeatBySeq(reservation.getSeatSeq());
         }
 
+        // 3. 대기열 슬롯 반납
+        queueService.releaseSlot(reservation.getScheduleSeq(), memberId);
+
+        // TODO: 좌석 정보 조회 후 SSE 알림 전송
         // 3. 실시간 SSE 복구 알림
         if (reservation.getScheduleSeq() != null && reservation.getCarNo() != null && reservation.getSeatNo() != null) {
             seatService.broadcastSeatStatusChange(reservation.getScheduleSeq(), reservation.getCarNo(), reservation.getSeatNo(), "AVAILABLE");
@@ -241,6 +251,9 @@ public class ReservationService {
                 seatMapper.deleteSeatBySeq(r.getSeatSeq());
             }
 
+            // 3. 대기열 슬롯 반납
+            queueService.releaseSlot(r.getScheduleSeq(), r.getMemberId());
+            log.info("[TTL Scheduler] 예약 번호 {} (좌석 {}) 만료 해제 완료", r.getReservationSeq(), r.getSeatSeq());
             // 3. 실시간 SSE 복구 알림
             if (r.getScheduleSeq() != null && r.getCarNo() != null && r.getSeatNo() != null) {
                 seatService.broadcastSeatStatusChange(r.getScheduleSeq(), r.getCarNo(), r.getSeatNo(), "AVAILABLE");

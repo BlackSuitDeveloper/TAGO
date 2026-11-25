@@ -5,6 +5,7 @@ import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.payment.dto.PaymentDTO;
 import com.kedu.tago.payment.dto.PaymentRequestDTO;
 import com.kedu.tago.payment.dto.PaymentResponseDTO;
+import com.kedu.tago.queue.QueueService;
 import com.kedu.tago.reservation.ReservationMapper;
 import com.kedu.tago.reservation.dto.ReservationDTO;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ public class PaymentService {
 
     private final PaymentMapper paymentMapper;
     private final ReservationMapper reservationMapper;
+    private final QueueService queueService;
 
     /** 금액 검증 후 단일 트랜잭션으로 결제 저장 및 예약 확정 */
     @Transactional
@@ -112,6 +114,7 @@ public class PaymentService {
                 throw new ApiException(ErrorCode.PAYMENT_NOT_AVAILABLE, "결제 처리 중 예약이 만료되었거나 이미 처리되었습니다.");
             }
         }
+        queueService.releaseSlot(reservations.get(0).getScheduleSeq(), memberId);
 
         log.info("[Payment Success] 승차권 발권 완료: 티켓번호={}, 예약Seq목록={}, 금액={}",
                 ticketNumber, targetIds, expectedTotalPrice);

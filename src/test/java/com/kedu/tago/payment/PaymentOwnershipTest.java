@@ -5,6 +5,7 @@ import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.payment.dto.PaymentDTO;
 import com.kedu.tago.payment.dto.PaymentRequestDTO;
 import com.kedu.tago.payment.dto.PaymentResponseDTO;
+import com.kedu.tago.queue.QueueService;
 import com.kedu.tago.reservation.ReservationMapper;
 import com.kedu.tago.reservation.dto.ReservationDTO;
 import org.junit.jupiter.api.DisplayName;
@@ -26,7 +27,8 @@ class PaymentOwnershipTest {
 
     private final PaymentMapper paymentMapper = mock(PaymentMapper.class);
     private final ReservationMapper reservationMapper = mock(ReservationMapper.class);
-    private final PaymentService service = new PaymentService(paymentMapper, reservationMapper);
+    private final QueueService queueService = mock(QueueService.class);
+    private final PaymentService service = new PaymentService(paymentMapper, reservationMapper, queueService);
 
     private ReservationDTO held(long seq, String owner) {
         return ReservationDTO.builder()

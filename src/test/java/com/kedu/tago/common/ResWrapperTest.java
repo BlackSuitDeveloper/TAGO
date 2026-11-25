@@ -112,11 +112,12 @@ class ResWrapperTest {
     @Test
     @DisplayName("에러: ErrorCode 의 번호·HTTP 상태가 응답에 나가고, 상황별 문구로 바꿀 수 있다")
     void errorCodeWithCustomMessage() throws Exception {
-        when(reservationService.holdSeats(any(), anyString()))
+        when(reservationService.holdSeats(any(), anyString(), any()))
                 .thenThrow(new ApiException(ErrorCode.SEAT_ALREADY_TAKEN, "좌석 3A은(는) 이미 선택되었습니다."));
 
         mvc.perform(post(V1 + "/reservation")
                         .requestAttr("id", "tester")
+                        .header("X-Queue-Token", "test-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"scheduleSeq\":1,\"carNo\":1,\"seatList\":[\"3A\"]}"))
                 .andExpect(status().isConflict())
@@ -129,11 +130,12 @@ class ResWrapperTest {
     @Test
     @DisplayName("에러: ErrorCode 를 거치지 않은 ResponseStatusException 도 같은 형식(HTTP 상태 유지, 대표 코드 1000)")
     void legacyResponseStatusException() throws Exception {
-        when(reservationService.holdSeats(any(), anyString()))
+        when(reservationService.holdSeats(any(), anyString(), any()))
                 .thenThrow(new ResponseStatusException(HttpStatus.GONE, "만료"));
 
         mvc.perform(post(V1 + "/reservation")
                         .requestAttr("id", "tester")
+                        .header("X-Queue-Token", "test-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"scheduleSeq\":1,\"carNo\":1,\"seatList\":[\"3A\"]}"))
                 .andExpect(status().isGone())

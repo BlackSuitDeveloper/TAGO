@@ -73,7 +73,7 @@ public class SeatConcurrencyTest {
         jdbcTemplate.update("DELETE FROM reservation WHERE seat_seq IN (SELECT seat_seq FROM seat WHERE schedule_seq = ? AND car_no = 1 AND seat_no = ?)", scheduleSeq, targetSeatNo);
         jdbcTemplate.update("DELETE FROM seat WHERE schedule_seq = ? AND car_no = 1 AND seat_no = ?", scheduleSeq, targetSeatNo);
 
-        String queueKey = "tago:queue:" + scheduleSeq;
+        String queueKey = "tago:queue:wait:" + scheduleSeq;
         if (redisTemplate != null) {
             try {
                 redisTemplate.delete(queueKey);
@@ -115,7 +115,7 @@ public class SeatConcurrencyTest {
                                 .count(1)
                                 .build();
 
-                        ReservationResponseDTO res = reservationService.holdSeats(req, memberId);
+                        ReservationResponseDTO res = reservationService.holdSeats(req, memberId, queueResp.getQueueToken());
                         if (res != null && "HELD".equals(res.getStatus())) {
                             successCount.incrementAndGet();
                             winners.add(memberId + " (reservationSeq=" + res.getReservationSeq() + ")");
@@ -185,7 +185,7 @@ public class SeatConcurrencyTest {
             try {
                 redisTemplate.delete(queueKey);
                 if (!queueTokens.isEmpty()) {
-                    redisTemplate.opsForSet().remove("tago:queue:admitted", queueTokens.toArray());
+                    redisTemplate.opsForZSet().remove("tago:queue:active:" + scheduleSeq, queueTokens.toArray());
                 }
             } catch (Exception ignored) {
             }
@@ -222,11 +222,12 @@ public class SeatConcurrencyTest {
         jdbcTemplate.update("DELETE FROM reservation WHERE seat_seq IN (SELECT seat_seq FROM seat WHERE schedule_seq = ? AND car_no = 1 AND seat_no = ?)", scheduleSeq, targetSeatNo);
         jdbcTemplate.update("DELETE FROM seat WHERE schedule_seq = ? AND car_no = 1 AND seat_no = ?", scheduleSeq, targetSeatNo);
 
-        String queueKey = "tago:queue:" + scheduleSeq;
+        String queueKey = "tago:queue:wait:" + scheduleSeq;
+        String activeKey = "tago:queue:active:" + scheduleSeq;
         String seatLockKey = "tago:seat:hold:" + scheduleSeq + ":1:" + targetSeatNo;
         assertNotNull(redisTemplate, "StringRedisTemplate이 주입되어야 합니다.");
         redisTemplate.delete(queueKey);
-        redisTemplate.delete("tago:queue:admitted");
+        redisTemplate.delete(activeKey);
         redisTemplate.delete(seatLockKey);
 
         ExecutorService executor = Executors.newFixedThreadPool(userCount);
@@ -246,7 +247,7 @@ public class SeatConcurrencyTest {
                         startLatch.await();
 
                         // 대기열 진입
-                        queueService.enterQueue(scheduleSeq, memberId);
+                        QueueResponseDTO queueResp = queueService.enterQueue(scheduleSeq, memberId);
 
                         // Redis SET NX EX 180 으로 좌석 락 경합
                         Boolean lockAcquired = redisTemplate.opsForValue()
@@ -263,7 +264,7 @@ public class SeatConcurrencyTest {
                                 .seatList(List.of(targetSeatNo))
                                 .count(1)
                                 .build();
-                        ReservationResponseDTO res = reservationService.holdSeats(req, memberId);
+                        ReservationResponseDTO res = reservationService.holdSeats(req, memberId, queueResp.getQueueToken());
                         successCount.incrementAndGet();
                         winners.add(memberId + " (reservationSeq=" + res.getReservationSeq() + ")");
                     } catch (ResponseStatusException e) {
@@ -287,7 +288,7 @@ public class SeatConcurrencyTest {
 
         // 육안 확인용으로 대기열 키에 TTL 180초 부여 후 유지
         redisTemplate.expire(queueKey, Duration.ofSeconds(180));
-        redisTemplate.expire("tago:queue:admitted", Duration.ofSeconds(180));
+        redisTemplate.expire(activeKey, Duration.ofSeconds(180));
 
         Long queueSize = redisTemplate.opsForZSet().zCard(queueKey);
         String lockOwner = redisTemplate.opsForValue().get(seatLockKey);
@@ -296,7 +297,7 @@ public class SeatConcurrencyTest {
         System.out.println("===================================================");
         System.out.println("[EX 180초 육안 확인용 테스트 완료 - Redis 키 삭제 안 함]");
         System.out.println("1) 대기열 키: " + queueKey + " (인원=" + queueSize + "명, TTL=180초)");
-        System.out.println("2) 통과자 키: tago:queue:admitted (TTL=180초)");
+        System.out.println("2) 통과자 키: " + activeKey + " (TTL=180초)");
         System.out.println("3) 좌석 락 키: " + seatLockKey + " = " + lockOwner + " (남은 TTL=" + lockTtl + "초)");
         System.out.println("선점 성공: " + successCount.get() + "명 -> " + winners);
         System.out.println("선점 충돌(차단): " + conflictCount.get() + "명");
@@ -392,9 +393,10 @@ public class SeatConcurrencyTest {
         jdbcTemplate.update("DELETE FROM reservation WHERE seat_seq IN (SELECT seat_seq FROM seat WHERE schedule_seq = ? AND car_no = 1 AND seat_no = ?)", scheduleSeq, targetSeatNo);
         jdbcTemplate.update("DELETE FROM seat WHERE schedule_seq = ? AND car_no = 1 AND seat_no = ?", scheduleSeq, targetSeatNo);
 
-        String queueKey = "tago:queue:" + scheduleSeq;
+        String queueKey = "tago:queue:wait:" + scheduleSeq;
+        String activeKey = "tago:queue:active:" + scheduleSeq;
         redisTemplate.delete(queueKey);
-        redisTemplate.delete("tago:queue:admitted");
+        redisTemplate.delete(activeKey);
 
         // 50명 1ms 간격으로 대기열 진입 및 동일 좌석 예매 시도
         ExecutorService executor = Executors.newFixedThreadPool(userCount);
@@ -430,7 +432,7 @@ public class SeatConcurrencyTest {
                                 .count(1)
                                 .build();
 
-                        ReservationResponseDTO res = reservationService.holdSeats(req, memberId);
+                        ReservationResponseDTO res = reservationService.holdSeats(req, memberId, queueResp.getQueueToken());
                         if (res != null && "HELD".equals(res.getStatus())) {
                             successCount.incrementAndGet();
                             winners.add(memberId + " (reservationSeq=" + res.getReservationSeq() + ")");
@@ -490,7 +492,7 @@ public class SeatConcurrencyTest {
 
         // 육안 확인용으로 Redis 키에 TTL 180초 부여 후 유지
         redisTemplate.expire(queueKey, Duration.ofSeconds(180));
-        redisTemplate.expire("tago:queue:admitted", Duration.ofSeconds(180));
+        redisTemplate.expire(activeKey, Duration.ofSeconds(180));
 
         // DB 정합성 검증 및 테스트 데이터 정리
         SeatDTO finalSeat = seatMapper.selectSeat(scheduleSeq, 1, targetSeatNo);

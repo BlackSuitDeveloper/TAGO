@@ -90,7 +90,7 @@ public class ReservationPaymentIntegrationTest {
                 .count(1)
                 .build();
 
-        ReservationResponseDTO holdResp = reservationService.holdSeats(holdReq, "testUser1");
+        ReservationResponseDTO holdResp = reservationService.holdSeats(holdReq, "testUser1", queueEnter.getQueueToken());
         assertNotNull(holdResp.getReservationSeq());
         assertEquals("HELD", holdResp.getStatus());
         assertNotNull(holdResp.getExpiresAt());
@@ -99,8 +99,9 @@ public class ReservationPaymentIntegrationTest {
         assertEquals("HELD", seatAfterHold.getStatus());
 
         // 다른 사용자의 동일 좌석 중복 선점은 실패
+        QueueResponseDTO queueEnter2 = queueService.enterQueue(scheduleSeq, "testUser2");
         assertThrows(ResponseStatusException.class, () -> {
-            reservationService.holdSeats(holdReq, "testUser2");
+            reservationService.holdSeats(holdReq, "testUser2", queueEnter2.getQueueToken());
         }, "동일 좌석 중복 선점 요청은 반드시 실패해야 합니다.");
 
         // 결제 및 발권 확정

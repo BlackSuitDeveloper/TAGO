@@ -24,11 +24,12 @@ public class ReservationController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ResWrapper<ReservationResponseDTO> holdSeats(
+            @RequestHeader(value = "X-Queue-Token", required = false) String queueToken,
             @RequestBody ReservationRequestDTO requestDTO,
             HttpServletRequest request) {
 
         String memberId = (String) request.getAttribute("id");
-        return ResWrapper.ok(reservationService.holdSeats(requestDTO, memberId));
+        return ResWrapper.ok(reservationService.holdSeats(requestDTO, memberId, queueToken));
     }
 
     /** 내 승차권 목록 조회 (GET /api/v1/reservation/me) */
