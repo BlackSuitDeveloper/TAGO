@@ -1,8 +1,10 @@
-package com.kedu.tago.seat;
+package com.kedu.tago.seat.hold;
 
 import com.kedu.tago.common.exception.ApiException;
 import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.reservation.dto.ReservationRequestDTO.SeatSelection;
+import com.kedu.tago.seat.SeatMapper;
+import com.kedu.tago.seat.dto.SeatDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
@@ -28,20 +30,21 @@ import java.util.concurrent.TimeUnit;
  * held:seat:{s}:{car}:{seat} = userId (TTL)  좌석 단위 선점
  * held:user:{s}:{userId}     = {"car:seat"}  사용자 단위 선점 목록
  * held:expiry                = ZSet("s:car:seat", 만료 시각)  만료 알림용
- * lock:seat:{s}:{car}:{seat}                 Redisson 락 (몇 ms만 유지)
+ * lock:seat:{s}:{car}:{seat}                 좌석 Redisson 락 (몇 ms만 유지)
+ * lock:hold-user:{s}:{userId}                회원 Redisson 락 (같은 회원의 동시 선점이 1인 상한을 넘지 않도록)
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class SeatHoldService {
 
-    public static final int MAX_SEATS_PER_USER = 6;
-
     private static final String HELD_SEAT = "held:seat:";
     private static final String HELD_USER = "held:user:";
     private static final String HELD_EXPIRY = "held:expiry";
     private static final String LOCK_SEAT = "lock:seat:";
+    private static final String LOCK_HOLD_USER = "lock:hold-user:";
     private static final long LOCK_LEASE_SECONDS = 3;
+    private static final long LOCK_WAIT_SECONDS = 2; // 결제·해제는 남의 선점 시도(몇 ms)가 끝날 때까지 기다린다
 
     private final StringRedisTemplate redis;
     private final RedissonClient redisson;
@@ -50,37 +53,44 @@ public class SeatHoldService {
     @Value("${tago.hold.ttl-seconds:600}")
     private long holdTtlSeconds;
 
+    @Value("${tago.hold.max-seats:6}")
+    private int maxSeatsPerUser = 6;
+
     public long getHoldTtlSeconds() {
         return holdTtlSeconds;
+    }
+
+    /** 1인(운행별) 최대 선점 좌석 수 */
+    public int getMaxSeatsPerUser() {
+        return maxSeatsPerUser;
     }
 
     /** 좌석 선점. 하나라도 이미 선점·확정된 좌석이면 전체 실패 */
     public LocalDateTime hold(Long scheduleSeq, String userId, List<SeatSelection> seats) {
         String userKey = userKey(scheduleSeq, userId);
-        Long alreadyHeld = redis.opsForSet().size(userKey);
-        if ((alreadyHeld == null ? 0 : alreadyHeld) + seats.size() > MAX_SEATS_PER_USER) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "1인 최대 " + MAX_SEATS_PER_USER + "석까지 선점할 수 있습니다.");
-        }
-
-        RLock lock = multiLock(scheduleSeq, seats);
-        if (!tryLock(lock)) {
+        RLock lock = holdLock(scheduleSeq, userId, seats);
+        if (!tryLock(lock, 0)) {
             throw new ApiException(ErrorCode.SEAT_ALREADY_TAKEN, "다른 사용자가 같은 좌석을 선점하는 중입니다.");
         }
         try {
-            // 1. 이미 선점된 좌석 확인 (Redis)
+            // 1. 1인 상한: 실제로 내 것인 선점만 센다 (만료된 좌석은 목록에서 정리)
+            int alreadyHeld = getMyHolds(scheduleSeq, userId).size();
+            if (alreadyHeld + seats.size() > maxSeatsPerUser) {
+                throw new ApiException(ErrorCode.BAD_REQUEST, "1인 최대 " + maxSeatsPerUser + "석까지 선점할 수 있습니다.");
+            }
+            // 2. 이미 선점된 좌석 확인 (Redis)
             List<String> holders = redis.opsForValue().multiGet(seatKeys(scheduleSeq, seats));
             for (int i = 0; i < seats.size(); i++) {
                 if (holders != null && holders.get(i) != null) {
                     throw seatTaken(seats.get(i));
                 }
             }
-            // 2. 이미 확정된 좌석 확인 (DB: seat 행이 있으면 판매 완료)
-            for (SeatSelection s : seats) {
-                if (seatMapper.selectSeat(scheduleSeq, s.getCarNo(), s.getSeatNo()) != null) {
-                    throw seatTaken(s);
-                }
+            // 3. 이미 확정된 좌석 확인 (DB: seat 행이 있으면 판매 완료, 한 번에 조회)
+            List<SeatDTO> sold = seatMapper.selectSeatsIn(scheduleSeq, seats);
+            if (sold != null && !sold.isEmpty()) {
+                throw seatTaken(new SeatSelection(sold.get(0).getCarNo(), sold.get(0).getSeatNo()));
             }
-            // 3. 선점 저장
+            // 4. 선점 저장
             Duration ttl = Duration.ofSeconds(holdTtlSeconds);
             long expireAtMs = System.currentTimeMillis() + ttl.toMillis();
             for (SeatSelection s : seats) {
@@ -95,9 +105,10 @@ public class SeatHoldService {
         }
     }
 
-    /** 내가 선점 중인 좌석 목록 (만료됐거나 남의 것이 된 좌석은 제외) */
+    /** 내가 선점 중인 좌석 목록 (만료됐거나 남의 것이 된 좌석은 제외하고 목록에서도 지운다) */
     public List<SeatSelection> getMyHolds(Long scheduleSeq, String userId) {
-        Set<String> members = redis.opsForSet().members(userKey(scheduleSeq, userId));
+        String userKey = userKey(scheduleSeq, userId);
+        Set<String> members = redis.opsForSet().members(userKey);
         List<SeatSelection> result = new ArrayList<>();
         if (members == null || members.isEmpty()) {
             return result;
@@ -108,10 +119,16 @@ public class SeatHoldService {
             candidates.add(new SeatSelection(Integer.valueOf(parts[0]), parts[1]));
         }
         List<String> holders = redis.opsForValue().multiGet(seatKeys(scheduleSeq, candidates));
+        List<String> stale = new ArrayList<>();
         for (int i = 0; i < candidates.size(); i++) {
             if (holders != null && userId.equals(holders.get(i))) {
                 result.add(candidates.get(i));
+            } else {
+                stale.add(member(candidates.get(i)));
             }
+        }
+        if (!stale.isEmpty()) {
+            redis.opsForSet().remove(userKey, stale.toArray());
         }
         return result;
     }
@@ -119,8 +136,9 @@ public class SeatHoldService {
     /** 결제 직전: 좌석 주인이 나인지 확인하고, 결제 처리 중 만료되지 않게 TTL 연장 */
     public void verifyAndExtend(Long scheduleSeq, String userId, List<SeatSelection> seats, long extendSeconds) {
         RLock lock = multiLock(scheduleSeq, seats);
-        if (!tryLock(lock)) {
-            throw new ApiException(ErrorCode.HOLD_EXPIRED);
+        if (!tryLock(lock, LOCK_WAIT_SECONDS)) {
+            // 만료가 아니라 잠깐 바쁜 것: 선점은 그대로 두고 같은 멱등키로 다시 시도하게 한다
+            throw new ApiException(ErrorCode.HOLD_BUSY);
         }
         try {
             List<String> keys = seatKeys(scheduleSeq, seats);
@@ -151,7 +169,11 @@ public class SeatHoldService {
             return released;
         }
         RLock lock = multiLock(scheduleSeq, seats);
-        boolean locked = tryLock(lock, 1);
+        if (!tryLock(lock, LOCK_WAIT_SECONDS)) {
+            // 락 없이 지우면 그 사이 다른 사람이 잡은 선점을 지울 수 있다. 해제하지 않아도 TTL 로 풀린다
+            log.warn("[SeatHold] 선점 해제 락 획득 실패: schedule={}, user={}", scheduleSeq, userId);
+            return released;
+        }
         try {
             List<String> keys = seatKeys(scheduleSeq, seats);
             List<String> holders = redis.opsForValue().multiGet(keys);
@@ -164,9 +186,7 @@ public class SeatHoldService {
                 redis.opsForSet().remove(userKey(scheduleSeq, userId), member(seats.get(i)));
             }
         } finally {
-            if (locked) {
-                unlock(lock);
-            }
+            unlock(lock);
         }
         return released;
     }
@@ -196,7 +216,7 @@ public class SeatHoldService {
         }
         List<String> keys = new ArrayList<>(seatNos.size());
         for (String seatNo : seatNos) {
-            keys.add(HELD_SEAT + scheduleSeq + ":" + carNo + ":" + seatNo);
+            keys.add(seatKey(scheduleSeq, new SeatSelection(carNo, seatNo)));
         }
         List<String> holders = redis.opsForValue().multiGet(keys);
         for (int i = 0; i < seatNos.size(); i++) {
@@ -215,27 +235,43 @@ public class SeatHoldService {
             return result;
         }
         for (String m : expired) {
-            if (Boolean.TRUE.equals(redis.hasKey(HELD_SEAT + m))) {
+            String seatKey = HELD_SEAT + m;
+            if (Boolean.TRUE.equals(redis.hasKey(seatKey))) {
                 continue; // 그 사이 다시 선점되었거나 연장됨
             }
             Long removed = redis.opsForZSet().remove(HELD_EXPIRY, m);
-            if (removed != null && removed > 0) {
-                result.add(m.split(":"));
+            if (removed == null || removed == 0) {
+                continue; // 다른 스레드가 먼저 처리
             }
+            // 확인과 삭제 사이에 다른 사람이 다시 선점했다면, 지워 버린 그 사람의 만료 항목을 되돌리고 알리지 않는다
+            Long ttlMs = redis.getExpire(seatKey, TimeUnit.MILLISECONDS);
+            if (ttlMs != null && ttlMs > 0) {
+                redis.opsForZSet().add(HELD_EXPIRY, m, System.currentTimeMillis() + ttlMs);
+                continue;
+            }
+            result.add(m.split(":"));
         }
         return result;
     }
 
     private RLock multiLock(Long scheduleSeq, List<SeatSelection> seats) {
-        RLock[] locks = new RLock[seats.size()];
-        for (int i = 0; i < seats.size(); i++) {
-            locks[i] = redisson.getLock(LOCK_SEAT + scheduleSeq + ":" + member(seats.get(i)));
-        }
+        RLock[] locks = seatLocks(scheduleSeq, seats, 0);
         return locks.length == 1 ? locks[0] : redisson.getMultiLock(locks);
     }
 
-    private boolean tryLock(RLock lock) {
-        return tryLock(lock, 0);
+    /** 선점용: 좌석 락 + 회원 락 */
+    private RLock holdLock(Long scheduleSeq, String userId, List<SeatSelection> seats) {
+        RLock[] locks = seatLocks(scheduleSeq, seats, 1);
+        locks[seats.size()] = redisson.getLock(LOCK_HOLD_USER + scheduleSeq + ":" + userId);
+        return redisson.getMultiLock(locks);
+    }
+
+    private RLock[] seatLocks(Long scheduleSeq, List<SeatSelection> seats, int extra) {
+        RLock[] locks = new RLock[seats.size() + extra];
+        for (int i = 0; i < seats.size(); i++) {
+            locks[i] = redisson.getLock(LOCK_SEAT + scheduleSeq + ":" + member(seats.get(i)));
+        }
+        return locks;
     }
 
     private boolean tryLock(RLock lock, long waitSeconds) {

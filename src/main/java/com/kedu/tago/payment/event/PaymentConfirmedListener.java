@@ -1,9 +1,9 @@
 package com.kedu.tago.payment.event;
 
-import com.kedu.tago.queue.QueueService;
+import com.kedu.tago.queue.QueuePassService;
 import com.kedu.tago.reservation.dto.ReservationRequestDTO.SeatSelection;
-import com.kedu.tago.seat.SeatHoldService;
-import com.kedu.tago.seat.SeatService;
+import com.kedu.tago.seat.hold.SeatHoldService;
+import com.kedu.tago.seat.SeatEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -22,8 +22,8 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class PaymentConfirmedListener {
 
     private final SeatHoldService seatHoldService;
-    private final QueueService queueService;
-    private final SeatService seatService;
+    private final QueuePassService queuePassService;
+    private final SeatEventPublisher seatEventPublisher;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onConfirmed(PaymentConfirmedEvent event) {
@@ -38,10 +38,10 @@ public class PaymentConfirmedListener {
                 log.error("[After Commit] TTL 단축도 실패, 원래 TTL 로 만료 예정: {}", e2.getMessage());
             }
         }
-        queueService.releaseSlot(event.scheduleSeq(), event.memberId()); // 내부에서 예외를 삼킨다
+        queuePassService.releaseSlot(event.scheduleSeq(), event.memberId()); // 내부에서 예외를 삼킨다
         try {
             for (SeatSelection s : event.seats()) {
-                seatService.broadcastSeatStatusChange(event.scheduleSeq(), s.getCarNo(), s.getSeatNo(), "CONFIRMED");
+                seatEventPublisher.publish(event.scheduleSeq(), s.getCarNo(), s.getSeatNo(), "CONFIRMED");
             }
         } catch (Exception e) {
             log.warn("[After Commit] SSE 알림 실패: {}", e.getMessage());

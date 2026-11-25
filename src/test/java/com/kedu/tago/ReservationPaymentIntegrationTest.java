@@ -5,6 +5,7 @@ import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.payment.PaymentService;
 import com.kedu.tago.payment.dto.PaymentRequestDTO;
 import com.kedu.tago.payment.dto.PaymentResponseDTO;
+import com.kedu.tago.queue.QueueAdmissionService;
 import com.kedu.tago.queue.QueueService;
 import com.kedu.tago.reservation.ReservationService;
 import com.kedu.tago.reservation.dto.ReservationRequestDTO;
@@ -35,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * 예매 전체 흐름 통합 테스트 (실제 PostgreSQL + Redis 필요: docker compose up -d postgres redis)
  * 대기열 → Redis 선점 → 충돌 → 좌석 조회 → 결제(멱등키) → 재요청 → 결제 거절 → 환불 후 재판매
  */
-@SpringBootTest(properties = {"tago.sync.startup-enabled=false", "tago.queue.max-active=1000"})
+@SpringBootTest(properties = {"tago.sync.startup-enabled=false", "tago.queue.max-active=1000", "tago.queue.scheduler-enabled=false"})
 class ReservationPaymentIntegrationTest {
 
     private static final int CAR = 18;
@@ -43,6 +44,7 @@ class ReservationPaymentIntegrationTest {
     private static final String U2 = "itPayUser2";
 
     @Autowired private QueueService queueService;
+    @Autowired private QueueAdmissionService admission;
     @Autowired private ReservationService reservationService;
     @Autowired private PaymentService paymentService;
     @Autowired private SeatService seatService;
@@ -63,7 +65,7 @@ class ReservationPaymentIntegrationTest {
     }
 
     private ReservationResponseDTO hold(String member, String... seatNos) {
-        String token = ReservationTestData.admittedToken(queueService, s, member);
+        String token = ReservationTestData.admittedToken(queueService, admission, s, member);
         ReservationRequestDTO req = ReservationRequestDTO.builder()
                 .scheduleSeq(s)
                 .seats(Arrays.stream(seatNos).map(no -> new SeatSelection(CAR, no)).toList())

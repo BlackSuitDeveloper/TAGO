@@ -5,10 +5,14 @@ import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.payment.PaymentService;
 import com.kedu.tago.payment.dto.PaymentRequestDTO;
 import com.kedu.tago.payment.dto.PaymentResponseDTO;
+import com.kedu.tago.queue.QueueAdmissionService;
 import com.kedu.tago.queue.QueueService;
 import com.kedu.tago.reservation.ReservationService;
 import com.kedu.tago.reservation.dto.ReservationRequestDTO;
 import com.kedu.tago.reservation.dto.ReservationRequestDTO.SeatSelection;
+import com.kedu.tago.seat.SeatMapper;
+import com.kedu.tago.seat.SeatTemplateGenerator;
+import com.kedu.tago.seat.dto.SeatDTO;
 import com.kedu.tago.support.ReservationTestData;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,22 +36,25 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 동시성 통합 테스트 (실제 PostgreSQL + Redis 필요).
  * 여러 스레드를 "출발 신호"에 맞춰 동시에 출발시켜, 락·선점·멱등키가 경쟁 상황에서도 지켜지는지 본다.
  */
-@SpringBootTest(properties = {"tago.sync.startup-enabled=false", "tago.queue.max-active=1000"})
+@SpringBootTest(properties = {"tago.sync.startup-enabled=false", "tago.queue.max-active=1000", "tago.queue.scheduler-enabled=false"})
 class SeatConcurrencyTest {
 
     private static final int CAR = 18;
     private static final int USERS = 30;
 
     @Autowired private QueueService queueService;
+    @Autowired private QueueAdmissionService admission;
     @Autowired private ReservationService reservationService;
     @Autowired private PaymentService paymentService;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private SeatMapper seatMapper;
     @Autowired private StringRedisTemplate redis;
 
     private Long s;
@@ -106,7 +113,7 @@ class SeatConcurrencyTest {
         for (int i = 0; i < USERS; i++) {
             tokens[i] = queueService.enterQueue(s, members[i]).getQueueToken();
         }
-        ReservationTestData.admitAll(queueService, s);
+        ReservationTestData.admitAll(admission, s);
         return tokens;
     }
 
@@ -158,6 +165,7 @@ class SeatConcurrencyTest {
                 assertEquals(members[i], heldBy(seat), "성공한 사람의 좌석은 모두 그 사람 것");
             }
         }
+        assertFalse(claimed.isEmpty(), "최소 1명은 성공해야 한다");
         // 실패한 요청이 일부만 잡아 둔 좌석이 없어야 한다
         for (String seat : pool) {
             String owner = heldBy(seat);
@@ -169,7 +177,7 @@ class SeatConcurrencyTest {
     @DisplayName("같은 멱등키로 결제 10번 동시 요청(더블클릭): 결제·확정은 딱 1번")
     void concurrentPaymentSameKeyPaysOnce() throws InterruptedException {
         String member = members[0];
-        String token = ReservationTestData.admittedToken(queueService, s, member);
+        String token = ReservationTestData.admittedToken(queueService, admission, s, member);
         reservationService.holdSeats(request("2A"), member, token);
         PaymentRequestDTO req = PaymentRequestDTO.builder().scheduleSeq(s).payMethod("CARD").build();
 
@@ -195,7 +203,7 @@ class SeatConcurrencyTest {
     }
 
     @Test
-    @DisplayName("30명이 4석을 동시에 노리고 성공한 사람은 바로 결제: DB 에 같은 좌석이 두 번 확정되지 않는다")
+    @DisplayName("30명이 4석을 동시에 노리고 성공한 사람은 바로 결제: 선점·결제를 거쳐 같은 좌석이 두 번 확정되지 않는다")
     void holdAndPayNoDuplicateSale() throws InterruptedException {
         String[] tokens = enterAll();
         String[] pool = {"3A", "3B", "3C", "3D"};
@@ -212,5 +220,21 @@ class SeatConcurrencyTest {
         assertEquals(paid, sold.size(), "결제 성공 수 = 확정 좌석 수");
         assertEquals(new HashSet<>(sold).size(), sold.size(), "중복 확정 없음");
         assertTrue(sold.size() <= 4, "4석보다 많이 팔릴 수 없음");
+        assertTrue(paid > 0, "최소 1명은 결제해야 한다");
+    }
+
+    @Test
+    @DisplayName("DB 최종 방어선: 같은 좌석 seat 행을 동시에 30번 INSERT 하면 정확히 1건만 들어간다 (Redis 선점을 건너뛴 경우)")
+    void dbUniqueIsLastLineOfDefense() throws InterruptedException {
+        Map<Integer, Object> results = runConcurrently(USERS, i -> seatMapper.insertOccupiedSeat(
+                SeatDTO.builder().scheduleSeq(s).carNo(CAR).seatNo("4A").seatGrade(SeatTemplateGenerator.GRADE_STANDARD).build()));
+
+        long inserted = results.values().stream().filter(v -> Integer.valueOf(1).equals(v)).count();
+        long skipped = results.values().stream().filter(v -> Integer.valueOf(0).equals(v)).count();
+        assertEquals(1, inserted, "INSERT 성공은 1건");
+        assertEquals(USERS - 1, skipped, "나머지는 ON CONFLICT DO NOTHING 으로 0건");
+        Integer rows = jdbc.queryForObject(
+                "SELECT count(*) FROM seat WHERE schedule_seq = ? AND car_no = ? AND seat_no = '4A'", Integer.class, s, CAR);
+        assertEquals(1, rows);
     }
 }

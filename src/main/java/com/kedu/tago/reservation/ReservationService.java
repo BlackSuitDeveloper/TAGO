@@ -2,16 +2,16 @@ package com.kedu.tago.reservation;
 
 import com.kedu.tago.common.exception.ApiException;
 import com.kedu.tago.common.exception.ErrorCode;
-import com.kedu.tago.queue.QueueService;
+import com.kedu.tago.queue.QueuePassService;
 import com.kedu.tago.reservation.dto.MyTicketResponseDTO;
 import com.kedu.tago.reservation.dto.ReservationDTO;
 import com.kedu.tago.reservation.dto.ReservationRequestDTO;
 import com.kedu.tago.reservation.dto.ReservationResponseDTO;
 import com.kedu.tago.schedule.ScheduleService;
 import com.kedu.tago.schedule.dto.ScheduleResponseDTO;
-import com.kedu.tago.seat.SeatHoldService;
+import com.kedu.tago.seat.hold.SeatHoldService;
 import com.kedu.tago.seat.SeatMapper;
-import com.kedu.tago.seat.SeatService;
+import com.kedu.tago.seat.SeatEventPublisher;
 import com.kedu.tago.seat.SeatTemplateGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,13 +38,11 @@ public class ReservationService {
 
     private final ReservationMapper reservationMapper;
     private final SeatMapper seatMapper;
-    private final SeatService seatService;
+    private final SeatEventPublisher seatEventPublisher;
     private final ScheduleService scheduleService;
     private final SeatTemplateGenerator seatTemplateGenerator;
-    private final QueueService queueService;
+    private final QueuePassService queuePassService;
     private final SeatHoldService seatHoldService;
-
-    public static final int MAX_SEATS_PER_HOLD = 6; // 1회 최대 선점 가능 좌석 수
 
     /** 좌석 선점 (Redis held 키, DB 에는 쓰지 않음. 확정은 결제 시점) */
     public ReservationResponseDTO holdSeats(ReservationRequestDTO request, String memberId, String queueToken) {
@@ -58,11 +56,13 @@ public class ReservationService {
             throw new ApiException(ErrorCode.LOGIN_REQUIRED);
         }
 
-        // 대기열 입장권 검증 및 선점 유효시간만큼 active 연장
-        queueService.validateAndExtendForHold(queueToken, scheduleSeq, memberId, seatHoldService.getHoldTtlSeconds());
+        // 대기열 입장권 검증 및 연장: 선점 시간 + 입장 시간만큼 남겨 둬서, 선점이 만료돼도 좌석을 다시 고를 수 있게 한다
+        queuePassService.validateAndExtendForHold(queueToken, scheduleSeq, memberId,
+                seatHoldService.getHoldTtlSeconds() + queuePassService.getTokenTtlSeconds());
 
-        if (normalizedSeats.size() > MAX_SEATS_PER_HOLD) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "1회 최대 " + MAX_SEATS_PER_HOLD + "석까지 예매할 수 있습니다.");
+        int maxSeats = seatHoldService.getMaxSeatsPerUser();
+        if (normalizedSeats.size() > maxSeats) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "1회 최대 " + maxSeats + "석까지 예매할 수 있습니다.");
         }
 
         ScheduleResponseDTO schedule = validateBookableSchedule(scheduleSeq);
@@ -81,7 +81,7 @@ public class ReservationService {
 
         List<String> heldSeatNos = new ArrayList<>();
         for (ReservationRequestDTO.SeatSelection selection : normalizedSeats) {
-            seatService.broadcastSeatStatusChange(scheduleSeq, selection.getCarNo(), selection.getSeatNo(), "HELD");
+            seatEventPublisher.publish(scheduleSeq, selection.getCarNo(), selection.getSeatNo(), "HELD");
             heldSeatNos.add(selection.getCarNo() + "-" + selection.getSeatNo());
         }
 
@@ -104,7 +104,7 @@ public class ReservationService {
         List<ReservationRequestDTO.SeatSelection> released =
                 seatHoldService.release(scheduleSeq, memberId, seatHoldService.getMyHolds(scheduleSeq, memberId));
         for (ReservationRequestDTO.SeatSelection s : released) {
-            seatService.broadcastSeatStatusChange(scheduleSeq, s.getCarNo(), s.getSeatNo(), "AVAILABLE");
+            seatEventPublisher.publish(scheduleSeq, s.getCarNo(), s.getSeatNo(), "AVAILABLE");
         }
         return released.size();
     }
@@ -112,7 +112,7 @@ public class ReservationService {
     /** 예매 그만두기 / 페이지 이탈: 선점 해제 + 대기열 슬롯 반납 */
     public void leave(Long scheduleSeq, String memberId) {
         releaseHolds(scheduleSeq, memberId);
-        queueService.releaseSlot(scheduleSeq, memberId);
+        queuePassService.releaseSlot(scheduleSeq, memberId);
     }
 
     /** 운행 일정 상태·오픈 시각·출발 시각 검증 */
@@ -196,7 +196,7 @@ public class ReservationService {
         }
 
         // 3. 대기열 슬롯 반납
-        queueService.releaseSlot(reservation.getScheduleSeq(), memberId);
+        queuePassService.releaseSlot(reservation.getScheduleSeq(), memberId);
 
         // 4. 트랜잭션 커밋 후 실시간 SSE 복구 알림
         if (reservation.getScheduleSeq() != null && reservation.getCarNo() != null && reservation.getSeatNo() != null) {
@@ -218,11 +218,11 @@ public class ReservationService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    seatService.broadcastSeatStatusChange(scheduleSeq, carNo, seatNo, status);
+                    seatEventPublisher.publish(scheduleSeq, carNo, seatNo, status);
                 }
             });
         } else {
-            seatService.broadcastSeatStatusChange(scheduleSeq, carNo, seatNo, status);
+            seatEventPublisher.publish(scheduleSeq, carNo, seatNo, status);
         }
     }
 }

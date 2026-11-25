@@ -27,7 +27,7 @@ public class QueueController {
 
     /** 대기열 순번 확인 (GET /api/v1/queue/{queueToken}) */
     @GetMapping("/{queueToken}")
-    public ResWrapper<QueueResponseDTO> getQueueRank(@PathVariable String queueToken) {
+    public ResWrapper<QueueResponseDTO> getQueueRank(@PathVariable("queueToken") String queueToken) {
         return ResWrapper.ok(queueService.checkQueueRank(queueToken));
     }
 }

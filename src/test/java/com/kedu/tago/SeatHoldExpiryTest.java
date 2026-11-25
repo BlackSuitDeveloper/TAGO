@@ -4,6 +4,7 @@ import com.kedu.tago.common.exception.ApiException;
 import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.payment.PaymentService;
 import com.kedu.tago.payment.dto.PaymentRequestDTO;
+import com.kedu.tago.queue.QueueAdmissionService;
 import com.kedu.tago.queue.QueueService;
 import com.kedu.tago.reservation.ReservationService;
 import com.kedu.tago.reservation.dto.ReservationRequestDTO;
@@ -20,12 +21,13 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /** 선점 TTL 만료 테스트: TTL 을 2초로 줄여서, 결제하지 않은 좌석이 자동으로 풀리는지 확인 */
-@SpringBootTest(properties = {"tago.sync.startup-enabled=false", "tago.queue.max-active=1000", "tago.hold.ttl-seconds=2"})
+@SpringBootTest(properties = {"tago.sync.startup-enabled=false", "tago.queue.max-active=1000", "tago.hold.ttl-seconds=2", "tago.queue.scheduler-enabled=false"})
 class SeatHoldExpiryTest {
 
     private static final int CAR = 18;
@@ -33,6 +35,7 @@ class SeatHoldExpiryTest {
     private static final String U2 = "itExpUser2";
 
     @Autowired private QueueService queueService;
+    @Autowired private QueueAdmissionService admission;
     @Autowired private ReservationService reservationService;
     @Autowired private PaymentService paymentService;
     @Autowired private JdbcTemplate jdbc;
@@ -52,7 +55,7 @@ class SeatHoldExpiryTest {
     }
 
     private void hold(String member, String seatNo) {
-        String token = ReservationTestData.admittedToken(queueService, s, member);
+        String token = ReservationTestData.admittedToken(queueService, admission, s, member);
         ReservationRequestDTO req = ReservationRequestDTO.builder()
                 .scheduleSeq(s).seats(List.of(new SeatSelection(CAR, seatNo))).build();
         reservationService.holdSeats(req, member, token);
@@ -82,5 +85,18 @@ class SeatHoldExpiryTest {
         PaymentRequestDTO req = PaymentRequestDTO.builder().scheduleSeq(s).payMethod("CARD").build();
         ApiException e = assertThrows(ApiException.class, () -> paymentService.processPayment(req, U1, "late-key"));
         assertEquals(ErrorCode.HOLD_EXPIRED, e.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("1인 6석 상한은 지금 유효한 선점만 센다 (만료된 좌석은 빼고 센다)")
+    void expiredHoldsDoNotCountTowardLimit() throws InterruptedException {
+        for (String seatNo : List.of("1A", "1B", "1C", "1D", "2A")) {
+            hold(U1, seatNo);
+        }
+        Thread.sleep(1200);
+        hold(U1, "2B"); // 회원 선점 목록의 TTL 이 다시 늘어난다
+        Thread.sleep(1200); // 앞의 5석은 만료, 2B 는 아직 유효
+
+        assertDoesNotThrow(() -> hold(U1, "2C"), "유효한 선점은 1석뿐이므로 더 잡을 수 있어야 한다");
     }
 }

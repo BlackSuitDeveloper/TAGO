@@ -6,7 +6,7 @@ import QuickMenu from '../../components/QuickMenu/QuickMenu';
 import useWishStore from '../../store/useWishStore';
 import client from '../Api/client';
 import errorText from '../Api/errorText';
-import { enterQueue } from '../Api/queue';
+import { enterQueue, saveQueueToken } from '../Api/queue';
 import { dialog, notify } from '../../components/Dialog/dialogService';
 import './SchedulePage.css';
 
@@ -216,7 +216,7 @@ export default function SchedulePage() {
         setScheduleList(rows);
         setTotalCount(total);
         setTotalPages(Math.ceil(total / params.size));
-      } catch (err) {
+      } catch {
         setScheduleList([]);
         setTotalCount(0);
         setTotalPages(0);
@@ -297,7 +297,7 @@ export default function SchedulePage() {
 
   const goToReservation = useCallback((train, queueToken) => {
     if (queueToken && train?.id) {
-      sessionStorage.setItem(`tago_queue_token_${train.id}`, queueToken);
+      saveQueueToken(train.id, queueToken);
     }
 
     if (tripType === '왕복' && !selectedOutboundTrain) {
@@ -305,17 +305,12 @@ export default function SchedulePage() {
       const nextArr = train.depStationName || depStation;
       const nextDate = returnDate && returnDate >= currentDate ? returnDate : currentDate;
 
-      if (queueToken) {
-        sessionStorage.setItem(`tago:queueToken:${train.id}`, queueToken);
-      }
-
       setSelectedOutboundTrain({
         train,
         queueToken: queueToken || null,
         depStation,
         arrStation,
         depDate: currentDate,
-        queueToken,
       });
       setDepStation(nextDep);
       setArrStation(nextArr);
@@ -339,12 +334,8 @@ export default function SchedulePage() {
       const outbound = selectedOutboundTrain.train;
       const outboundToken = selectedOutboundTrain.queueToken || queueToken || '';
       const returnToken = queueToken || '';
-      if (outboundToken) {
-        sessionStorage.setItem(`tago:queueToken:${outbound.id}`, outboundToken);
-      }
-      if (returnToken) {
-        sessionStorage.setItem(`tago:queueToken:${train.id}`, returnToken);
-      }
+      saveQueueToken(outbound.id, outboundToken);
+      saveQueueToken(train.id, returnToken);
       navigate('/reservation', {
         state: {
           scheduleSeq: outbound.id,

@@ -1,5 +1,7 @@
-package com.kedu.tago.seat;
+package com.kedu.tago.seat.hold;
 
+import com.kedu.tago.seat.SeatEventPublisher;
+import com.kedu.tago.seat.SeatMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -17,7 +19,7 @@ import java.util.List;
 public class HoldExpiryScheduler {
 
     private final SeatHoldService seatHoldService;
-    private final SeatService seatService;
+    private final SeatEventPublisher seatEventPublisher;
     private final SeatMapper seatMapper;
 
     @Scheduled(fixedDelay = 1000)
@@ -28,7 +30,7 @@ public class HoldExpiryScheduler {
                 Long scheduleSeq = Long.valueOf(p[0]);
                 Integer carNo = Integer.valueOf(p[1]);
                 boolean sold = seatMapper.selectSeat(scheduleSeq, carNo, p[2]) != null;
-                seatService.broadcastSeatStatusChange(scheduleSeq, carNo, p[2], sold ? "CONFIRMED" : "AVAILABLE");
+                seatEventPublisher.publish(scheduleSeq, carNo, p[2], sold ? "CONFIRMED" : "AVAILABLE");
             }
             if (!expired.isEmpty()) {
                 log.info("[Hold Expiry] 만료 선점 {}석 해제 알림", expired.size());

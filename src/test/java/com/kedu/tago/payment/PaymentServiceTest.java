@@ -6,15 +6,15 @@ import com.kedu.tago.payment.dto.PaymentDTO;
 import com.kedu.tago.payment.dto.PaymentRequestDTO;
 import com.kedu.tago.payment.dto.PaymentResponseDTO;
 import com.kedu.tago.payment.event.PaymentConfirmedEvent;
-import com.kedu.tago.queue.QueueService;
+import com.kedu.tago.queue.QueuePassService;
 import com.kedu.tago.reservation.ReservationMapper;
 import com.kedu.tago.reservation.ReservationService;
 import com.kedu.tago.reservation.dto.ReservationDTO;
 import com.kedu.tago.reservation.dto.ReservationRequestDTO.SeatSelection;
 import com.kedu.tago.schedule.dto.ScheduleResponseDTO;
-import com.kedu.tago.seat.SeatHoldService;
+import com.kedu.tago.seat.hold.SeatHoldService;
 import com.kedu.tago.seat.SeatMapper;
-import com.kedu.tago.seat.SeatService;
+import com.kedu.tago.seat.SeatEventPublisher;
 import com.kedu.tago.seat.SeatTemplateGenerator;
 import com.kedu.tago.seat.dto.SeatDTO;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,14 +53,14 @@ class PaymentServiceTest {
     private final ReservationService reservationService = mock(ReservationService.class);
     private final SeatHoldService seatHoldService = mock(SeatHoldService.class);
     private final SeatMapper seatMapper = mock(SeatMapper.class);
-    private final SeatService seatService = mock(SeatService.class);
-    private final QueueService queueService = mock(QueueService.class);
+    private final SeatEventPublisher seatEventPublisher = mock(SeatEventPublisher.class);
+    private final QueuePassService queuePassService = mock(QueuePassService.class);
     private final TransactionTemplate tx = mock(TransactionTemplate.class);
     private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private final PaymentIdempotencyService idempotency = mock(PaymentIdempotencyService.class);
 
     private final PaymentService service = new PaymentService(paymentMapper, reservationMapper, reservationService,
-            seatHoldService, seatMapper, seatService, new SeatTemplateGenerator(), queueService, tx, events, idempotency);
+            seatHoldService, seatMapper, seatEventPublisher, new SeatTemplateGenerator(), queuePassService, tx, events, idempotency);
 
     private final AtomicLong seq = new AtomicLong(1);
 
@@ -178,14 +178,14 @@ class PaymentServiceTest {
 
         assertEquals(ErrorCode.PAYMENT_DECLINED, e.getErrorCode());
         verify(seatHoldService).release(S1, "me", mine);
-        verify(queueService).releaseSlot(S1, "me");
+        verify(queuePassService).releaseSlot(S1, "me");
         verify(seatMapper, never()).insertOccupiedSeat(any());
         verify(idempotency).abort("me", KEY);
     }
 
     @Test
-    @DisplayName("DB UNIQUE 충돌(최후 방어선): 409, 결제 INSERT 없음")
-    void uniqueConflictRollsBack() {
+    @DisplayName("seat INSERT 가 UNIQUE 충돌로 0건이면(최후 방어선) 409, 결제 INSERT·커밋 후 이벤트 없음")
+    void uniqueConflictReturns409WithoutPayment() {
         when(seatHoldService.getMyHolds(S1, "me")).thenReturn(seats("1A"));
         doReturn(0).when(seatMapper).insertOccupiedSeat(any()); // 이미 다른 사람이 확정한 좌석
 

@@ -15,3 +15,18 @@ export async function enterQueue(scheduleSeq, waitMs = 3000) {
   }
   return data;
 }
+
+// 운행(scheduleSeq)별 대기열 입장권. 저장 위치를 이 한 곳으로 통일한다 (sessionStorage).
+const tokenKey = (scheduleSeq) => `tago:queueToken:${scheduleSeq}`;
+
+export function saveQueueToken(scheduleSeq, token) {
+  if (scheduleSeq && token) sessionStorage.setItem(tokenKey(scheduleSeq), token);
+}
+
+export function getQueueToken(scheduleSeq) {
+  return sessionStorage.getItem(tokenKey(scheduleSeq)) || '';
+}
+
+export function clearQueueToken(scheduleSeq) {
+  sessionStorage.removeItem(tokenKey(scheduleSeq));
+}

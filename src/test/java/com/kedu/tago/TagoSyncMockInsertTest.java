@@ -13,7 +13,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Mock 샘플 데이터 적재 테스트 */
-@SpringBootTest
+@SpringBootTest(properties = "tago.queue.scheduler-enabled=false")
 class TagoSyncMockInsertTest {
 
     @Autowired

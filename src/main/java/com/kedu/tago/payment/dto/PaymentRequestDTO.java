@@ -12,8 +12,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PaymentRequestDTO {
-    private Long reservationId;
-    private List<Long> reservationIds;
     private String payMethod;
     private Integer totalPrice;
     /** Redis 선점 방식: 결제할 운행 일정 (선점 좌석은 서버가 찾는다) */

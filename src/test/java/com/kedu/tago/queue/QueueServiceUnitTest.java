@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-/** QueueService 단위 테스트 (외부 Redis 없이 Fail-closed, 멱등성, 토큰 검증 규칙 확인) */
+/** 대기열 단위 테스트 (외부 Redis 없이 Fail-closed, 멱등성, 입장권 검증 규칙 확인) */
 class QueueServiceUnitTest {
 
     @Test
@@ -32,7 +32,7 @@ class QueueServiceUnitTest {
         assertEquals(ErrorCode.QUEUE_SERVICE_UNAVAILABLE, ex2.getErrorCode());
 
         ApiException ex3 = assertThrows(ApiException.class,
-                () -> service.validateAndExtendForHold("some-token", 1L, "user1", 300));
+                () -> new QueuePassService(null).validateAndExtendForHold("some-token", 1L, "user1", 300));
         assertEquals(ErrorCode.QUEUE_SERVICE_UNAVAILABLE, ex3.getErrorCode());
     }
 
@@ -50,7 +50,8 @@ class QueueServiceUnitTest {
         when(redis.opsForHash()).thenReturn(hashOps);
 
         when(valueOps.get("tago:queue:user:10:userA")).thenReturn("existing-token-123");
-        when(redis.hasKey("tago:queue:active:10:existing-token-123")).thenReturn(true);
+        when(zSetOps.rank("tago:queue:wait:10", "existing-token-123")).thenReturn(null); // 대기열에는 없고
+        when(redis.hasKey("tago:queue:active:10:existing-token-123")).thenReturn(true);   // 입장 상태
 
         QueueService service = new QueueService(redis);
         QueueResponseDTO resp = service.enterQueue(10L, "userA");
@@ -85,7 +86,7 @@ class QueueServiceUnitTest {
         when(redis.opsForHash()).thenReturn(hashOps);
         when(hashOps.entries("tago:queue:meta:token-1"))
                 .thenReturn(Map.of("memberId", "user1", "scheduleSeq", "1", "lastSeen", "0"));
-        QueueService service = new QueueService(redis);
+        QueuePassService service = new QueuePassService(redis);
 
         // 1. 토큰 누락
         ApiException missingEx = assertThrows(ApiException.class,

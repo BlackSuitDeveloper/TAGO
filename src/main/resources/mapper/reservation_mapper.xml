@@ -4,7 +4,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.kedu.tago.reservation.ReservationMapper">
 
-    <!-- 좌석 선점(예약 생성) | POST /api/v1/reservation (ReservationService.holdSeats) -->
+    <!-- 결제 확정 시 예약 생성(CONFIRMED) | POST /api/v1/payment (PaymentService.confirmSeat) -->
     <insert id="insertReservation" parameterType="com.kedu.tago.reservation.dto.ReservationDTO"
             useGeneratedKeys="true" keyProperty="reservationSeq" keyColumn="reservation_seq">
         INSERT INTO reservation (
@@ -17,7 +17,6 @@
             status,
             total_price,
             reserved_at,
-            expires_at,
             confirmed_at
         )
         VALUES (
@@ -30,12 +29,11 @@
             #{status},
             #{totalPrice},
             #{reservedAt},
-            #{expiresAt},
             #{confirmedAt}
         )
     </insert>
 
-    <!-- 결제·취소 전 예약 조회 | POST /api/v1/payment (PaymentService.processPayment), POST /api/v1/reservation/{reservationId}/cancel (ReservationService.cancelReservation) -->
+    <!-- 취소 전 예약 조회 | POST /api/v1/reservation/{reservationId}/cancel (ReservationService.cancelReservation) -->
     <select id="selectReservationById" resultType="com.kedu.tago.reservation.dto.ReservationDTO">
         SELECT
             reservation_seq AS reservationSeq,

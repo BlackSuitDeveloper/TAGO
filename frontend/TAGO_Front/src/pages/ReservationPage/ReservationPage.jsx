@@ -7,7 +7,7 @@ import RouteLine from '../../components/RouteLine/RouteLine';
 import PaymentPanel, { PaymentOverlay } from './PaymentPanel';
 import client from '../Api/client';
 import errorText from '../Api/errorText';
-import { enterQueue } from '../Api/queue';
+import { clearQueueToken, enterQueue, getQueueToken, saveQueueToken } from '../Api/queue';
 import { dialog, notify } from '../../components/Dialog/dialogService';
 import { autoPickSeats } from '../../lib/trainDomain';
 import './ReservationPage.css';
@@ -145,15 +145,12 @@ function carLevel(remaining, total) {
 }
 const CAR_LEVEL_LABEL = { ok: '여유', normal: '보통', busy: '혼잡', low: '마감 임박', sold: '매진' };
 
-// 운행(scheduleSeq)별 대기열 입장권. MainPage·SchedulePage 가 sessionStorage 에 저장해 둔다.
-const queueTokenFor = (scheduleSeq) => sessionStorage.getItem(`tago:queueToken:${scheduleSeq}`) || '';
-
 // GET /api/v1/seat: 한 호차의 점유(AVAILABLE 이 아닌) 좌석 번호 목록. 실패하면 null.
 // onSummary: 같은 응답의 carSummaryList(호차별 잔여석)를 넘겨 받는 콜백(선택).
 // 좌석 조회도 대기열을 통과한 사용자만 가능하므로 X-Queue-Token 을 함께 보낸다.
 async function fetchOccupiedSeats(scheduleSeq, carNo, onSummary) {
   try {
-    const token = queueTokenFor(scheduleSeq);
+    const token = getQueueToken(scheduleSeq);
     const res = await client.get(`/seat`, {
       params: { scheduleSeq, carNo },
       headers: token ? { 'X-Queue-Token': token } : {},
@@ -308,7 +305,7 @@ export default function ReservationPage() {
     const baseUnitPrice = Number.isNaN(parsedPrice) || parsedPrice <= 0 ? 59800 : parsedPrice;
     return {
       scheduleSeq,
-      queueToken: state.queueToken || sessionStorage.getItem(`tago_queue_token_${scheduleSeq}`) || null,
+      queueToken: getQueueToken(scheduleSeq) || state.queueToken || null,
       trainName: state.trainName || state.train?.name || 'KTX 001',
       trainType: state.trainType || 'KTX',
       depTime: state.depTime || state.train?.depTime || '05:15',
@@ -616,7 +613,6 @@ export default function ReservationPage() {
   const isOutboundComplete = outboundSeats.length === targetSeatCount;
   const isReturnComplete = !isRoundTrip || returnSeats.length === targetSeatCount;
   const isSelectionComplete = isOutboundComplete && isReturnComplete;
-  const totalSelectedSeatCount = outboundSeats.length + (isRoundTrip ? returnSeats.length : 0);
   const totalPrice =
     outboundSeats.length * bookingInfo.unitPrice +
     (isRoundTrip ? returnSeats.length * bookingInfo.returnUnitPrice : 0);
@@ -653,22 +649,18 @@ export default function ReservationPage() {
     const seatNoList = outboundSeats.map((s) => s.seatId);
     const outboundCarNo = outboundSeats[0]?.carNo || selectedCarNo;
     const seatSelections = outboundSeats.map((s) => ({ carNo: s.carNo, seatNo: s.seatId }));
-    const outboundQueueToken =
-      bookingInfo.queueToken ||
-      sessionStorage.getItem(`tago:queueToken:${bookingInfo.scheduleSeq}`) ||
-      '';
 
     try {
-      let activeToken = bookingInfo.queueToken;
+      let activeToken = getQueueToken(bookingInfo.scheduleSeq) || bookingInfo.queueToken;
       if (!activeToken) {
-                const qData = await enterQueue(bookingInfo.scheduleSeq);
+        const qData = await enterQueue(bookingInfo.scheduleSeq);
         if (!qData.isAvailable || !qData.queueToken) {
           dialog.alert('현재 대기열이 혼잡합니다. 열차 선택 화면에서 대기열에 다시 진입해 주세요.', { title: '대기열 안내', tone: 'warning' })
             .then(() => navigate('/schedule'));
           return;
         }
         activeToken = qData.queueToken;
-        sessionStorage.setItem(`tago_queue_token_${bookingInfo.scheduleSeq}`, activeToken);
+        saveQueueToken(bookingInfo.scheduleSeq, activeToken);
       }
 
       const sendHold = (token) => client.post('/reservation', {
@@ -685,10 +677,10 @@ export default function ReservationPage() {
       } catch (firstErr) {
         const code = firstErr.response?.data?.code;
         if (code === 6000 || code === 6001) {
-          sessionStorage.removeItem(`tago_queue_token_${bookingInfo.scheduleSeq}`);
-                    const qData = await enterQueue(bookingInfo.scheduleSeq);
+          clearQueueToken(bookingInfo.scheduleSeq);
+          const qData = await enterQueue(bookingInfo.scheduleSeq);
           if (qData.isAvailable && qData.queueToken) {
-            sessionStorage.setItem(`tago_queue_token_${bookingInfo.scheduleSeq}`, qData.queueToken);
+            saveQueueToken(bookingInfo.scheduleSeq, qData.queueToken);
             resHold = await sendHold(qData.queueToken);
           } else {
             throw firstErr;
@@ -709,18 +701,14 @@ export default function ReservationPage() {
         const returnCarNo = returnSeats[0]?.carNo || selectedCarNo;
         const returnSeatSelections = returnSeats.map((s) => ({ carNo: s.carNo, seatNo: s.seatId }));
         const targetReturnScheduleSeq = bookingInfo.returnScheduleSeq || bookingInfo.scheduleSeq;
-        const returnQueueToken =
-          location.state?.returnQueueToken ||
-          sessionStorage.getItem(`tago:queueToken:${targetReturnScheduleSeq}`) ||
-          outboundQueueToken;
 
         try {
-          let returnToken = location.state?.returnQueueToken || sessionStorage.getItem(`tago_queue_token_${targetReturnScheduleSeq}`);
+          let returnToken = getQueueToken(targetReturnScheduleSeq) || location.state?.returnQueueToken;
           if (!returnToken) {
             const rqData = await enterQueue(targetReturnScheduleSeq);
             if (rqData.isAvailable && rqData.queueToken) {
               returnToken = rqData.queueToken;
-              sessionStorage.setItem(`tago_queue_token_${targetReturnScheduleSeq}`, returnToken);
+              saveQueueToken(targetReturnScheduleSeq, returnToken);
             }
           }
           const resReturnHold = await client.post('/reservation', {
@@ -768,7 +756,7 @@ export default function ReservationPage() {
         const fresh = await refreshCars(outboundSeatCarNos());
         setOutboundSeats((prev) => prev.filter((s) => !fresh[s.carNo]?.includes(s.seatId)));
       } else if ([6000, 6001, 6002].includes(err.response?.data?.code)) {
-        sessionStorage.removeItem(`tago_queue_token_${bookingInfo.scheduleSeq}`);
+        clearQueueToken(bookingInfo.scheduleSeq);
         dialog.alert(errorText(err, '대기열 입장이 필요합니다. 예매를 처음부터 다시 진행해 주세요.'), { title: '대기열 안내', tone: 'warning' })
           .then(() => navigate('/schedule'));
       } else {
@@ -843,8 +831,17 @@ export default function ReservationPage() {
         return;
       }
       if (err.response?.status === 409) {
-        // 같은 결제(멱등키)가 아직 처리 중: 잠시 후 다시 누르면 처리 결과를 그대로 받는다
-        notify.warning('결제를 처리하고 있습니다. 잠시 후 다시 시도해 주세요.');
+        const code = err.response?.data?.code;
+        if (code === 5015 || code === 5016) {
+          // 같은 결제(멱등키)가 처리 중이거나 좌석 확인이 잠시 지연: 같은 키로 다시 누르면 한 번만 처리된다
+          notify.warning(errorText(err, '결제를 처리하고 있습니다. 잠시 후 다시 시도해 주세요.'));
+          return;
+        }
+        // 이미 판매된 좌석(DB 최종 방어선): 결제는 취소됐으므로 선점을 반납하고 좌석 선택부터 다시
+        setIsPaying(false);
+        releaseHolds(holds).catch(() => {});
+        await dialog.alert(errorText(err, '이미 판매된 좌석이 있어 결제하지 못했습니다.'), { title: '결제 실패', tone: 'error' });
+        resetToSeatStep(holds.seats.map((s) => s.carNo));
         return;
       }
       if (err.response?.status === 402) {

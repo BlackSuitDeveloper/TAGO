@@ -6,15 +6,15 @@ import com.kedu.tago.payment.dto.PaymentDTO;
 import com.kedu.tago.payment.dto.PaymentRequestDTO;
 import com.kedu.tago.payment.dto.PaymentResponseDTO;
 import com.kedu.tago.payment.event.PaymentConfirmedEvent;
-import com.kedu.tago.queue.QueueService;
+import com.kedu.tago.queue.QueuePassService;
 import com.kedu.tago.reservation.ReservationMapper;
 import com.kedu.tago.reservation.ReservationService;
 import com.kedu.tago.reservation.dto.ReservationDTO;
 import com.kedu.tago.reservation.dto.ReservationRequestDTO.SeatSelection;
 import com.kedu.tago.schedule.dto.ScheduleResponseDTO;
-import com.kedu.tago.seat.SeatHoldService;
+import com.kedu.tago.seat.hold.SeatHoldService;
 import com.kedu.tago.seat.SeatMapper;
-import com.kedu.tago.seat.SeatService;
+import com.kedu.tago.seat.SeatEventPublisher;
 import com.kedu.tago.seat.SeatTemplateGenerator;
 import com.kedu.tago.seat.dto.SeatDTO;
 import lombok.RequiredArgsConstructor;
@@ -55,9 +55,9 @@ public class PaymentService {
     private final ReservationService reservationService;
     private final SeatHoldService seatHoldService;
     private final SeatMapper seatMapper;
-    private final SeatService seatService;
+    private final SeatEventPublisher seatEventPublisher;
     private final SeatTemplateGenerator seatTemplateGenerator;
-    private final QueueService queueService;
+    private final QueuePassService queuePassService;
     private final TransactionTemplate transactionTemplate;
     private final ApplicationEventPublisher eventPublisher;
     private final PaymentIdempotencyService idempotencyService;
@@ -141,9 +141,9 @@ public class PaymentService {
         if ("FAIL".equalsIgnoreCase(request.getMockResult())) {
             holds.forEach((scheduleSeq, seats) -> {
                 for (SeatSelection s : seatHoldService.release(scheduleSeq, memberId, seats)) {
-                    seatService.broadcastSeatStatusChange(scheduleSeq, s.getCarNo(), s.getSeatNo(), "AVAILABLE");
+                    seatEventPublisher.publish(scheduleSeq, s.getCarNo(), s.getSeatNo(), "AVAILABLE");
                 }
-                queueService.releaseSlot(scheduleSeq, memberId);
+                queuePassService.releaseSlot(scheduleSeq, memberId);
             });
             throw new ApiException(ErrorCode.PAYMENT_DECLINED);
         }

@@ -1,5 +1,7 @@
 package com.kedu.tago.support;
 
+import com.kedu.tago.queue.QueueAdmissionService;
+import com.kedu.tago.queue.QueueKeys;
 import com.kedu.tago.queue.QueueService;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -25,20 +27,20 @@ public final class ReservationTestData {
     }
 
     /** 대기열 진입 후 바로 입장 처리 (스케줄러 1초를 기다리지 않음). 입장권 토큰 반환 */
-    public static String admittedToken(QueueService queueService, Long scheduleSeq, String memberId) {
+    public static String admittedToken(QueueService queueService, QueueAdmissionService admission, Long scheduleSeq, String memberId) {
         String token = queueService.enterQueue(scheduleSeq, memberId).getQueueToken();
-        admitAll(queueService, scheduleSeq);
+        admitAll(admission, scheduleSeq);
         return token;
     }
 
     /** 대기 중인 인원을 모두 입장 처리 (한 번에 batch-size 만큼 입장하므로 0명이 될 때까지 반복) */
-    public static void admitAll(QueueService queueService, Long scheduleSeq) {
-        while (queueService.admitWaiting(String.valueOf(scheduleSeq)) > 0) {
+    public static void admitAll(QueueAdmissionService admission, Long scheduleSeq) {
+        while (admission.admitWaiting(String.valueOf(scheduleSeq)) > 0) {
             // 반복
         }
     }
 
-    /** 해당 열차·호차의 예약/좌석과 Redis 선점·대기열·멱등키를 지운다 */
+    /** 해당 열차·호차의 예약/좌석과, 테스트 회원의 Redis 선점·대기열·멱등키만 지운다 (다른 사용자 데이터는 건드리지 않음) */
     public static void clean(JdbcTemplate jdbc, StringRedisTemplate redis, Long scheduleSeq, int carNo, String... members) {
         jdbc.update("DELETE FROM payment WHERE reservation_seq IN "
                 + "(SELECT reservation_seq FROM reservation WHERE schedule_seq = ? AND car_no = ?)", scheduleSeq, carNo);
@@ -46,16 +48,22 @@ public final class ReservationTestData {
         jdbc.update("DELETE FROM seat WHERE schedule_seq = ? AND car_no = ?", scheduleSeq, carNo);
 
         deleteKeys(redis, "held:seat:" + scheduleSeq + ":" + carNo + ":*");
-        deleteKeys(redis, "held:user:" + scheduleSeq + ":*");
+
         Set<String> expiry = redis.opsForZSet().range("held:expiry", 0, -1);
         if (expiry != null) {
             expiry.stream().filter(m -> m.startsWith(scheduleSeq + ":" + carNo + ":"))
                     .forEach(m -> redis.opsForZSet().remove("held:expiry", m));
         }
-        redis.delete("tago:queue:wait:" + scheduleSeq);
-        deleteKeys(redis, "tago:queue:active:" + scheduleSeq + ":*");
-        deleteKeys(redis, "tago:queue:user:" + scheduleSeq + ":*");
         for (String member : members) {
+            redis.delete("held:user:" + scheduleSeq + ":" + member);
+            String userKey = QueueKeys.user(scheduleSeq, member);
+            String token = redis.opsForValue().get(userKey);
+            if (token != null) {
+                redis.delete(QueueKeys.active(scheduleSeq, token));
+                redis.opsForZSet().remove(QueueKeys.waiting(scheduleSeq), token);
+                redis.delete(QueueKeys.meta(token));
+            }
+            redis.delete(userKey);
             deleteKeys(redis, "idem:payment:" + member + ":*");
         }
     }
