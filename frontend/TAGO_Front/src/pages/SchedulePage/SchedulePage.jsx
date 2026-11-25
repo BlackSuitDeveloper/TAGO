@@ -257,6 +257,7 @@ export default function SchedulePage() {
   };
 
   const [queueModal, setQueueModal] = useState(null); // { train, queueToken, queueRank }
+  const [selectedOutboundTrain, setSelectedOutboundTrain] = useState(null); // 왕복 1단계(가는 편) 선택 정보
   const queuePollTimerRef = useRef(null);
 
   const clearQueuePolling = useCallback(() => {
@@ -270,7 +271,64 @@ export default function SchedulePage() {
     return () => clearQueuePolling();
   }, [clearQueuePolling]);
 
+  const handleResetOutbound = useCallback(() => {
+    if (!selectedOutboundTrain) return;
+    setDepStation(selectedOutboundTrain.depStation);
+    setArrStation(selectedOutboundTrain.arrStation);
+    setCurrentDate(selectedOutboundTrain.depDate);
+    setSelectedOutboundTrain(null);
+    setPage(1);
+  }, [selectedOutboundTrain]);
+
   const goToReservation = useCallback((train) => {
+    if (tripType === '왕복' && !selectedOutboundTrain) {
+      setSelectedOutboundTrain({
+        train,
+        depStation,
+        arrStation,
+        depDate: currentDate,
+      });
+      setDepStation(train.arrStationName || arrStation);
+      setArrStation(train.depStationName || depStation);
+      setCurrentDate(returnDate && returnDate >= currentDate ? returnDate : currentDate);
+      setPage(1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    if (tripType === '왕복' && selectedOutboundTrain) {
+      const outbound = selectedOutboundTrain.train;
+      navigate('/reservation', {
+        state: {
+          scheduleSeq: outbound.id,
+          trainName: outbound.name,
+          trainType: outbound.type || 'KTX',
+          depTime: outbound.depTime,
+          arrTime: outbound.arrTime,
+          duration: outbound.duration,
+          depStation: outbound.depStationName,
+          arrStation: outbound.arrStationName,
+          depDate: formatDateWithDay(outbound.depDateRaw || selectedOutboundTrain.depDate),
+          returnScheduleSeq: train.id,
+          returnTrainName: train.name,
+          returnTrainType: train.type || 'KTX',
+          returnDepTime: train.depTime,
+          returnArrTime: train.arrTime,
+          returnDuration: train.duration,
+          returnDepStation: train.depStationName,
+          returnArrStation: train.arrStationName,
+          returnDate: formatDateWithDay(train.depDateRaw || returnDate),
+          returnPrice: train.generalPrice,
+          tripType,
+          passenger: passengerSummaryText,
+          passengerDetail: passengers,
+          seatType: '일반실',
+          price: outbound.generalPrice,
+        }
+      });
+      return;
+    }
+
     navigate('/reservation', {
       state: {
         scheduleSeq: train.id,
@@ -282,7 +340,7 @@ export default function SchedulePage() {
         depStation: train.depStationName,
         arrStation: train.arrStationName,
         depDate: formatDateWithDay(train.depDateRaw || currentDate),
-        returnDate: tripType === '왕복' ? formatDateWithDay(returnDate) : null,
+        returnDate: null,
         tripType,
         passenger: passengerSummaryText,
         passengerDetail: passengers,
@@ -290,7 +348,7 @@ export default function SchedulePage() {
         price: train.generalPrice,
       }
     });
-  }, [navigate, currentDate, tripType, returnDate, passengerSummaryText, passengers]);
+  }, [navigate, currentDate, depStation, arrStation, tripType, returnDate, selectedOutboundTrain, passengerSummaryText, passengers]);
 
   const handleSelectTrain = async (train) => {
     clearQueuePolling();
@@ -340,7 +398,10 @@ export default function SchedulePage() {
               <button
                 type="button"
                 className={`schedule-trip-tab ${tripType === '편도' ? 'active' : ''}`}
-                onClick={() => setTripType('편도')}
+                onClick={() => {
+                  setTripType('편도');
+                  setSelectedOutboundTrain(null);
+                }}
               >
                 편도
               </button>
@@ -555,6 +616,23 @@ export default function SchedulePage() {
             </button>
           </div>
         </div>
+
+        {selectedOutboundTrain && (
+          <div className="target-train-notice">
+            <span className="notice-badge">왕복 · 오는 편 선택</span>
+            <span className="notice-text">
+              가는 편 선택 완료: <strong>[{selectedOutboundTrain.train.name} | {selectedOutboundTrain.train.depStationName} {selectedOutboundTrain.train.depTime} → {selectedOutboundTrain.train.arrStationName} {selectedOutboundTrain.train.arrTime}]</strong> — 이제 <strong>오는 편 열차</strong>를 선택해 주세요.
+            </span>
+            <button
+              type="button"
+              className="schedule-trip-tab"
+              onClick={handleResetOutbound}
+              style={{ marginLeft: 'auto' }}
+            >
+              가는 편 다시 선택
+            </button>
+          </div>
+        )}
 
         {targetTrainName && (
           <div className="target-train-notice">
