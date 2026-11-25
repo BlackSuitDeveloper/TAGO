@@ -112,7 +112,7 @@ public class SeatService {
             emitter.send(SseEmitter.event()
                     .name("INIT")
                     .data(Map.of("message", "SSE connected for scheduleSeq " + scheduleSeq)));
-        } catch (IOException e) {
+        } catch (Exception e) {
             list.remove(emitter);
         }
 
@@ -134,7 +134,7 @@ public class SeatService {
         for (SseEmitter emitter : list) {
             try {
                 emitter.send(SseEmitter.event().name("SEAT_UPDATE").data(payload));
-            } catch (IOException e) {
+            } catch (Exception e) {
                 list.remove(emitter);
             }
         }

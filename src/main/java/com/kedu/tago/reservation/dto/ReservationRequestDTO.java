@@ -15,5 +15,15 @@ public class ReservationRequestDTO {
     private Long scheduleSeq;
     private Integer carNo;
     private List<String> seatList;
+    private List<SeatSelection> seats;
     private Integer count;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SeatSelection {
+        private Integer carNo;
+        private String seatNo;
+    }
 }
