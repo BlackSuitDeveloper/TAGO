@@ -14,7 +14,7 @@ export default function Footer() {
             <span className="dot" aria-hidden="true">/</span>
             <a href="#service">KTX 운행안내</a>
             <span className="dot" aria-hidden="true">/</span>
-            <a href="#support">철도고객센터 1544-7788</a>
+            <a href="#support">철도고객센터 1234-5678</a>
           </div>
           <div className="footer-info-tag">
             <svg className="footer-mark" width="30" height="14" viewBox="0 0 30 14" fill="none" aria-hidden="true" focusable="false">
@@ -28,7 +28,7 @@ export default function Footer() {
 
         <div className="footer-bottom">
           <p className="company-details">
-            한국철도공사 (대전광역시 동구 중앙로 240) · 대표자: 한문희 · 사업자등록번호: 314-82-10042 · 통신판매업신고: 제 2005-대전동구-0036호
+            한국철도공사 · 대표자: 홍길동 · 사업자등록번호: 123-45-67890 · 통신판매업신고: 제 1234-구구구-5678호
           </p>
           <p className="footer-copyright">
             Copyright © KOREA RAILROAD. All rights reserved.
