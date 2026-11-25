@@ -36,6 +36,10 @@ CREATE INDEX IF NOT EXISTS idx_schedule_departmental
 CREATE INDEX IF NOT EXISTS idx_schedule_sync_lookup
     ON schedule (trainno, depplacename, arrplacename, depplandtime);
 
--- 5. wishlist: 동일 회원·일정 중복 찜 방지 UNIQUE 인덱스
+-- 5. wishlist: 시퀀스 기본값(DB-2 MAX()+1 제거 대응) + 동일 회원·일정 중복 찜 방지 UNIQUE 인덱스
+CREATE SEQUENCE IF NOT EXISTS wishlist_seq_gen;
+SELECT setval('wishlist_seq_gen', COALESCE((SELECT MAX(wishlist_seq) FROM wishlist), 0) + 1, false);
+ALTER TABLE wishlist ALTER COLUMN wishlist_seq SET DEFAULT nextval('wishlist_seq_gen');
+
 CREATE UNIQUE INDEX IF NOT EXISTS uq_wishlist_member_schedule
     ON wishlist (member_id, schedule_seq);

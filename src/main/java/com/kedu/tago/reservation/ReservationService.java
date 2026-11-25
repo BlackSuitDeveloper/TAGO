@@ -20,8 +20,11 @@ import org.springframework.dao.DeadlockLoserDataAccessException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -34,6 +37,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ReservationService {
 
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
     private final ReservationMapper reservationMapper;
     private final SeatMapper seatMapper;
     private final SeatService seatService;
@@ -43,6 +48,7 @@ public class ReservationService {
 
     public static final int HOLD_TTL_MINUTES = 5; // 좌석 선점 유효시간(분)
     public static final int MAX_SEATS_PER_HOLD = 6; // 1회 최대 선점 가능 좌석 수
+    public static final int MAX_CONCURRENT_HELD_PER_MEMBER = 6; // 회원당 동시 선점 가능 최대 좌석 수
 
     /** 좌석 선점 및 예매 생성 (대기열 입장권 검증 포함) */
     @Transactional
@@ -62,13 +68,23 @@ public class ReservationService {
             throw new ApiException(ErrorCode.BAD_REQUEST, "1회 최대 " + MAX_SEATS_PER_HOLD + "석까지 예매할 수 있습니다.");
         }
 
+        // 회원당 동시 선점(HELD) 좌석 수 상한 검증
+        String effectiveMemberId = (memberId != null && !memberId.isBlank()) ? memberId : "guest";
+        if (!"guest".equals(effectiveMemberId)) {
+            int activeHeldCount = reservationMapper.countActiveHeldByMember(effectiveMemberId);
+            if (activeHeldCount + normalizedSeats.size() > MAX_CONCURRENT_HELD_PER_MEMBER) {
+                throw new ApiException(ErrorCode.BAD_REQUEST,
+                        "동시에 최대 " + MAX_CONCURRENT_HELD_PER_MEMBER + "석까지만 선점할 수 있습니다. (현재 선점 중: " + activeHeldCount + "석)");
+            }
+        }
+
         // 운행 일정 상태·오픈 시각·출발 시각 검증
         ScheduleResponseDTO schedule = scheduleService.getScheduleDetail(scheduleSeq);
         if (schedule == null) {
             throw new ApiException(ErrorCode.SCHEDULE_NOT_FOUND);
         }
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(KST);
         if (schedule.getStatus() != null && !"SCHEDULED".equals(schedule.getStatus())) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "예매 가능한 운행 상태가 아닙니다.");
         }
@@ -135,8 +151,8 @@ public class ReservationService {
             createdReservationSeqs.add(reservation.getReservationSeq());
             reservedSeatNos.add(seatNo);
 
-            // 4. 좌석 상태 SSE 브로드캐스트
-            seatService.broadcastSeatStatusChange(scheduleSeq, carNo, seatNo, "HELD");
+            // 4. 트랜잭션 커밋 후 좌석 상태 SSE 브로드캐스트 (롤백 시 가짜 알림 방지)
+            broadcastAfterCommit(scheduleSeq, carNo, seatNo, "HELD");
         }
 
         Long mainReservationSeq = createdReservationSeqs.get(0);
@@ -214,9 +230,9 @@ public class ReservationService {
         // 3. 대기열 슬롯 반납
         queueService.releaseSlot(reservation.getScheduleSeq(), memberId);
 
-        // 4. 실시간 SSE 복구 알림
+        // 4. 트랜잭션 커밋 후 실시간 SSE 복구 알림
         if (reservation.getScheduleSeq() != null && reservation.getCarNo() != null && reservation.getSeatNo() != null) {
-            seatService.broadcastSeatStatusChange(reservation.getScheduleSeq(), reservation.getCarNo(), reservation.getSeatNo(), "AVAILABLE");
+            broadcastAfterCommit(reservation.getScheduleSeq(), reservation.getCarNo(), reservation.getSeatNo(), "AVAILABLE");
         }
     }
 
@@ -253,12 +269,26 @@ public class ReservationService {
             // 3. 대기열 슬롯 반납
             queueService.releaseSlot(r.getScheduleSeq(), r.getMemberId());
 
-            // 4. 실시간 SSE 복구 알림
+            // 4. 트랜잭션 커밋 후 실시간 SSE 복구 알림
             if (r.getScheduleSeq() != null && r.getCarNo() != null && r.getSeatNo() != null) {
-                seatService.broadcastSeatStatusChange(r.getScheduleSeq(), r.getCarNo(), r.getSeatNo(), "AVAILABLE");
+                broadcastAfterCommit(r.getScheduleSeq(), r.getCarNo(), r.getSeatNo(), "AVAILABLE");
             }
             log.info("[TTL Scheduler] 예약 번호 {} ({}호차 {}) 만료 해제 완료",
                     r.getReservationSeq(), r.getCarNo(), r.getSeatNo());
+        }
+    }
+
+    /** 트랜잭션 커밋이 확정된 뒤에만 SSE 브로드캐스트를 수행 (롤백 시 유령 알림 방지) */
+    private void broadcastAfterCommit(Long scheduleSeq, Integer carNo, String seatNo, String status) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    seatService.broadcastSeatStatusChange(scheduleSeq, carNo, seatNo, status);
+                }
+            });
+        } else {
+            seatService.broadcastSeatStatusChange(scheduleSeq, carNo, seatNo, status);
         }
     }
 }

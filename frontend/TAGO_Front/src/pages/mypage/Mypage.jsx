@@ -382,6 +382,7 @@ export default function MyPage() {
   const [emailAuthStep, setEmailAuthStep] = useState(1);
   const [authCodeInput, setAuthCodeInput] = useState('');
   const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
@@ -490,6 +491,10 @@ export default function MyPage() {
       notify.warning('먼저 이메일 인증을 완료해 주세요.');
       return;
     }
+    if (!currentPassword) {
+      notify.warning('현재 비밀번호를 입력해 주세요.');
+      return;
+    }
     if (newPassword !== confirmNewPassword) {
       notify.warning('새 비밀번호가 일치하지 않습니다.');
       return;
@@ -500,8 +505,9 @@ export default function MyPage() {
     }
 
     try {
-      const res = await client.put('/member/password', { newPassword });
+      const res = await client.put('/member/password', { currentPassword, newPassword });
       notify.success(res.message || '비밀번호가 성공적으로 변경되었습니다. 다음 로그인부터 적용됩니다.');
+      setCurrentPassword('');
       setNewPassword('');
       setConfirmNewPassword('');
       setAuthCodeInput('');
@@ -830,6 +836,10 @@ export default function MyPage() {
                   {isEmailVerified && (
                     <>
                       <p className="pf-verified"><IconCheck /> 이메일 본인 인증이 완료되었습니다.</p>
+                      <div className="ui-field">
+                        <label className="ui-field__label" htmlFor="pw-current">현재 비밀번호</label>
+                        <input id="pw-current" className="ui-field__control" type="password" autoComplete="current-password" placeholder="현재 비밀번호 입력" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />
+                      </div>
                       <div className="ui-field">
                         <label className="ui-field__label" htmlFor="pw-new">새 비밀번호</label>
                         <input id="pw-new" className="ui-field__control" type="password" autoComplete="new-password" placeholder="8자리 이상" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />

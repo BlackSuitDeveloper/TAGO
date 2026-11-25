@@ -35,4 +35,7 @@ public interface ReservationMapper {
 
     /** 회원의 승차권 목록 조회 */
     List<MyTicketResponseDTO> selectMyReservations(@Param("memberId") String memberId);
+
+    /** 회원의 현재 유효한 HELD 선점 좌석 수 조회 */
+    int countActiveHeldByMember(@Param("memberId") String memberId);
 }

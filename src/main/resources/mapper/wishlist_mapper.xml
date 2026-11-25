@@ -12,16 +12,11 @@
     </select>
 
     <!-- 찜 추가 | POST /api/v1/wishlist/{scheduleSeq} (WishListService.addWish) -->
+    <!-- DB-2: MAX()+1 대신 PostgreSQL 시퀀스 DEFAULT + ON CONFLICT DO NOTHING 으로 동시성 안전 확보 -->
     <insert id="insertWish">
-        INSERT INTO wishlist (wishlist_seq, member_id, schedule_seq)
-        VALUES (
-            (
-                SELECT COALESCE(MAX(wishlist_seq), 0) + 1
-                FROM wishlist
-            ),
-            #{memberId},
-            #{scheduleSeq}
-        )
+        INSERT INTO wishlist (member_id, schedule_seq)
+        VALUES (#{memberId}, #{scheduleSeq})
+        ON CONFLICT (member_id, schedule_seq) DO NOTHING
     </insert>
 
     <!-- 찜 삭제 | DELETE /api/v1/wishlist/{scheduleSeq} (WishListService.deleteWish) -->

@@ -128,6 +128,12 @@ public class MemberController {
         if (profile == null || profile.getEmail() == null) {
             throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
         }
+        if (dto == null || dto.getCurrentPassword() == null || dto.getCurrentPassword().isBlank()) {
+            throw new ApiException(ErrorCode.MISSING_REQUIRED_FIELD, "현재 비밀번호를 입력해 주세요.");
+        }
+        if (!memberService.isMember(id, dto.getCurrentPassword())) {
+            throw new ApiException(ErrorCode.LOGIN_FAILED, "현재 비밀번호가 일치하지 않습니다.");
+        }
         if (dto.getNewPassword() == null || dto.getNewPassword().length() < 8) {
             throw new ApiException(ErrorCode.PASSWORD_TOO_SHORT);
         }

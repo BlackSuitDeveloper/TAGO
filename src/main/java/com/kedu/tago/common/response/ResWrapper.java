@@ -16,7 +16,7 @@ import java.util.List;
 public class ResWrapper<T> {
 
     private final boolean success;
-    private final Integer status;     // 에러일 때만: HTTP 상태 코드
+    private final Integer status;     // HTTP 상태 코드 (성공 200, 에러 시 ErrorCode 상태)
     private final Integer code;       // 에러일 때만: ErrorCode 번호
     private final String message;     // 안내 문구(선택) / 에러 사유
     private final T data;             // 응답 본문(없으면 생략)

@@ -56,7 +56,7 @@ class ResWrapperTest {
             .build();
 
     @Test
-    @DisplayName("목록 응답: data 는 배열, totalCount 가 있고 status 는 없다")
+    @DisplayName("목록 응답: data 는 배열, totalCount 와 status(200)가 포함된다")
     void list() throws Exception {
         when(stationService.getStationList()).thenReturn(List.of(
                 StationResponseDTO.builder().nodeId("NAT010000").nodeName("서울").build(),
@@ -68,7 +68,7 @@ class ResWrapperTest {
                 .andExpect(jsonPath("$.data.length()").value(2))
                 .andExpect(jsonPath("$.data[0].nodeName").value("서울"))
                 .andExpect(jsonPath("$.totalCount").value(2))
-                .andExpect(jsonPath("$.status").doesNotExist())
+                .andExpect(jsonPath("$.status").value(200))
                 .andExpect(jsonPath("$.message").doesNotExist());
     }
 

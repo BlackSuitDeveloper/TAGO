@@ -1,8 +1,10 @@
 package com.kedu.tago;
 
+import com.kedu.tago.openapi.TagoApiClient;
 import com.kedu.tago.sync.MasterSyncService;
 import com.kedu.tago.sync.ScheduleSyncService;
 import com.kedu.tago.sync.dto.SyncResultDTO;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -24,10 +26,17 @@ class TagoRealTrainSyncTest {
     private ScheduleSyncService scheduleSyncService;
 
     @Autowired
+    private TagoApiClient tagoApiClient;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Test
     void syncRealKtxSchedulesAndSeatsFromTagoApi() {
+        Assumptions.assumeTrue(
+                tagoApiClient.isServiceKeyConfigured(),
+                "TAGO_SERVICE_KEY 미설정 시 실제 외부 API 동기화 테스트를 생략합니다."
+        );
         // 기존 데이터 및 시퀀스 초기화
         jdbcTemplate.execute("TRUNCATE TABLE seat, schedule, train, station RESTART IDENTITY CASCADE");
 

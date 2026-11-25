@@ -58,6 +58,7 @@ class TagoSyncMockInsertTest {
         assertTrue(stationCount != null && stationCount >= 6);
         assertTrue(trainCount != null && trainCount >= 3);
         assertTrue(scheduleCount != null && scheduleCount >= 3);
-        assertTrue(seatCount != null && seatCount >= 2805); // 935석 * 3회차
+        // Sparse Seat 전환 이후 동기화 시 좌석 행을 미리 생성하지 않는다 (선점 시에만 INSERT)
+        assertTrue(seatCount != null && seatCount >= 0);
     }
 }

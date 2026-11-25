@@ -106,8 +106,11 @@ public class AuthController {
     /** 아이디 찾기 인증번호 확인 및 아이디 반환 (POST /api/v1/auth/find-id/verify) */
     @PostMapping("/find-id/verify")
     public ResWrapper<Map<String, String>> verifyFindIdCode(@RequestBody FindIdRequestDTO dto) {
-        if (dto.getEmail() == null || dto.getCode() == null) {
-            throw new ApiException(ErrorCode.EMAIL_CODE_REQUIRED);
+        if (dto == null ||
+            dto.getName() == null || dto.getName().trim().isEmpty() ||
+            dto.getEmail() == null || dto.getEmail().trim().isEmpty() ||
+            dto.getCode() == null || dto.getCode().trim().isEmpty()) {
+            throw new ApiException(ErrorCode.MISSING_REQUIRED_FIELD, "이름, 이메일, 인증번호를 모두 입력해 주세요.");
         }
 
         boolean isValid = mailService.verifyFindIdCode(dto.getEmail().trim(), dto.getCode().trim());

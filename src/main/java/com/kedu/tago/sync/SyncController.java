@@ -1,6 +1,8 @@
 package com.kedu.tago.sync;
 
 import com.kedu.tago.common.ApiPaths;
+import com.kedu.tago.common.exception.ApiException;
+import com.kedu.tago.common.exception.ErrorCode;
 import com.kedu.tago.common.response.ResWrapper;
 import com.kedu.tago.common.security.RequireRole;
 import com.kedu.tago.member.Role;
@@ -8,6 +10,7 @@ import com.kedu.tago.openapi.TagoRouteConfig;
 import com.kedu.tago.seat.SeatTemplateGenerator;
 import com.kedu.tago.sync.dto.SyncResultDTO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -34,15 +37,21 @@ public class SyncController {
     private final ScheduleSyncService scheduleSyncService;
     private final TagoRouteConfig routeConfig;
 
+    @Value("${tago.sync.mock-enabled:false}")
+    private boolean mockEnabled;
+
     /** 역·열차 마스터 데이터 동기화 (POST /api/v1/admin/sync/master) */
     @PostMapping("/master")
     public ResWrapper<SyncResultDTO> syncMasterData() {
         return ResWrapper.ok(masterSyncService.syncAllMasterData());
     }
 
-    /** 목업 샘플 데이터 적재 (POST /api/v1/admin/sync/mock) */
+    /** 목업 샘플 데이터 적재 (POST /api/v1/admin/sync/mock) — 운영 환경 기본 비활성화 */
     @PostMapping("/mock")
     public ResWrapper<SyncResultDTO> syncMockSampleData() {
+        if (!mockEnabled) {
+            throw new ApiException(ErrorCode.FORBIDDEN, "목업 샘플 데이터 적재는 운영 환경에서 비활성화되어 있습니다.");
+        }
         return ResWrapper.ok(scheduleSyncService.insertMockSampleData());
     }
 
