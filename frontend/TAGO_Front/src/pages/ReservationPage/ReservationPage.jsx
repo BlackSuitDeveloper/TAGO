@@ -445,7 +445,7 @@ export default function ReservationPage() {
     let eventSource = null;
     try {
       eventSource = new EventSource(
-        `http://localhost:80/api/v1/seat/stream?scheduleSeq=${activeScheduleSeq}`
+        `${client.defaults.baseURL}/seat/stream?scheduleSeq=${activeScheduleSeq}`
       );
       eventSource.addEventListener('SEAT_UPDATE', (e) => {
         try {

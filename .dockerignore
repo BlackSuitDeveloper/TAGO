@@ -1,0 +1,15 @@
+.git
+.gitignore
+.idea
+.gradle
+.env
+.env.*
+build/
+logs/
+frontend/
+monitoring/
+docs/
+postman/
+db/
+*.md
+*.pdf
