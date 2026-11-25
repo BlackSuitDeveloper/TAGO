@@ -307,6 +307,25 @@ public class QueueService {
         }
     }
 
+    /** 좌석 조회 등 읽기 요청의 입장권 검증 (연장 없음) */
+    public void validateActive(String queueToken, Long scheduleSeq) {
+        if (queueToken == null || queueToken.isBlank()) {
+            throw new ApiException(ErrorCode.QUEUE_TOKEN_REQUIRED);
+        }
+        StringRedisTemplate redis = requireRedis();
+        try {
+            Double score = redis.opsForZSet().score(ACTIVE_KEY_PREFIX + scheduleSeq, queueToken);
+            if (score == null || score.longValue() <= System.currentTimeMillis()) {
+                throw new ApiException(ErrorCode.QUEUE_NOT_ADMITTED);
+            }
+        } catch (ApiException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("[QueueService] Redis validateActive failure: {}", e.getMessage());
+            throw new ApiException(ErrorCode.QUEUE_SERVICE_UNAVAILABLE);
+        }
+    }
+
     /** 결제 완료·예매 취소·만료 시 대기열 슬롯 즉시 반납 */
     public void releaseSlot(Long scheduleSeq, String memberId) {
         if (redisTemplate == null || scheduleSeq == null || memberId == null || memberId.isBlank()) {

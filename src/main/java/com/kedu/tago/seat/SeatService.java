@@ -21,6 +21,7 @@ public class SeatService {
 
     private final SeatMapper seatMapper;
     private final SeatTemplateGenerator seatTemplateGenerator;
+    private final SeatHoldService seatHoldService;
 
     // scheduleSeq 별 SseEmitter 목록
     private final Map<Long, List<SseEmitter>> sseEmitters = new ConcurrentHashMap<>();
@@ -83,6 +84,24 @@ public class SeatService {
                         .version(0)
                         .build());
             }
+        }
+
+        // Redis 선점(HELD) 덮어쓰기: DB 에 없는(미확정) 좌석만 MGET 한 번으로 조회
+        List<String> freeSeatNos = new ArrayList<>();
+        for (SeatDTO seat : seatList) {
+            if (SeatTemplateGenerator.STATUS_AVAILABLE.equals(seat.getStatus())) {
+                freeSeatNos.add(seat.getSeatNo());
+            }
+        }
+        Map<String, String> holders = seatHoldService.getHolders(scheduleSeq, targetCarNo, freeSeatNos);
+        if (!holders.isEmpty()) {
+            for (SeatDTO seat : seatList) {
+                if (holders.containsKey(seat.getSeatNo())) {
+                    seat.setStatus("HELD");
+                }
+            }
+            CarSummaryDTO target = carSummaryList.get(targetCarNo - 1);
+            target.setAvailableSeats(Math.max(0, target.getAvailableSeats() - holders.size()));
         }
 
         CarSummaryDTO currentSummary = carSummaryList.get(targetCarNo - 1);

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
@@ -35,13 +36,26 @@ public class QueueServiceTest {
 
     @BeforeEach
     void setUp() {
-        connectionFactory = new LettuceConnectionFactory("10.5.4.20", 6379);
+        // 앱과 같은 환경변수로 Redis 접속 (없으면 localhost:6379)
+        String host = envOrDefault("REDIS_DB_URL", "localhost");
+        int port = Integer.parseInt(envOrDefault("REDIS_DB_PORT", "6379"));
+        RedisStandaloneConfiguration config = new RedisStandaloneConfiguration(host, port);
+        String password = System.getenv("REDIS_DB_PASSWORD");
+        if (password != null && !password.isBlank()) {
+            config.setPassword(password);
+        }
+        connectionFactory = new LettuceConnectionFactory(config);
         connectionFactory.afterPropertiesSet();
         redisTemplate = new StringRedisTemplate(connectionFactory);
         redisTemplate.afterPropertiesSet();
         queueService = new QueueService(redisTemplate);
 
         cleanupKeys();
+    }
+
+    private static String envOrDefault(String key, String defaultValue) {
+        String value = System.getenv(key);
+        return (value == null || value.isBlank()) ? defaultValue : value;
     }
 
     @AfterEach

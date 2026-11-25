@@ -64,7 +64,7 @@
         ON CONFLICT (schedule_seq, car_no, seat_no) DO NOTHING
     </insert>
 
-    <!-- 예약 취소·만료 시 좌석 반환 | POST /api/v1/reservation/{reservationId}/cancel (ReservationService.cancelReservation), 자동 해제 스케줄러(ReservationService.autoReclaimExpiredHeldSeats) -->
+    <!-- 예약 취소 시 좌석 반환 | POST /api/v1/reservation/{reservationId}/cancel (ReservationService.cancelReservation) -->
     <delete id="deleteSeatBySeq">
         DELETE FROM seat
         WHERE seat_seq = #{seatSeq}

@@ -32,6 +32,22 @@ public class ReservationController {
         return ResWrapper.ok(reservationService.holdSeats(requestDTO, memberId, queueToken));
     }
 
+    /** 좌석 다시 고르기: 내 선점 해제 (DELETE /api/v1/reservation/hold?scheduleSeq=) */
+    @DeleteMapping("/hold")
+    public ResWrapper<Void> releaseHolds(@RequestParam Long scheduleSeq, HttpServletRequest request) {
+        String memberId = (String) request.getAttribute("id");
+        reservationService.releaseHolds(scheduleSeq, memberId);
+        return ResWrapper.done("선점한 좌석을 반납했습니다.");
+    }
+
+    /** 예매 그만두기 / 페이지 이탈(sendBeacon): 선점 해제 + 대기열 슬롯 반납 (POST /api/v1/reservation/leave?scheduleSeq=) */
+    @PostMapping("/leave")
+    public ResWrapper<Void> leave(@RequestParam Long scheduleSeq, HttpServletRequest request) {
+        String memberId = (String) request.getAttribute("id");
+        reservationService.leave(scheduleSeq, memberId);
+        return ResWrapper.done("예매를 종료했습니다.");
+    }
+
     /** 내 승차권 목록 조회 (GET /api/v1/reservation/me) */
     @GetMapping("/me")
     public ResWrapper<List<MyTicketResponseDTO>> getMyReservations(HttpServletRequest request) {

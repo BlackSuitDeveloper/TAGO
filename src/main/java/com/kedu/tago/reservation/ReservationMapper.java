@@ -24,18 +24,6 @@ public interface ReservationMapper {
             @Param("cancelReason") String cancelReason
     );
 
-    /** 예매 확정 */
-    int confirmReservation(@Param("reservationSeq") Long reservationSeq);
-
-    /** TTL 만료 예약 조건부 취소 */
-    int cancelExpiredReservation(@Param("reservationSeq") Long reservationSeq);
-
-    /** 선점 시간이 만료된 HELD 예매 목록 조회 */
-    List<ReservationDTO> selectExpiredHeldReservations();
-
     /** 회원의 승차권 목록 조회 */
     List<MyTicketResponseDTO> selectMyReservations(@Param("memberId") String memberId);
-
-    /** 회원의 현재 유효한 HELD 선점 좌석 수 조회 */
-    int countActiveHeldByMember(@Param("memberId") String memberId);
 }

@@ -9,15 +9,12 @@ import com.kedu.tago.reservation.dto.ReservationRequestDTO;
 import com.kedu.tago.reservation.dto.ReservationResponseDTO;
 import com.kedu.tago.schedule.ScheduleService;
 import com.kedu.tago.schedule.dto.ScheduleResponseDTO;
+import com.kedu.tago.seat.SeatHoldService;
 import com.kedu.tago.seat.SeatMapper;
 import com.kedu.tago.seat.SeatService;
 import com.kedu.tago.seat.SeatTemplateGenerator;
-import com.kedu.tago.seat.dto.SeatDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.CannotAcquireLockException;
-import org.springframework.dao.DeadlockLoserDataAccessException;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -31,7 +28,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 예매 서비스 (좌석 선점, 취소, 만료 회수) */
+/** 예매 서비스 (Redis 좌석 선점·해제, 예매 취소) */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -45,13 +42,11 @@ public class ReservationService {
     private final ScheduleService scheduleService;
     private final SeatTemplateGenerator seatTemplateGenerator;
     private final QueueService queueService;
+    private final SeatHoldService seatHoldService;
 
-    public static final int HOLD_TTL_MINUTES = 5; // 좌석 선점 유효시간(분)
     public static final int MAX_SEATS_PER_HOLD = 6; // 1회 최대 선점 가능 좌석 수
-    public static final int MAX_CONCURRENT_HELD_PER_MEMBER = 6; // 회원당 동시 선점 가능 최대 좌석 수
 
-    /** 좌석 선점 및 예매 생성 (대기열 입장권 검증 포함) */
-    @Transactional
+    /** 좌석 선점 (Redis held 키, DB 에는 쓰지 않음. 확정은 결제 시점) */
     public ReservationResponseDTO holdSeats(ReservationRequestDTO request, String memberId, String queueToken) {
         Long scheduleSeq = request.getScheduleSeq();
         List<ReservationRequestDTO.SeatSelection> normalizedSeats = normalizeSelections(request);
@@ -59,31 +54,73 @@ public class ReservationService {
         if (scheduleSeq == null || normalizedSeats.isEmpty()) {
             throw new ApiException(ErrorCode.SEAT_NOT_SELECTED);
         }
+        if (memberId == null) {
+            throw new ApiException(ErrorCode.LOGIN_REQUIRED);
+        }
 
-        // 대기열 입장권 원자적 검증 및 선점 유효시간만큼 만료 연장
-        queueService.validateAndExtendForHold(queueToken, scheduleSeq, memberId, HOLD_TTL_MINUTES * 60L);
+        // 대기열 입장권 검증 및 선점 유효시간만큼 active 연장
+        queueService.validateAndExtendForHold(queueToken, scheduleSeq, memberId, seatHoldService.getHoldTtlSeconds());
 
-        // 운행 일정 확인 및 요금 계산
         if (normalizedSeats.size() > MAX_SEATS_PER_HOLD) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "1회 최대 " + MAX_SEATS_PER_HOLD + "석까지 예매할 수 있습니다.");
         }
 
-        // 회원당 동시 선점(HELD) 좌석 수 상한 검증
-        String effectiveMemberId = (memberId != null && !memberId.isBlank()) ? memberId : "guest";
-        if (!"guest".equals(effectiveMemberId)) {
-            int activeHeldCount = reservationMapper.countActiveHeldByMember(effectiveMemberId);
-            if (activeHeldCount + normalizedSeats.size() > MAX_CONCURRENT_HELD_PER_MEMBER) {
-                throw new ApiException(ErrorCode.BAD_REQUEST,
-                        "동시에 최대 " + MAX_CONCURRENT_HELD_PER_MEMBER + "석까지만 선점할 수 있습니다. (현재 선점 중: " + activeHeldCount + "석)");
+        ScheduleResponseDTO schedule = validateBookableSchedule(scheduleSeq);
+        int unitPrice = unitPrice(schedule);
+
+        // 좌석 템플릿 검증 (없는 호차/좌석 차단)
+        for (ReservationRequestDTO.SeatSelection selection : normalizedSeats) {
+            if (seatTemplateGenerator.findTemplateSeat(selection.getCarNo(), selection.getSeatNo()) == null) {
+                throw new ApiException(ErrorCode.SEAT_NOT_FOUND,
+                        "호차 " + selection.getCarNo() + ", 좌석 " + selection.getSeatNo() + " 정보를 찾을 수 없습니다.");
             }
         }
 
-        // 운행 일정 상태·오픈 시각·출발 시각 검증
+        // Redisson 락 안에서 선점 확인 + held 키 저장
+        LocalDateTime expiresAt = seatHoldService.hold(scheduleSeq, memberId, normalizedSeats);
+
+        List<String> heldSeatNos = new ArrayList<>();
+        for (ReservationRequestDTO.SeatSelection selection : normalizedSeats) {
+            seatService.broadcastSeatStatusChange(scheduleSeq, selection.getCarNo(), selection.getSeatNo(), "HELD");
+            heldSeatNos.add(selection.getCarNo() + "-" + selection.getSeatNo());
+        }
+
+        return ReservationResponseDTO.builder()
+                .scheduleSeq(scheduleSeq)
+                .carNo(normalizedSeats.get(0).getCarNo())
+                .seatList(heldSeatNos)
+                .totalPrice(unitPrice * normalizedSeats.size())
+                .status("HELD")
+                .reservedAt(LocalDateTime.now())
+                .expiresAt(expiresAt)
+                .build();
+    }
+
+    /** 좌석 다시 고르기: 내 선점만 해제 (active 유지) */
+    public int releaseHolds(Long scheduleSeq, String memberId) {
+        if (scheduleSeq == null || memberId == null) {
+            return 0;
+        }
+        List<ReservationRequestDTO.SeatSelection> released =
+                seatHoldService.release(scheduleSeq, memberId, seatHoldService.getMyHolds(scheduleSeq, memberId));
+        for (ReservationRequestDTO.SeatSelection s : released) {
+            seatService.broadcastSeatStatusChange(scheduleSeq, s.getCarNo(), s.getSeatNo(), "AVAILABLE");
+        }
+        return released.size();
+    }
+
+    /** 예매 그만두기 / 페이지 이탈: 선점 해제 + 대기열 슬롯 반납 */
+    public void leave(Long scheduleSeq, String memberId) {
+        releaseHolds(scheduleSeq, memberId);
+        queueService.releaseSlot(scheduleSeq, memberId);
+    }
+
+    /** 운행 일정 상태·오픈 시각·출발 시각 검증 */
+    public ScheduleResponseDTO validateBookableSchedule(Long scheduleSeq) {
         ScheduleResponseDTO schedule = scheduleService.getScheduleDetail(scheduleSeq);
         if (schedule == null) {
             throw new ApiException(ErrorCode.SCHEDULE_NOT_FOUND);
         }
-
         LocalDateTime now = LocalDateTime.now(KST);
         if (schedule.getStatus() != null && !"SCHEDULED".equals(schedule.getStatus())) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "예매 가능한 운행 상태가 아닙니다.");
@@ -94,82 +131,13 @@ public class ReservationService {
         if (schedule.getDepPlandTime() != null && !schedule.getDepPlandTime().isAfter(now)) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "이미 출발한 열차는 예매할 수 없습니다.");
         }
+        return schedule;
+    }
 
-        int unitPrice = (schedule.getStandardPrice() != null && schedule.getStandardPrice() > 0)
+    /** 1석 단가 */
+    public static int unitPrice(ScheduleResponseDTO schedule) {
+        return (schedule.getStandardPrice() != null && schedule.getStandardPrice() > 0)
                 ? schedule.getStandardPrice().intValue() : 59800;
-        int totalPrice = unitPrice * normalizedSeats.size();
-        LocalDateTime expiresAt = now.plusMinutes(HOLD_TTL_MINUTES);
-
-        List<Long> createdReservationSeqs = new ArrayList<>();
-        List<String> reservedSeatNos = new ArrayList<>();
-
-        for (ReservationRequestDTO.SeatSelection selection : normalizedSeats) {
-            Integer carNo = selection.getCarNo();
-            String seatNo = selection.getSeatNo();
-
-            // 1. 좌석 템플릿 검증 (없는 호차/좌석 차단)
-            SeatTemplateGenerator.SeatTemplateItem templateSeat = seatTemplateGenerator.findTemplateSeat(carNo, seatNo);
-            if (templateSeat == null) {
-                throw new ApiException(ErrorCode.SEAT_NOT_FOUND, "호차 " + carNo + ", 좌석 " + seatNo + " 정보를 찾을 수 없습니다.");
-            }
-
-            // 2. 점유 좌석 INSERT (UNIQUE + ON CONFLICT DO NOTHING 으로 동시성 제어)
-            SeatDTO seatToInsert = SeatDTO.builder()
-                    .scheduleSeq(scheduleSeq)
-                    .carNo(carNo)
-                    .seatNo(seatNo)
-                    .seatGrade(templateSeat.getSeatGrade())
-                    .build();
-
-            int inserted;
-            try {
-                inserted = seatMapper.insertOccupiedSeat(seatToInsert);
-            } catch (DeadlockLoserDataAccessException | CannotAcquireLockException e) {
-                throw new ApiException(ErrorCode.SEAT_ALREADY_TAKEN, "좌석 " + carNo + "호차 " + seatNo + " 선점 경합이 발생했습니다. 다시 시도해 주세요.");
-            }
-
-            if (inserted == 0 || seatToInsert.getSeatSeq() == null) {
-                // 이미 다른 사용자가 선점했거나 예약된 좌석
-                throw new ApiException(ErrorCode.SEAT_ALREADY_TAKEN, "좌석 " + carNo + "호차 " + seatNo + "은(는) 이미 선택되었거나 예약이 진행 중입니다.");
-            }
-
-            // 3. 예매 레코드 생성 (좌석 삭제 후에도 이력을 유지할 수 있도록 car_no/seat_no/seat_grade 스냅샷 저장)
-            ReservationDTO reservation = ReservationDTO.builder()
-                    .memberId(memberId != null ? memberId : "guest")
-                    .scheduleSeq(scheduleSeq)
-                    .seatSeq(seatToInsert.getSeatSeq())
-                    .carNo(carNo)
-                    .seatNo(seatNo)
-                    .seatGrade(templateSeat.getSeatGrade())
-                    .status("HELD")
-                    .totalPrice(unitPrice)
-                    .reservedAt(now)
-                    .expiresAt(expiresAt)
-                    .build();
-
-            reservationMapper.insertReservation(reservation);
-            createdReservationSeqs.add(reservation.getReservationSeq());
-            reservedSeatNos.add(seatNo);
-
-            // 4. 트랜잭션 커밋 후 좌석 상태 SSE 브로드캐스트 (롤백 시 가짜 알림 방지)
-            broadcastAfterCommit(scheduleSeq, carNo, seatNo, "HELD");
-        }
-
-        Long mainReservationSeq = createdReservationSeqs.get(0);
-        Integer primaryCarNo = normalizedSeats.get(0).getCarNo();
-
-        return ReservationResponseDTO.builder()
-                .reservationId(mainReservationSeq)
-                .reservationSeq(mainReservationSeq)
-                .reservationIds(createdReservationSeqs)
-                .scheduleSeq(scheduleSeq)
-                .carNo(primaryCarNo)
-                .seatList(reservedSeatNos)
-                .totalPrice(totalPrice)
-                .status("HELD")
-                .reservedAt(now)
-                .expiresAt(expiresAt)
-                .build();
     }
 
     /** 좌석 선택 목록 정규화 (좌석별 호차 지원, 중복 제거, 데드락 방지용 고정 정렬) */
@@ -242,40 +210,6 @@ public class ReservationService {
             return List.of();
         }
         return reservationMapper.selectMyReservations(memberId);
-    }
-
-    /** 선점 시간이 만료된 좌석 자동 회수 (5초마다) */
-    @Scheduled(fixedDelay = 5000)
-    @Transactional
-    public void autoReclaimExpiredHeldSeats() {
-        List<ReservationDTO> expiredList = reservationMapper.selectExpiredHeldReservations();
-        if (expiredList == null || expiredList.isEmpty()) {
-            return;
-        }
-
-        log.info("[TTL Scheduler] 만료된 선점 좌석 {}건 자동 회수 시작", expiredList.size());
-        for (ReservationDTO r : expiredList) {
-            // 1. HELD 이고 만료된 경우에만 조건부 취소 (결제 확정과 경합 시 안전)
-            int updated = reservationMapper.cancelExpiredReservation(r.getReservationSeq());
-            if (updated == 0) {
-                continue;
-            }
-
-            // 2. 점유 좌석 삭제 (AVAILABLE 복구)
-            if (r.getSeatSeq() != null) {
-                seatMapper.deleteSeatBySeq(r.getSeatSeq());
-            }
-
-            // 3. 대기열 슬롯 반납
-            queueService.releaseSlot(r.getScheduleSeq(), r.getMemberId());
-
-            // 4. 트랜잭션 커밋 후 실시간 SSE 복구 알림
-            if (r.getScheduleSeq() != null && r.getCarNo() != null && r.getSeatNo() != null) {
-                broadcastAfterCommit(r.getScheduleSeq(), r.getCarNo(), r.getSeatNo(), "AVAILABLE");
-            }
-            log.info("[TTL Scheduler] 예약 번호 {} ({}호차 {}) 만료 해제 완료",
-                    r.getReservationSeq(), r.getCarNo(), r.getSeatNo());
-        }
     }
 
     /** 트랜잭션 커밋이 확정된 뒤에만 SSE 브로드캐스트를 수행 (롤백 시 유령 알림 방지) */
