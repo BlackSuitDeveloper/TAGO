@@ -79,6 +79,8 @@ class PaymentOwnershipTest {
     void allowsOwnReservation() {
         when(reservationMapper.selectReservationById(1L)).thenReturn(held(1L, "me"));
         when(reservationMapper.selectReservationById(2L)).thenReturn(held(2L, "me"));
+        when(reservationMapper.confirmReservation(1L)).thenReturn(1);
+        when(reservationMapper.confirmReservation(2L)).thenReturn(1);
 
         PaymentResponseDTO res = service.processPayment(request(1L, 2L), "me");
 
@@ -86,5 +88,15 @@ class PaymentOwnershipTest {
         assertEquals(59_800 * 2, res.getAmount());
         verify(reservationMapper).confirmReservation(1L);
         verify(reservationMapper).confirmReservation(2L);
+    }
+
+    @Test
+    @DisplayName("결제 직전 만료/중복 경합으로 조건부 UPDATE 가 0건이면 예외 발생")
+    void rejectsWhenConditionalConfirmFails() {
+        when(reservationMapper.selectReservationById(1L)).thenReturn(held(1L, "me"));
+        when(reservationMapper.confirmReservation(1L)).thenReturn(0);
+
+        ApiException e = assertThrows(ApiException.class, () -> service.processPayment(request(1L), "me"));
+        assertEquals(ErrorCode.PAYMENT_NOT_AVAILABLE, e.getErrorCode());
     }
 }

@@ -51,9 +51,9 @@ public class QueueService {
             end
             """, Long.class);
 
-    // 대기열 순차 입장 Lua 스크립트 (유령 토큰 스킵 포함)
+    // 대기열 순차 입장 Lua 스크립트 (유령 토큰 스킵 + userKey 정리 포함)
     // KEYS: activeKey, queueKey
-    // ARGV: now, expiresAt, maxActiveUsers, admitBatchSize, ghostCutoff, metaKeyPrefix
+    // ARGV: now, expiresAt, maxActiveUsers, admitBatchSize, ghostCutoff, metaKeyPrefix, userKeyPrefix, scheduleSeq
     private static final DefaultRedisScript<Long> ADMIT_BATCH_SCRIPT = new DefaultRedisScript<>("""
             redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[1])
             local activeCount = redis.call('ZCARD', KEYS[1])
@@ -67,18 +67,23 @@ public class QueueService {
             end
             local admitted = 0
             while admitted < target do
-                local popped = redis.call('ZPOPMIN', KEYS[2], 1)
-                if #popped == 0 then
+                local head = redis.call('ZRANGE', KEYS[2], 0, 0)
+                if #head == 0 then
                     break
                 end
-                local token = popped[1]
+                local token = head[1]
+                redis.call('ZREM', KEYS[2], token)
                 local metaKey = ARGV[6] .. token
                 local lastSeen = redis.call('HGET', metaKey, 'lastSeen')
                 if lastSeen and tonumber(lastSeen) >= tonumber(ARGV[5]) then
                     redis.call('ZADD', KEYS[1], ARGV[2], token)
                     admitted = admitted + 1
                 else
+                    local ghostMember = redis.call('HGET', metaKey, 'memberId')
                     redis.call('DEL', metaKey)
+                    if ghostMember then
+                        redis.call('DEL', ARGV[7] .. ARGV[8] .. ':' .. ghostMember)
+                    end
                 end
             end
             return admitted
@@ -158,9 +163,11 @@ public class QueueService {
                 }
             }
 
-            // 2. 신규 토큰 발급 및 Lua 진입 처리
+            // 2. 신규 토큰 발급, 메타 선저장(스케줄러 유령 오판 방지) 후 Lua 진입 처리
             String token = UUID.randomUUID().toString();
             long expiresAt = now + (tokenTtlSeconds * 1000L);
+
+            saveTokenMetadata(redis, token, memberId, scheduleSeq, now, userKey);
 
             Long result = redis.execute(
                     ENTER_QUEUE_SCRIPT,
@@ -171,8 +178,6 @@ public class QueueService {
                     String.valueOf(maxActiveUsers),
                     String.valueOf(scheduleSeq)
             );
-
-            saveTokenMetadata(redis, token, memberId, scheduleSeq, now, userKey);
 
             if (result != null && result == 0L) {
                 return QueueResponseDTO.builder()
@@ -354,7 +359,9 @@ public class QueueService {
                         String.valueOf(maxActiveUsers),
                         String.valueOf(admitBatchSize),
                         String.valueOf(ghostCutoff),
-                        META_KEY_PREFIX
+                        META_KEY_PREFIX,
+                        USER_KEY_PREFIX,
+                        scheduleId
                 );
 
                 Long remaining = redisTemplate.opsForZSet().zCard(queueKey);

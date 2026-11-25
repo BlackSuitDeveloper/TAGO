@@ -1,0 +1,44 @@
+services:
+  backend:
+    image: ${TAGO_BACKEND_IMAGE:-tago-backend:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tago-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      SERVER_PORT: 8080
+      TZ: Asia/Seoul
+    volumes:
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - tago-net
+
+  frontend:
+    image: ${TAGO_FRONTEND_IMAGE:-tago-frontend:latest}
+    build:
+      context: ./frontend/TAGO_Front
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api/v1
+    container_name: tago-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - tago-net
+
+networks:
+  tago-net:
+    driver: bridge

@@ -250,8 +250,8 @@ public class ReservationService {
 
             // 3. 대기열 슬롯 반납
             queueService.releaseSlot(r.getScheduleSeq(), r.getMemberId());
-            log.info("[TTL Scheduler] 예약 번호 {} (좌석 {}) 만료 해제 완료", r.getReservationSeq(), r.getSeatSeq());
-            // 3. 실시간 SSE 복구 알림
+
+            // 4. 실시간 SSE 복구 알림
             if (r.getScheduleSeq() != null && r.getCarNo() != null && r.getSeatNo() != null) {
                 seatService.broadcastSeatStatusChange(r.getScheduleSeq(), r.getCarNo(), r.getSeatNo(), "AVAILABLE");
             }

@@ -304,12 +304,17 @@ export default function SchedulePage() {
       const nextArr = train.depStationName || depStation;
       const nextDate = returnDate && returnDate >= currentDate ? returnDate : currentDate;
 
+      if (queueToken) {
+        sessionStorage.setItem(`tago:queueToken:${train.id}`, queueToken);
+      }
+
       setSelectedOutboundTrain({
         train,
         queueToken: queueToken || null,
         depStation,
         arrStation,
         depDate: currentDate,
+        queueToken,
       });
       setDepStation(nextDep);
       setArrStation(nextArr);
@@ -331,6 +336,14 @@ export default function SchedulePage() {
 
     if (tripType === '왕복' && selectedOutboundTrain) {
       const outbound = selectedOutboundTrain.train;
+      const outboundToken = selectedOutboundTrain.queueToken || queueToken || '';
+      const returnToken = queueToken || '';
+      if (outboundToken) {
+        sessionStorage.setItem(`tago:queueToken:${outbound.id}`, outboundToken);
+      }
+      if (returnToken) {
+        sessionStorage.setItem(`tago:queueToken:${train.id}`, returnToken);
+      }
       navigate('/reservation', {
         state: {
           scheduleSeq: outbound.id,
@@ -390,12 +403,12 @@ export default function SchedulePage() {
     try {
       const res = await client.post('/queue', { scheduleSeq: train.id });
       const data = res.data || {};
+      const token = data.queueToken;
       if (data.isAvailable) {
         goToReservation(train, data.queueToken);
         return;
       }
 
-      const token = data.queueToken;
       setQueueModal({ train, queueToken: token, queueRank: data.queueRank ?? 1 });
 
       queuePollTimerRef.current = setInterval(async () => {
@@ -405,7 +418,7 @@ export default function SchedulePage() {
           if (pollData.isAvailable) {
             clearQueuePolling();
             setQueueModal(null);
-            goToReservation(train, token);
+            goToReservation(train, pollData.queueToken || token);
           } else {
             setQueueModal((prev) => prev ? { ...prev, queueRank: pollData.queueRank ?? prev.queueRank } : null);
           }

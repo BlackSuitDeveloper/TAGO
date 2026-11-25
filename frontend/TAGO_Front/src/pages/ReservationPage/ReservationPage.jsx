@@ -445,7 +445,7 @@ export default function ReservationPage() {
     let eventSource = null;
     try {
       eventSource = new EventSource(
-        `http://localhost:80/api/v1/seat/stream?scheduleSeq=${activeScheduleSeq}`
+        `${client.defaults.baseURL}/seat/stream?scheduleSeq=${activeScheduleSeq}`
       );
       eventSource.addEventListener('SEAT_UPDATE', (e) => {
         try {
@@ -638,6 +638,10 @@ export default function ReservationPage() {
     const seatNoList = outboundSeats.map((s) => s.seatId);
     const outboundCarNo = outboundSeats[0]?.carNo || selectedCarNo;
     const seatSelections = outboundSeats.map((s) => ({ carNo: s.carNo, seatNo: s.seatId }));
+    const outboundQueueToken =
+      bookingInfo.queueToken ||
+      sessionStorage.getItem(`tago:queueToken:${bookingInfo.scheduleSeq}`) ||
+      '';
 
     let outboundHoldIds = [];
     try {
@@ -695,6 +699,10 @@ export default function ReservationPage() {
         const returnCarNo = returnSeats[0]?.carNo || selectedCarNo;
         const returnSeatSelections = returnSeats.map((s) => ({ carNo: s.carNo, seatNo: s.seatId }));
         const targetReturnScheduleSeq = bookingInfo.returnScheduleSeq || bookingInfo.scheduleSeq;
+        const returnQueueToken =
+          location.state?.returnQueueToken ||
+          sessionStorage.getItem(`tago:queueToken:${targetReturnScheduleSeq}`) ||
+          outboundQueueToken;
 
         try {
           let returnToken = location.state?.returnQueueToken || sessionStorage.getItem(`tago_queue_token_${targetReturnScheduleSeq}`);
