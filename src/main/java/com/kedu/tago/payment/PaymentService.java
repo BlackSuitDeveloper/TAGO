@@ -107,9 +107,12 @@ public class PaymentService {
 
         paymentMapper.insertPayment(payment);
 
-        // 5. 전체 예약 확정 및 대기열 슬롯 반납
+        // 5. 전체 예약 조건부 확정 (HELD && 만료 전일 때만 CONFIRMED, 경합 시 롤백)
         for (ReservationDTO reservation : reservations) {
-            reservationMapper.confirmReservation(reservation.getReservationSeq());
+            int updated = reservationMapper.confirmReservation(reservation.getReservationSeq());
+            if (updated == 0) {
+                throw new ApiException(ErrorCode.PAYMENT_NOT_AVAILABLE, "결제 처리 중 예약이 만료되었거나 이미 처리되었습니다.");
+            }
         }
         queueService.releaseSlot(reservations.get(0).getScheduleSeq(), memberId);
 

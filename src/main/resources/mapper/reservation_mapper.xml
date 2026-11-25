@@ -11,6 +11,9 @@
             member_id,
             schedule_seq,
             seat_seq,
+            car_no,
+            seat_no,
+            seat_grade,
             status,
             total_price,
             reserved_at,
@@ -20,6 +23,9 @@
             #{memberId},
             #{scheduleSeq},
             #{seatSeq},
+            #{carNo},
+            #{seatNo},
+            #{seatGrade},
             #{status},
             #{totalPrice},
             #{reservedAt},
@@ -34,6 +40,9 @@
             member_id AS memberId,
             schedule_seq AS scheduleSeq,
             seat_seq AS seatSeq,
+            car_no AS carNo,
+            seat_no AS seatNo,
+            seat_grade AS seatGrade,
             status,
             total_price AS totalPrice,
             reserved_at AS reservedAt,
@@ -45,7 +54,7 @@
         WHERE reservation_seq = #{reservationSeq}
     </select>
 
-    <!-- 예약 취소 | POST /api/v1/reservation/{reservationId}/cancel (ReservationService.cancelReservation), 자동 해제 스케줄러(ReservationService.autoReclaimExpiredHeldSeats) -->
+    <!-- 예약 취소 (이미 취소되지 않은 경우에만 전이) -->
     <update id="updateReservationStatus">
         UPDATE reservation
         SET status = #{status},
@@ -55,14 +64,29 @@
                 , seat_seq = NULL
             </if>
         WHERE reservation_seq = #{reservationSeq}
+          AND status != 'CANCELLED'
     </update>
 
-    <!-- 결제 후 예약 확정(CONFIRMED) | POST /api/v1/payment (PaymentService.processPayment) -->
+    <!-- 결제 후 예약 확정(CONFIRMED): HELD 이고 만료 전일 때만 전이 (이중 결제/만료 경합 방지) -->
     <update id="confirmReservation">
         UPDATE reservation
         SET status = 'CONFIRMED',
             confirmed_at = NOW()
         WHERE reservation_seq = #{reservationSeq}
+          AND status = 'HELD'
+          AND expires_at &gt; NOW()
+    </update>
+
+    <!-- TTL 만료 예약 취소 (HELD 이고 만료된 경우에만 전이, 결제 경합 방지) -->
+    <update id="cancelExpiredReservation">
+        UPDATE reservation
+        SET status = 'CANCELLED',
+            cancelled_at = NOW(),
+            cancel_reason = 'TTL_EXPIRED',
+            seat_seq = NULL
+        WHERE reservation_seq = #{reservationSeq}
+          AND status = 'HELD'
+          AND expires_at &lt; NOW()
     </update>
 
     <!-- 선점 만료 예약 조회 | 자동 해제 스케줄러(ReservationService.autoReclaimExpiredHeldSeats) -->
@@ -72,6 +96,9 @@
             member_id AS memberId,
             schedule_seq AS scheduleSeq,
             seat_seq AS seatSeq,
+            car_no AS carNo,
+            seat_no AS seatNo,
+            seat_grade AS seatGrade,
             status,
             total_price AS totalPrice,
             reserved_at AS reservedAt,
@@ -92,9 +119,9 @@
             as2.nodename AS arrStation,
             s.depplandtime AS depPlandTime,
             s.arrplandtime AS arrPlandTime,
-            st.car_no AS carNo,
-            st.seat_no AS seatNo,
-            st.seat_grade AS seatGrade,
+            COALESCE(r.car_no, st.car_no) AS carNo,
+            COALESCE(r.seat_no, st.seat_no) AS seatNo,
+            COALESCE(r.seat_grade, st.seat_grade) AS seatGrade,
             r.total_price AS totalPrice,
             r.status,
             p.order_id AS ticketNumber,

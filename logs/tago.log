@@ -237,3 +237,126 @@ org.springframework.web.context.request.async.AsyncRequestTimeoutException
 2026-11-25T10:37:30.700+09:00  INFO 6920 --- [TAGO] [Thread-11] com.zaxxer.hikari.HikariDataSource       : HikariPool-3 - Shutdown initiated...
 2026-11-25T10:37:30.706+09:00  INFO 6920 --- [TAGO] [Thread-11] com.zaxxer.hikari.HikariDataSource       : HikariPool-3 - Shutdown completed.
 2026-11-25T10:37:30.770+09:00  INFO 6920 --- [TAGO] [tomcat-shutdown] o.s.boot.tomcat.GracefulShutdown         : Graceful shutdown aborted with one or more requests still active
+2026-11-25T12:33:02.387+09:00  INFO 14384 --- [TAGO] [restartedMain] com.kedu.tago.TagoApplication            : Starting TagoApplication using Java 21.0.11 with PID 14384 (D:\TAGO\build\classes\java\main started by keduit in D:\TAGO)
+2026-11-25T12:33:02.387+09:00  INFO 14384 --- [TAGO] [restartedMain] com.kedu.tago.TagoApplication            : No active profile set, falling back to 1 default profile: "default"
+2026-11-25T12:33:02.695+09:00  INFO 14384 --- [TAGO] [restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-11-25T12:33:02.695+09:00  INFO 14384 --- [TAGO] [restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data Redis repositories in DEFAULT mode.
+2026-11-25T12:33:02.706+09:00  INFO 14384 --- [TAGO] [restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 8 ms. Found 0 Redis repository interfaces.
+2026-11-25T12:33:02.899+09:00  INFO 14384 --- [TAGO] [restartedMain] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 80 (http)
+2026-11-25T12:33:02.901+09:00  INFO 14384 --- [TAGO] [restartedMain] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-11-25T12:33:02.902+09:00  INFO 14384 --- [TAGO] [restartedMain] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.27]
+2026-11-25T12:33:02.938+09:00  INFO 14384 --- [TAGO] [restartedMain] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 547 ms
+2026-11-25T12:33:03.523+09:00  INFO 14384 --- [TAGO] [restartedMain] o.s.boot.tomcat.TomcatWebServer          : Tomcat started on port 80 (http) with context path '/'
+2026-11-25T12:33:03.528+09:00  INFO 14384 --- [TAGO] [scheduling-2] com.zaxxer.hikari.HikariDataSource       : HikariPool-2 - Starting...
+2026-11-25T12:33:03.529+09:00  INFO 14384 --- [TAGO] [restartedMain] com.kedu.tago.TagoApplication            : Started TagoApplication in 1.231 seconds (process running for 6225.793)
+2026-11-25T12:33:03.590+09:00  INFO 14384 --- [TAGO] [scheduling-2] com.zaxxer.hikari.pool.HikariPool        : HikariPool-2 - Added connection org.postgresql.jdbc.PgConnection@4c0b32ea
+2026-11-25T12:33:03.590+09:00  INFO 14384 --- [TAGO] [scheduling-2] com.zaxxer.hikari.HikariDataSource       : HikariPool-2 - Start completed.
+2026-11-25T12:33:03.619+09:00  INFO 14384 --- [TAGO] [restartedMain] com.kedu.tago.sync.MasterSyncService     : [MasterSync] 역 캐시 로드 완료: 총 349개 역 캐싱됨
+2026-11-25T12:33:03.619+09:00  INFO 14384 --- [TAGO] [restartedMain] com.kedu.tago.sync.SyncStartupRunner     : [SyncStartup] 기존 마스터 데이터가 존재하여 역 캐시 워밍업만 수행했습니다.
+2026-11-25T12:33:03.620+09:00  INFO 14384 --- [TAGO] [ForkJoinPool.commonPool-worker-4] com.kedu.tago.sync.SyncStartupRunner     : [SyncStartup] 서버 기동 운행 일정(schedule) 동기화 시작: 2026-11-25 ~ 2026-11-28
+2026-11-25T12:33:03.621+09:00  INFO 14384 --- [TAGO] [restartedMain] .ConditionEvaluationDeltaLoggingListener : Condition evaluation unchanged
+2026-11-25T12:33:03.641+09:00  INFO 14384 --- [TAGO] [ForkJoinPool.commonPool-worker-4] com.kedu.tago.sync.MasterSyncService     : [MasterSync] train 마스터 테이블 Upsert 완료: 46건
+2026-11-25T12:33:04.945+09:00  INFO 14384 --- [TAGO] [File Watcher] rtingClassPathChangeChangedEventListener : Restarting due to 24 class path changes (13 additions, 0 deletions, 11 modifications)
+2026-11-25T12:33:04.949+09:00  INFO 14384 --- [TAGO] [Thread-6] o.s.boot.tomcat.GracefulShutdown         : Commencing graceful shutdown. Waiting for active requests to complete
+2026-11-25T12:33:04.957+09:00  INFO 14384 --- [TAGO] [tomcat-shutdown] o.s.boot.tomcat.GracefulShutdown         : Graceful shutdown complete
+2026-11-25T12:33:04.966+09:00  INFO 14384 --- [TAGO] [Thread-6] com.zaxxer.hikari.HikariDataSource       : HikariPool-2 - Shutdown initiated...
+2026-11-25T12:33:04.974+09:00  INFO 14384 --- [TAGO] [Thread-6] com.zaxxer.hikari.HikariDataSource       : HikariPool-2 - Shutdown completed.
+2026-11-25T12:33:05.075+09:00  INFO 14384 --- [TAGO] [restartedMain] com.kedu.tago.TagoApplication            : Starting TagoApplication using Java 21.0.11 with PID 14384 (D:\TAGO\build\classes\java\main started by keduit in D:\TAGO)
+2026-11-25T12:33:05.075+09:00  INFO 14384 --- [TAGO] [restartedMain] com.kedu.tago.TagoApplication            : No active profile set, falling back to 1 default profile: "default"
+2026-11-25T12:33:05.184+09:00 ERROR 14384 --- [TAGO] [ForkJoinPool.commonPool-worker-4] com.kedu.tago.sync.SyncStartupRunner     : [SyncStartup] 서버 기동 운행 일정 동기화 중 예외 발생: 
+### Error updating database.  Cause: org.springframework.jdbc.CannotGetJdbcConnectionException: Failed to obtain JDBC Connection
+### The error may exist in file [D:\TAGO\build\resources\main\mapper\schedule_sync_mapper.xml]
+### The error may involve com.kedu.tago.sync.ScheduleSyncMapper.insertSchedulesIfAbsent
+### The error occurred while executing an update
+### Cause: org.springframework.jdbc.CannotGetJdbcConnectionException: Failed to obtain JDBC Connection
+
+org.mybatis.spring.MyBatisSystemException: 
+### Error updating database.  Cause: org.springframework.jdbc.CannotGetJdbcConnectionException: Failed to obtain JDBC Connection
+### The error may exist in file [D:\TAGO\build\resources\main\mapper\schedule_sync_mapper.xml]
+### The error may involve com.kedu.tago.sync.ScheduleSyncMapper.insertSchedulesIfAbsent
+### The error occurred while executing an update
+### Cause: org.springframework.jdbc.CannotGetJdbcConnectionException: Failed to obtain JDBC Connection
+	at org.mybatis.spring.MyBatisExceptionTranslator.translateExceptionIfPossible(MyBatisExceptionTranslator.java:101) ~[mybatis-spring-4.0.0.jar:4.0.0]
+	at org.mybatis.spring.SqlSessionTemplate$SqlSessionInterceptor.invoke(SqlSessionTemplate.java:362) ~[mybatis-spring-4.0.0.jar:4.0.0]
+	at jdk.proxy2/jdk.proxy2.$Proxy79.insert(Unknown Source) ~[na:na]
+	at org.mybatis.spring.SqlSessionTemplate.insert(SqlSessionTemplate.java:239) ~[mybatis-spring-4.0.0.jar:4.0.0]
+	at org.apache.ibatis.binding.MapperMethod.execute(MapperMethod.java:62) ~[mybatis-3.5.19.jar:3.5.19]
+	at org.apache.ibatis.binding.MapperProxy$PlainMethodInvoker.invoke(MapperProxy.java:141) ~[mybatis-3.5.19.jar:3.5.19]
+	at org.apache.ibatis.binding.MapperProxy.invoke(MapperProxy.java:86) ~[mybatis-3.5.19.jar:3.5.19]
+	at jdk.proxy5/jdk.proxy5.$Proxy141.insertSchedulesIfAbsent(Unknown Source) ~[na:na]
+	at com.kedu.tago.sync.ScheduleSyncService.insertAbsent(ScheduleSyncService.java:206) ~[main/:na]
+	at com.kedu.tago.sync.ScheduleSyncService.syncSchedulesByDate(ScheduleSyncService.java:89) ~[main/:na]
+	at com.kedu.tago.sync.ScheduleSyncService.syncSchedulesByDateRange(ScheduleSyncService.java:63) ~[main/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:359) ~[spring-aop-7.0.11.jar:7.0.11]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:710) ~[spring-aop-7.0.11.jar:7.0.11]
+	at com.kedu.tago.sync.ScheduleSyncService$$SpringCGLIB$$0.syncSchedulesByDateRange(<generated>) ~[na:na]
+	at com.kedu.tago.sync.SyncStartupRunner.lambda$syncSchedulesOnStartupAsync$0(SyncStartupRunner.java:72) ~[main/:na]
+	at java.base/java.util.concurrent.CompletableFuture$AsyncRun.run(CompletableFuture.java:1804) ~[na:na]
+	at java.base/java.util.concurrent.CompletableFuture$AsyncRun.exec(CompletableFuture.java:1796) ~[na:na]
+	at java.base/java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:387) ~[na:na]
+	at java.base/java.util.concurrent.ForkJoinPool$WorkQueue.topLevelExec(ForkJoinPool.java:1310) ~[na:na]
+	at java.base/java.util.concurrent.ForkJoinPool.scan(ForkJoinPool.java:1841) ~[na:na]
+	at java.base/java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1806) ~[na:na]
+	at java.base/java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:188) ~[na:na]
+Caused by: org.apache.ibatis.exceptions.PersistenceException: 
+### Error updating database.  Cause: org.springframework.jdbc.CannotGetJdbcConnectionException: Failed to obtain JDBC Connection
+### The error may exist in file [D:\TAGO\build\resources\main\mapper\schedule_sync_mapper.xml]
+### The error may involve com.kedu.tago.sync.ScheduleSyncMapper.insertSchedulesIfAbsent
+### The error occurred while executing an update
+### Cause: org.springframework.jdbc.CannotGetJdbcConnectionException: Failed to obtain JDBC Connection
+	at org.apache.ibatis.exceptions.ExceptionFactory.wrapException(ExceptionFactory.java:30) ~[mybatis-3.5.19.jar:3.5.19]
+	at org.apache.ibatis.session.defaults.DefaultSqlSession.update(DefaultSqlSession.java:199) ~[mybatis-3.5.19.jar:3.5.19]
+	at org.apache.ibatis.session.defaults.DefaultSqlSession.insert(DefaultSqlSession.java:184) ~[mybatis-3.5.19.jar:3.5.19]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.mybatis.spring.SqlSessionTemplate$SqlSessionInterceptor.invoke(SqlSessionTemplate.java:348) ~[mybatis-spring-4.0.0.jar:4.0.0]
+	... 22 common frames omitted
+Caused by: org.springframework.jdbc.CannotGetJdbcConnectionException: Failed to obtain JDBC Connection
+	at org.springframework.jdbc.datasource.DataSourceUtils.getConnection(DataSourceUtils.java:84) ~[spring-jdbc-7.0.11.jar:7.0.11]
+	at org.mybatis.spring.transaction.SpringManagedTransaction.openConnection(SpringManagedTransaction.java:83) ~[mybatis-spring-4.0.0.jar:4.0.0]
+	at org.mybatis.spring.transaction.SpringManagedTransaction.getConnection(SpringManagedTransaction.java:70) ~[mybatis-spring-4.0.0.jar:4.0.0]
+	at org.apache.ibatis.executor.BaseExecutor.getConnection(BaseExecutor.java:348) ~[mybatis-3.5.19.jar:3.5.19]
+	at org.apache.ibatis.executor.SimpleExecutor.prepareStatement(SimpleExecutor.java:89) ~[mybatis-3.5.19.jar:3.5.19]
+	at org.apache.ibatis.executor.SimpleExecutor.doUpdate(SimpleExecutor.java:49) ~[mybatis-3.5.19.jar:3.5.19]
+	at org.apache.ibatis.executor.BaseExecutor.update(BaseExecutor.java:117) ~[mybatis-3.5.19.jar:3.5.19]
+	at org.apache.ibatis.executor.CachingExecutor.update(CachingExecutor.java:76) ~[mybatis-3.5.19.jar:3.5.19]
+	at org.apache.ibatis.session.defaults.DefaultSqlSession.update(DefaultSqlSession.java:197) ~[mybatis-3.5.19.jar:3.5.19]
+	... 26 common frames omitted
+Caused by: java.sql.SQLException: HikariDataSource HikariDataSource (HikariPool-2) has been closed.
+	at com.zaxxer.hikari.HikariDataSource.getConnection(HikariDataSource.java:95) ~[HikariCP-7.0.2.jar:na]
+	at org.springframework.jdbc.datasource.DataSourceUtils.fetchConnection(DataSourceUtils.java:160) ~[spring-jdbc-7.0.11.jar:7.0.11]
+	at org.springframework.jdbc.datasource.DataSourceUtils.doGetConnection(DataSourceUtils.java:118) ~[spring-jdbc-7.0.11.jar:7.0.11]
+	at org.springframework.jdbc.datasource.DataSourceUtils.getConnection(DataSourceUtils.java:81) ~[spring-jdbc-7.0.11.jar:7.0.11]
+	... 34 common frames omitted
+
+2026-11-25T12:33:05.271+09:00  INFO 14384 --- [TAGO] [restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-11-25T12:33:05.271+09:00  INFO 14384 --- [TAGO] [restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data Redis repositories in DEFAULT mode.
+2026-11-25T12:33:05.279+09:00  INFO 14384 --- [TAGO] [restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 6 ms. Found 0 Redis repository interfaces.
+2026-11-25T12:33:05.620+09:00  INFO 14384 --- [TAGO] [restartedMain] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 80 (http)
+2026-11-25T12:33:05.621+09:00  INFO 14384 --- [TAGO] [restartedMain] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-11-25T12:33:05.621+09:00  INFO 14384 --- [TAGO] [restartedMain] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.27]
+2026-11-25T12:33:05.686+09:00  INFO 14384 --- [TAGO] [restartedMain] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 607 ms
+2026-11-25T12:33:06.526+09:00  INFO 14384 --- [TAGO] [restartedMain] o.s.boot.tomcat.TomcatWebServer          : Tomcat started on port 80 (http) with context path '/'
+2026-11-25T12:33:06.528+09:00  INFO 14384 --- [TAGO] [scheduling-2] com.zaxxer.hikari.HikariDataSource       : HikariPool-3 - Starting...
+2026-11-25T12:33:06.529+09:00  INFO 14384 --- [TAGO] [restartedMain] com.kedu.tago.TagoApplication            : Started TagoApplication in 1.482 seconds (process running for 6228.793)
+2026-11-25T12:33:06.588+09:00  INFO 14384 --- [TAGO] [scheduling-2] com.zaxxer.hikari.pool.HikariPool        : HikariPool-3 - Added connection org.postgresql.jdbc.PgConnection@69e86f57
+2026-11-25T12:33:06.589+09:00  INFO 14384 --- [TAGO] [scheduling-2] com.zaxxer.hikari.HikariDataSource       : HikariPool-3 - Start completed.
+2026-11-25T12:33:06.607+09:00  INFO 14384 --- [TAGO] [restartedMain] com.kedu.tago.sync.MasterSyncService     : [MasterSync] 역 캐시 로드 완료: 총 349개 역 캐싱됨
+2026-11-25T12:33:06.607+09:00  INFO 14384 --- [TAGO] [restartedMain] com.kedu.tago.sync.SyncStartupRunner     : [SyncStartup] 기존 마스터 데이터가 존재하여 역 캐시 워밍업만 수행했습니다.
+2026-11-25T12:33:06.608+09:00  INFO 14384 --- [TAGO] [restartedMain] .ConditionEvaluationDeltaLoggingListener : Condition evaluation unchanged
+2026-11-25T12:33:06.608+09:00  INFO 14384 --- [TAGO] [ForkJoinPool.commonPool-worker-4] com.kedu.tago.sync.SyncStartupRunner     : [SyncStartup] 서버 기동 운행 일정(schedule) 동기화 시작: 2026-11-25 ~ 2026-11-28
+2026-11-25T12:33:06.617+09:00  INFO 14384 --- [TAGO] [ForkJoinPool.commonPool-worker-4] com.kedu.tago.sync.MasterSyncService     : [MasterSync] train 마스터 테이블 Upsert 완료: 46건
+2026-11-25T12:33:07.305+09:00  INFO 14384 --- [TAGO] [http-nio-80-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-11-25T12:33:07.305+09:00  INFO 14384 --- [TAGO] [http-nio-80-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-11-25T12:33:07.307+09:00  INFO 14384 --- [TAGO] [http-nio-80-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
+2026-11-25T12:33:07.959+09:00  INFO 14384 --- [TAGO] [ForkJoinPool.commonPool-worker-4] com.kedu.tago.sync.ScheduleSyncService   : [ScheduleSync] 일자 20261125 동기화 완료 (신규 일정: 0건, 기존 스킵: 71건, 생성 좌석: 0석)
+2026-11-25T12:33:09.366+09:00  INFO 14384 --- [TAGO] [ForkJoinPool.commonPool-worker-4] com.kedu.tago.sync.ScheduleSyncService   : [ScheduleSync] 일자 20261126 동기화 완료 (신규 일정: 0건, 기존 스킵: 122건, 생성 좌석: 0석)
+2026-11-25T12:33:10.926+09:00  INFO 14384 --- [TAGO] [ForkJoinPool.commonPool-worker-4] com.kedu.tago.sync.ScheduleSyncService   : [ScheduleSync] 일자 20261127 동기화 완료 (신규 일정: 0건, 기존 스킵: 140건, 생성 좌석: 0석)
+2026-11-25T12:33:12.423+09:00  INFO 14384 --- [TAGO] [ForkJoinPool.commonPool-worker-4] com.kedu.tago.sync.ScheduleSyncService   : [ScheduleSync] 일자 20261128 동기화 완료 (신규 일정: 0건, 기존 스킵: 142건, 생성 좌석: 0석)
+2026-11-25T12:33:12.424+09:00  INFO 14384 --- [TAGO] [ForkJoinPool.commonPool-worker-4] com.kedu.tago.sync.SyncStartupRunner     : [SyncStartup] 기동 일정 동기화 결과 - 일자 20261125 동기화 완료 (신규 일정: 0건, 기존 스킵: 71건, 생성 좌석: 0석)
+2026-11-25T12:33:12.424+09:00  INFO 14384 --- [TAGO] [ForkJoinPool.commonPool-worker-4] com.kedu.tago.sync.SyncStartupRunner     : [SyncStartup] 기동 일정 동기화 결과 - 일자 20261126 동기화 완료 (신규 일정: 0건, 기존 스킵: 122건, 생성 좌석: 0석)
+2026-11-25T12:33:12.424+09:00  INFO 14384 --- [TAGO] [ForkJoinPool.commonPool-worker-4] com.kedu.tago.sync.SyncStartupRunner     : [SyncStartup] 기동 일정 동기화 결과 - 일자 20261127 동기화 완료 (신규 일정: 0건, 기존 스킵: 140건, 생성 좌석: 0석)
+2026-11-25T12:33:12.424+09:00  INFO 14384 --- [TAGO] [ForkJoinPool.commonPool-worker-4] com.kedu.tago.sync.SyncStartupRunner     : [SyncStartup] 기동 일정 동기화 결과 - 일자 20261128 동기화 완료 (신규 일정: 0건, 기존 스킵: 142건, 생성 좌석: 0석)
+2026-11-25T12:33:12.424+09:00  INFO 14384 --- [TAGO] [ForkJoinPool.commonPool-worker-4] com.kedu.tago.sync.SyncStartupRunner     : [SyncStartup] 서버 기동 운행 일정(schedule) 동기화 완료

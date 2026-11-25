@@ -289,21 +289,30 @@ export default function ReservationPage() {
       : 59800;
 
     const scheduleSeq = state.scheduleSeq || state.train?.scheduleSeq || 1;
+    const parsedReturnPrice = Number(String(state.returnPrice || '').replace(/[^0-9]/g, ''));
+    const baseUnitPrice = Number.isNaN(parsedPrice) || parsedPrice <= 0 ? 59800 : parsedPrice;
     return {
       scheduleSeq,
       queueToken: state.queueToken || sessionStorage.getItem(`tago_queue_token_${scheduleSeq}`) || null,
       trainName: state.trainName || state.train?.name || 'KTX 001',
-      trainType: 'KTX',
+      trainType: state.trainType || 'KTX',
       depTime: state.depTime || state.train?.depTime || '05:15',
       arrTime: state.arrTime || state.train?.arrTime || '07:42',
       duration: state.duration || state.train?.duration || '2시간 27분',
       depStation: state.depStation || '서울',
       arrStation: state.arrStation || '부산',
       depDate: state.depDate || '2026-11-16 (월)',
+      returnScheduleSeq: state.returnScheduleSeq || null,
+      returnTrainName: state.returnTrainName || state.trainName || state.train?.name || 'KTX 001',
+      returnDepTime: state.returnDepTime || state.depTime || '05:15',
+      returnArrTime: state.returnArrTime || state.arrTime || '07:42',
+      returnDepStation: state.returnDepStation || state.arrStation || '부산',
+      returnArrStation: state.returnArrStation || state.depStation || '서울',
       returnDate: state.returnDate || null,
       tripType: state.tripType || '편도',
       passenger: state.passenger || state.passengerCount || '어른 1명',
-      unitPrice: Number.isNaN(parsedPrice) || parsedPrice <= 0 ? 59800 : parsedPrice,
+      unitPrice: baseUnitPrice,
+      returnUnitPrice: Number.isNaN(parsedReturnPrice) || parsedReturnPrice <= 0 ? baseUnitPrice : parsedReturnPrice,
     };
   }, [location.state]);
 
@@ -386,17 +395,22 @@ export default function ReservationPage() {
     setCarSummary(next);
   }, []);
 
+  const activeScheduleSeq =
+    isRoundTrip && activeLeg === 'return' && bookingInfo.returnScheduleSeq
+      ? bookingInfo.returnScheduleSeq
+      : bookingInfo.scheduleSeq;
+
   // 한 호차의 좌석 현황을 다시 불러와 상태에 반영한다. 점유 좌석 목록을 돌려준다(실패 시 null).
   const loadCarSeats = useCallback(
     async (carNo) => {
-      const occupied = await fetchOccupiedSeats(bookingInfo.scheduleSeq, carNo, applySummary);
+      const occupied = await fetchOccupiedSeats(activeScheduleSeq, carNo, applySummary);
       if (occupied) {
         setOccupiedSeatsByCar((prev) => ({ ...prev, [carNo]: occupied }));
         setLoadedCars((prev) => ({ ...prev, [carNo]: true }));
       }
       return occupied;
     },
-    [bookingInfo.scheduleSeq, applySummary]
+    [activeScheduleSeq, applySummary]
   );
 
   // 여러 호차를 한 번에 다시 불러온다. { [carNo]: 점유 좌석[] } (실패한 호차는 빠짐)
@@ -409,10 +423,16 @@ export default function ReservationPage() {
     [loadCarSeats]
   );
 
+  useEffect(() => {
+    setOccupiedSeatsByCar({});
+    setLoadedCars({});
+    setCarSummary({});
+  }, [activeScheduleSeq]);
+
   // 호차 변경 또는 스케줄 변경 시 백엔드 좌석 목록(GET /api/v1/seat) 실시간 연동
   useEffect(() => {
     let isMounted = true;
-    fetchOccupiedSeats(bookingInfo.scheduleSeq, selectedCarNo, (list) => {
+    fetchOccupiedSeats(activeScheduleSeq, selectedCarNo, (list) => {
       if (isMounted) applySummary(list);
     }).then((occupied) => {
       if (isMounted && occupied) {
@@ -425,7 +445,7 @@ export default function ReservationPage() {
     let eventSource = null;
     try {
       eventSource = new EventSource(
-        `http://localhost:80/api/v1/seat/stream?scheduleSeq=${bookingInfo.scheduleSeq}`
+        `http://localhost:80/api/v1/seat/stream?scheduleSeq=${activeScheduleSeq}`
       );
       eventSource.addEventListener('SEAT_UPDATE', (e) => {
         try {
@@ -582,7 +602,9 @@ export default function ReservationPage() {
   const isReturnComplete = !isRoundTrip || returnSeats.length === targetSeatCount;
   const isSelectionComplete = isOutboundComplete && isReturnComplete;
   const totalSelectedSeatCount = outboundSeats.length + (isRoundTrip ? returnSeats.length : 0);
-  const totalPrice = totalSelectedSeatCount * bookingInfo.unitPrice;
+  const totalPrice =
+    outboundSeats.length * bookingInfo.unitPrice +
+    (isRoundTrip ? returnSeats.length * bookingInfo.returnUnitPrice : 0);
 
   const outboundSeatCarNos = () => [selectedCarNo, ...outboundSeats.map((s) => s.carNo)];
 
@@ -615,7 +637,9 @@ export default function ReservationPage() {
 
     const seatNoList = outboundSeats.map((s) => s.seatId);
     const outboundCarNo = outboundSeats[0]?.carNo || selectedCarNo;
+    const seatSelections = outboundSeats.map((s) => ({ carNo: s.carNo, seatNo: s.seatId }));
 
+    let outboundHoldIds = [];
     try {
       let activeToken = bookingInfo.queueToken;
       if (!activeToken) {
@@ -634,7 +658,8 @@ export default function ReservationPage() {
         scheduleSeq: bookingInfo.scheduleSeq,
         carNo: outboundCarNo,
         seatList: seatNoList,
-        count: seatNoList.length,
+        seats: seatSelections,
+        count: seatSelections.length,
       }, { headers: { 'X-Queue-Token': token } });
 
       let resHold;
@@ -658,17 +683,61 @@ export default function ReservationPage() {
       }
 
       const data = resHold.data || {};
+      const outboundPrimaryId = data.reservationId || data.reservationSeq;
+      outboundHoldIds = data.reservationIds || (outboundPrimaryId ? [outboundPrimaryId] : []);
+
+      let returnHoldIds = [];
+      let returnTotalPrice = 0;
+      let returnData = null;
+
+      if (isRoundTrip && returnSeats.length > 0) {
+        const returnSeatNoList = returnSeats.map((s) => s.seatId);
+        const returnCarNo = returnSeats[0]?.carNo || selectedCarNo;
+        const returnSeatSelections = returnSeats.map((s) => ({ carNo: s.carNo, seatNo: s.seatId }));
+        const targetReturnScheduleSeq = bookingInfo.returnScheduleSeq || bookingInfo.scheduleSeq;
+
+        try {
+          let returnToken = location.state?.returnQueueToken || sessionStorage.getItem(`tago_queue_token_${targetReturnScheduleSeq}`);
+          if (!returnToken) {
+            const rqRes = await client.post('/queue', { scheduleSeq: targetReturnScheduleSeq });
+            const rqData = rqRes.data || {};
+            if (rqData.isAvailable && rqData.queueToken) {
+              returnToken = rqData.queueToken;
+              sessionStorage.setItem(`tago_queue_token_${targetReturnScheduleSeq}`, returnToken);
+            }
+          }
+          const resReturnHold = await client.post('/reservation', {
+            scheduleSeq: targetReturnScheduleSeq,
+            carNo: returnCarNo,
+            seatList: returnSeatNoList,
+            seats: returnSeatSelections,
+            count: returnSeatSelections.length,
+          }, { headers: returnToken ? { 'X-Queue-Token': returnToken } : {} });
+          returnData = resReturnHold.data || {};
+          const returnPrimaryId = returnData.reservationId || returnData.reservationSeq;
+          returnHoldIds = returnData.reservationIds || (returnPrimaryId ? [returnPrimaryId] : []);
+          returnTotalPrice =
+            returnData.totalPrice ?? returnSeats.length * bookingInfo.returnUnitPrice;
+        } catch (returnErr) {
+          // 오는 편 선점 실패 시 이미 선점한 가는 편 좌석은 즉시 취소해 반쪽 선점을 방지한다
+          outboundHoldIds.forEach((id) => client.post(`/reservation/${id}/cancel`).catch(() => {}));
+          throw returnErr;
+        }
+      }
+
       const receivedAt = Date.now(); // 응답을 받은 시점 기준으로 deadline 을 만든다(서버 시계 차이 회피)
       const totalMs = holdDurationMs(data.reservedAt, data.expiresAt);
+      const outboundTotalPrice = data.totalPrice ?? outboundSeats.length * bookingInfo.unitPrice;
+      const combinedReservationIds = [...outboundHoldIds, ...returnHoldIds];
 
       paidRef.current = false;
       releasedOnHideRef.current = false;
-      const reservationId = data.reservationId || data.reservationSeq;
       setHolds({
-        reservationId,
-        reservationIds: data.reservationIds || (reservationId ? [reservationId] : []),
-        totalPrice: data.totalPrice ?? null,
+        reservationId: outboundPrimaryId,
+        reservationIds: combinedReservationIds,
+        totalPrice: outboundTotalPrice + returnTotalPrice,
         seats: outboundSeats,
+        returnSeats: isRoundTrip ? returnSeats : [],
         deadline: receivedAt + totalMs,
         totalMs,
       });
@@ -1511,7 +1580,7 @@ export default function ReservationPage() {
                         운임 (<span className="num">{bookingInfo.unitPrice.toLocaleString()}</span>원 ×{' '}
                         <span className="num">{targetSeatCount}</span>명{isRoundTrip ? ' × 왕복' : ''})
                       </dt>
-                      <dd className="fare-v num">{totalPrice.toLocaleString()}원</dd>
+                      <dd className="fare-v num">{(holds?.totalPrice ?? totalPrice).toLocaleString()}원</dd>
                     </div>
                     <div className="fare-calc-row">
                       <dt className="fare-k">할인</dt>

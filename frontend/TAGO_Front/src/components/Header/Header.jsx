@@ -123,7 +123,7 @@ export default function Header({ showTopBar = true, simple = false, isLoggedIn =
                 </>
               )}
               <span className="divider" aria-hidden="true">/</span>
-              <a href="#support">고객센터 1544-7788</a>
+              <a href="#support">고객센터 1234-5678</a>
               <span className="divider" aria-hidden="true">/</span>
               <span className="lang-tag">KR</span>
             </div>
