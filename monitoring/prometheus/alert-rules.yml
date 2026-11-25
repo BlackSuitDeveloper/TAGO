@@ -1,0 +1,57 @@
+groups:
+  - name: tago-alerts
+    rules:
+      - alert: TagoBackendDown
+        expr: up{job="tago-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "TAGO 백엔드 서버 응답 없음"
+          description: "TAGO Spring Boot 애플리케이션이 1분 이상 스크랩에 응답하지 않습니다."
+
+      - alert: HighHttp5xxErrorRate
+        expr: |
+          (
+            sum(rate(http_server_requests_seconds_count{job="tago-backend",status=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(http_server_requests_seconds_count{job="tago-backend"}[5m])), 1)
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP 5xx 에러율 5% 초과"
+          description: "최근 5분간 TAGO 백엔드의 HTTP 5xx 응답 비율이 5%를 초과했습니다."
+
+      - alert: HighJvmHeapUsage
+        expr: |
+          (
+            sum(jvm_memory_used_bytes{job="tago-backend",area="heap"})
+            /
+            sum(jvm_memory_max_bytes{job="tago-backend",area="heap"})
+          ) > 0.85
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "JVM Heap 메모리 사용률 85% 초과"
+          description: "TAGO 애플리케이션의 JVM Heap 사용률이 3분 이상 85%를 넘었습니다."
+
+      - alert: PostgresDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL 연결 실패"
+          description: "postgres-exporter가 PostgreSQL에 연결하지 못하고 있습니다."
+
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis 연결 실패"
+          description: "redis-exporter가 Redis에 연결하지 못하고 있습니다."

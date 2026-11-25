@@ -16,6 +16,9 @@ public class ReservationDTO {
     private String memberId;
     private Long scheduleSeq;
     private Long seatSeq;
+    private Integer carNo;
+    private String seatNo;
+    private String seatGrade;
     private String status;
     private Integer totalPrice;
     private LocalDateTime reservedAt;
