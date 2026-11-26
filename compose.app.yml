@@ -1,3 +1,8 @@
+# ============================================================================
+# 1번 스택: App (Nginx 프론트엔드 + Spring Boot 백엔드)
+# 사전 조건: docker network create tago-net
+# 실행: docker compose -f compose.app.yml up -d
+# ============================================================================
 services:
   backend:
     image: ${TAGO_BACKEND_IMAGE:-tago-backend:latest}
@@ -41,4 +46,4 @@ services:
 
 networks:
   tago-net:
-    driver: bridge
+    external: true

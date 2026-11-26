@@ -1,0 +1,113 @@
+# ============================================================================
+# 3번 스택: Monitoring (Metrics + Logging + Alerting 통합)
+# 사전 조건: docker network create tago-net
+# 실행: docker compose -f compose.monitoring.yml up -d
+# ============================================================================
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: tago-prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./monitoring/prometheus/prometheus.prod.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - alertmanager
+      - postgres-exporter
+      - redis-exporter
+    networks:
+      - tago-net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: tago-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required in .env}
+      TZ: Asia/Seoul
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - loki
+      - alertmanager
+    networks:
+      - tago-net
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: tago-postgres-exporter
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${DB_USERNAME:-postgres}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-tago_db}?sslmode=disable"
+    networks:
+      - tago-net
+
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: tago-redis-exporter
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: "redis://redis:6379"
+    networks:
+      - tago-net
+
+  loki:
+    image: grafana/loki:latest
+    container_name: tago-loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    networks:
+      - tago-net
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: tago-promtail
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - ./logs:/var/log/tago:ro
+    depends_on:
+      - loki
+    networks:
+      - tago-net
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: tago-alertmanager
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    networks:
+      - tago-net
+
+volumes:
+  prometheus-data:
+  alertmanager-data:
+  loki-data:
+  grafana-data:
+
+networks:
+  tago-net:
+    external: true
