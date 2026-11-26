@@ -1,0 +1,94 @@
+# ============================================================================
+# PUBLIC · EC2-web (sg-web)
+# - nginx(:80) + Spring Boot app(:8080 내부, actuator :8081 sg-ops 전용)
+# - 모니터링 수집기(node-exporter, promtail)는 `--profile monitoring` 시 기동
+# 실행: cd infra/web && docker compose up -d
+# 모니터링 포함: docker compose --profile monitoring up -d
+# ============================================================================
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  app:
+    image: ${TAGO_BACKEND_IMAGE:-tago-backend:latest}
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    container_name: tago-app
+    restart: unless-stopped
+    mem_limit: 1g
+    logging: *default-logging
+    env_file:
+      - .env
+    environment:
+      SERVER_PORT: 8080
+      MANAGEMENT_SERVER_PORT: 8081
+      DB_URL: jdbc:postgresql://${DATA_HOST:?DATA_HOST is required}:5432/${DB_NAME:-tago_db}
+      REDIS_DB_URL: ${DATA_HOST:?DATA_HOST is required}
+      REDIS_DB_PORT: ${REDIS_DB_PORT:-6379}
+      REDIS_DB_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      TZ: Asia/Seoul
+    ports:
+      - "8081:8081" # sg-ops Prometheus 수집 전용 (외부 인터넷 차단)
+    volumes:
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  nginx:
+    image: ${TAGO_FRONTEND_IMAGE:-tago-frontend:latest}
+    build:
+      context: ../../frontend/TAGO_Front
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api/v1
+    container_name: tago-nginx
+    restart: unless-stopped
+    mem_limit: 256m
+    logging: *default-logging
+    ports:
+      - "80:80"
+    depends_on:
+      app:
+        condition: service_healthy
+
+  node-exporter:
+    image: prom/node-exporter:v1.12.1
+    container_name: tago-web-node-exporter
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    mem_limit: 64m
+    logging: *default-logging
+    ports:
+      - "9100:9100" # sg-ops Prometheus 수집 전용
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+
+  promtail:
+    image: grafana/promtail:3.6.11
+    container_name: tago-web-promtail
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    mem_limit: 64m
+    logging: *default-logging
+    environment:
+      OPS_HOST: ${OPS_HOST:?OPS_HOST is required for promtail}
+    command: ["-config.file=/etc/promtail/config.yml", "-config.expand-env=true"]
+    volumes:
+      - ./promtail-config.yml:/etc/promtail/config.yml:ro
+      - ./logs:/var/log/tago:ro

@@ -1,7 +1,7 @@
 # ==========================================
 # Stage 1: Gradle Build (Java 21)
 # ==========================================
-FROM eclipse-temurin:21-jdk-alpine AS builder
+FROM eclipse-temurin:21.0.13_9-jdk-alpine AS builder
 WORKDIR /app
 
 COPY gradlew settings.gradle build.gradle ./
@@ -19,7 +19,7 @@ RUN ./gradlew bootJar -x test --no-daemon
 # ==========================================
 # Stage 2: Slim Runtime (JRE 21)
 # ==========================================
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21.0.13_9-jre-alpine
 WORKDIR /app
 
 # 한국 시간대(KST) 설정 및 헬스체크용 curl 설치

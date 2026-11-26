@@ -1,100 +1,54 @@
-# TAGO AWS EC2 + Docker 3-스택 배포 가이드
+# TAGO AWS EC2 (3-서버) 인프라 배포 가이드
 
-## 1. 아키텍처 구성 (3갈래 Compose 스택)
+## 1. 서버별 구성 (`infra/`)
 
-| 스택 | Compose 파일 | 포함 컨테이너 | 외부 공개 포트 |
+| 서버 | 서브넷 / 보안그룹 | 구성 파일 | 컨테이너 (메모리 한도) |
 | :--- | :--- | :--- | :--- |
-| **1. App** | `compose.app.yml` | `frontend`(Nginx + React), `backend`(Spring Boot) | `:80` (Nginx) |
-| **2. Data** | `compose.data.yml` | `postgres`, `redis` | 없음 (내부망 `tago-net` 전용) |
-| **3. Monitoring** | `compose.monitoring.yml` | `prometheus`, `grafana`, `loki`, `promtail`, `alertmanager`, `postgres-exporter`, `redis-exporter` | `:3000` (Grafana, 내 IP만 허용) |
+| **EC2-web** | Public (`sg-web`, Elastic IP) | `infra/web/docker-compose.yml` | `nginx` (`1.30.8-alpine`, 256m), `app` (`21.0.13_9-jre-alpine`, 1g, `:8080` 내부 / `:8081` actuator), *(monitoring)* `node-exporter` (`v1.12.1`, 64m), `promtail` (`3.6.11`, 64m) |
+| **EC2-data** | Private (`sg-data`, 공인 IP 없음) | `infra/data/docker-compose.yml` | `postgres` (`18.7-alpine`, 1g), `redis` (`8.4.8-alpine`, 384m, 비밀번호·AOF·`noeviction`), *(monitoring)* `postgres-exporter` (`v0.21.1`, 64m), `redis-exporter` (`v1.99.0`, 64m), `node-exporter` (`v1.12.1`, 64m) |
+| **EC2-ops** | Private (`sg-ops`, 공인 IP 없음) | `infra/ops/docker-compose.yml` | `prometheus` (`v3.5.5`, 768m, 7일 보존), `grafana` (`12.4.16`, 512m), `loki` (`3.6.22`, 256m), `alertmanager` (`v0.34.2`, 128m) |
+
+- 모든 컨테이너 로그는 `json-file` (`max-size: 10m`, `max-file: 3`)로 제한됩니다.
+- `prometheus(:9090)`, `grafana(:3000)`, `alertmanager(:9093)`는 `127.0.0.1`에만 바인딩되어 SSH 터널로만 접근합니다.
 
 ---
 
-## 2. 로컬 PC: 앱 이미지 빌드 & Docker Hub 업로드
+## 2. 보안그룹 규칙
 
-```bash
-# 1. Docker Hub 로그인
-docker login
-
-# 2. 백엔드·프론트엔드 이미지 빌드
-docker build -t <dockerhub-id>/tago-backend:latest .
-docker build -t <dockerhub-id>/tago-frontend:latest --build-arg VITE_API_BASE_URL=/api/v1 ./frontend/TAGO_Front
-
-# 3. Docker Hub 푸시
-docker push <dockerhub-id>/tago-backend:latest
-docker push <dockerhub-id>/tago-frontend:latest
-```
+| 보안그룹 | 포트 | 허용 출처 | 용도 |
+| :--- | :--- | :--- | :--- |
+| `sg-web` | `80, 443` | `0.0.0.0/0` | 사용자 웹 접속 |
+| `sg-web` | `22` | 내 IP | SSH 관리 접속 (점프 호스트) |
+| `sg-web` | `8081, 9100` | `sg-ops` | Prometheus 수집 (Actuator, Node Exporter) |
+| `sg-data` | `5432, 6379` | `sg-web` | 앱 서버의 PostgreSQL·Redis 접속 |
+| `sg-data` | `9100, 9187, 9121` | `sg-ops` | Prometheus 수집 |
+| `sg-data` | `22` | `sg-web` | web 경유 SSH |
+| `sg-ops` | `3100` | `sg-web` | Promtail → Loki 로그 전송 |
+| `sg-ops` | `22` | `sg-web` | web 경유 SSH (Grafana/Prometheus 터널) |
 
 ---
 
-## 3. AWS EC2 초기 세팅 (최초 1회)
-
-### 보안그룹 인바운드 규칙
-- `80` (HTTP): `0.0.0.0/0` (전체 사용자 접속)
-- `22` (SSH): **내 IP만 허용**
-- `3000` (Grafana): **내 IP만 허용**
-- *(5432, 6379, 8080, 9090 등 내부 포트는 절대 열지 않음)*
-
-### EC2 접속 및 Docker·Swap 설치
-```bash
-# 로컬에서 접속
-chmod 400 <key>.pem
-ssh -i <key>.pem ubuntu@<EC2-PUBLIC-IP>
-
-# Docker 설치 (Ubuntu 24.04)
-curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker $USER
-newgrp docker
-
-# Swap 메모리 2GB 설정 (저사양 EC2 OOM 방지)
-sudo fallocate -l 2G /swapfile
-sudo chmod 600 /swapfile
-sudo mkswap /swapfile
-sudo swapon /swapfile
-echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
-```
-
----
-
-## 4. EC2 배포 실행
+## 3. 실행 순서 (`data` → `web` → `ops`)
 
 ```bash
-# 1. 프로젝트 설정 파일 가져오기
-git clone https://github.com/BlackSuitDeveloper/TAGO.git
-cd TAGO
+# 1) EC2-data
+cd infra/data && cp .env.example .env && chmod 600 .env && nano .env
+docker compose up -d
+docker compose ps   # postgres, redis healthy 확인
 
-# 2. 운영 환경변수 작성 (.env)
-cp .env.prod.example .env
-nano .env
-chmod 600 .env
+# 2) EC2-web (.env 의 DATA_HOST = EC2-data 프라이빗 IP)
+cd infra/web && cp .env.example .env && chmod 600 .env && nano .env
+docker compose up -d --build
+docker compose logs -f app
 
-# 3. 전체 3-스택 기동
-chmod +x scripts/deploy.sh
-./scripts/deploy.sh all
-```
+# 3) EC2-ops (prometheus/prometheus.yml 의 WEB_IP, DATA_IP 교체 후)
+cd infra/ops && cp .env.example .env && chmod 600 .env && nano .env
+docker compose up -d
 
-### 추후 앱 코드만 업데이트 재배포할 때 (DB/Redis/모니터링 무중단)
-```bash
-./scripts/deploy.sh app
-```
+# 4) 모니터링 수집기 활성화 (EC2-web, EC2-data 각각 실행)
+docker compose --profile monitoring up -d
 
----
-
-## 5. 배포 후 점검 명령어
-
-```bash
-# 컨테이너 상태 확인
-docker ps
-
-# 백엔드 헬스체크
-docker exec tago-backend curl -i http://localhost:8080/actuator/health
-
-# Redis 연결 확인
-docker exec tago-redis redis-cli ping
-
-# Nginx -> Spring 프록시 및 화면 확인
-curl -I http://localhost
-
-# 백엔드 실시간 로그 확인 (종료: Ctrl+C)
-docker logs -f --tail 100 tago-backend
+# 5) 노트북에서 Grafana / Prometheus 접속 (SSH 터널)
+ssh -J ubuntu@<EC2-web 공인IP> -L 3000:localhost:3000 -L 9090:localhost:9090 ubuntu@<EC2-ops 프라이빗IP>
+# 브라우저: http://localhost:3000 (Grafana), http://localhost:9090 (Prometheus)
 ```

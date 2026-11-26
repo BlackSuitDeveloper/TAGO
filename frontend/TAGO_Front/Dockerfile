@@ -1,7 +1,7 @@
 # ==========================================
 # Stage 1: Vite Production Build
 # ==========================================
-FROM node:22-alpine AS builder
+FROM node:22.23.5-alpine AS builder
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -18,7 +18,7 @@ RUN npm run build
 # ==========================================
 # Stage 2: Nginx Static Server + Reverse Proxy
 # ==========================================
-FROM nginx:1.27-alpine
+FROM nginx:1.30.8-alpine
 
 RUN rm -rf /etc/nginx/conf.d/default.conf
 COPY nginx.conf /etc/nginx/conf.d/default.conf
