@@ -53,3 +53,6 @@ project-71dd55bd-6788-4af8-a17-d9f849005f61.json
 
 ### 애플리케이션 로그 (Promtail 수집용) ###
 logs/
+
+### k6 부하 테스트 생성 리포트 ###
+k6/report*.html

@@ -9,6 +9,7 @@ logs/
 frontend/
 monitoring/
 docs/
+k6/
 postman/
 db/
 *.md
