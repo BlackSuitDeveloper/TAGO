@@ -9,16 +9,15 @@ import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.ZSetOperations;
-import org.springframework.data.redis.core.script.RedisScript;
 
-import java.util.List;
+import java.time.Duration;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-/** QueueService 단위 테스트 (외부 Redis 없이 Fail-closed, 멱등성, 토큰 검증 규칙 확인) */
+/** 대기열 단위 테스트 (외부 Redis 없이 Fail-closed, 멱등성, 입장권 검증 규칙 확인) */
 class QueueServiceUnitTest {
 
     @Test
@@ -33,7 +32,7 @@ class QueueServiceUnitTest {
         assertEquals(ErrorCode.QUEUE_SERVICE_UNAVAILABLE, ex2.getErrorCode());
 
         ApiException ex3 = assertThrows(ApiException.class,
-                () -> service.validateAndExtendForHold("some-token", 1L, "user1", 300));
+                () -> new QueuePassService(null).validateAndExtendForHold("some-token", 1L, "user1", 300));
         assertEquals(ErrorCode.QUEUE_SERVICE_UNAVAILABLE, ex3.getErrorCode());
     }
 
@@ -51,8 +50,8 @@ class QueueServiceUnitTest {
         when(redis.opsForHash()).thenReturn(hashOps);
 
         when(valueOps.get("tago:queue:user:10:userA")).thenReturn("existing-token-123");
-        when(zSetOps.score("tago:queue:active:10", "existing-token-123"))
-                .thenReturn((double) (System.currentTimeMillis() + 60_000L));
+        when(zSetOps.rank("tago:queue:wait:10", "existing-token-123")).thenReturn(null); // 대기열에는 없고
+        when(redis.hasKey("tago:queue:active:10:existing-token-123")).thenReturn(true);   // 입장 상태
 
         QueueService service = new QueueService(redis);
         QueueResponseDTO resp = service.enterQueue(10L, "userA");
@@ -60,7 +59,7 @@ class QueueServiceUnitTest {
         assertEquals("existing-token-123", resp.getQueueToken());
         assertTrue(resp.getIsAvailable());
         assertEquals(0L, resp.getQueueRank());
-        verify(redis, never()).execute(any(RedisScript.class), anyList(), any());
+        verify(zSetOps, never()).addIfAbsent(anyString(), anyString(), anyDouble()); // 새로 줄 서지 않음
     }
 
     @Test
@@ -79,34 +78,36 @@ class QueueServiceUnitTest {
     }
 
     @Test
-    @DisplayName("Q-1: 선점 시 토큰 누락·불일치·미입장을 각각 정확히 거부한다")
+    @DisplayName("Q-1: 선점 시 토큰 누락·불일치·미입장을 각각 정확히 거부하고, 정상이면 입장 시간을 연장한다")
     @SuppressWarnings("unchecked")
     void validateAndExtendRejectsInvalidStates() {
         StringRedisTemplate redis = mock(StringRedisTemplate.class);
-        QueueService service = new QueueService(redis);
+        HashOperations<String, Object, Object> hashOps = mock(HashOperations.class);
+        when(redis.opsForHash()).thenReturn(hashOps);
+        when(hashOps.entries("tago:queue:meta:token-1"))
+                .thenReturn(Map.of("memberId", "user1", "scheduleSeq", "1", "lastSeen", "0"));
+        QueuePassService service = new QueuePassService(redis);
 
         // 1. 토큰 누락
         ApiException missingEx = assertThrows(ApiException.class,
                 () -> service.validateAndExtendForHold("  ", 1L, "user1", 300));
         assertEquals(ErrorCode.QUEUE_TOKEN_REQUIRED, missingEx.getErrorCode());
 
-        // 2. 소유자·열차 불일치 (-1)
-        when(redis.execute(any(RedisScript.class), anyList(), any(), any(), any(), any(), any(), any()))
-                .thenReturn(-1L);
-        ApiException invalidEx = assertThrows(ApiException.class,
-                () -> service.validateAndExtendForHold("other-user-token", 1L, "user1", 300));
-        assertEquals(ErrorCode.QUEUE_TOKEN_INVALID, invalidEx.getErrorCode());
+        // 2. 소유자 불일치 / 열차 불일치
+        assertEquals(ErrorCode.QUEUE_TOKEN_INVALID, assertThrows(ApiException.class,
+                () -> service.validateAndExtendForHold("token-1", 1L, "user2", 300)).getErrorCode());
+        assertEquals(ErrorCode.QUEUE_TOKEN_INVALID, assertThrows(ApiException.class,
+                () -> service.validateAndExtendForHold("token-1", 2L, "user1", 300)).getErrorCode());
 
-        // 3. 미입장 또는 만료 (-2)
-        when(redis.execute(any(RedisScript.class), anyList(), any(), any(), any(), any(), any(), any()))
-                .thenReturn(-2L);
-        ApiException notAdmittedEx = assertThrows(ApiException.class,
-                () -> service.validateAndExtendForHold("waiting-token", 1L, "user1", 300));
-        assertEquals(ErrorCode.QUEUE_NOT_ADMITTED, notAdmittedEx.getErrorCode());
+        // 3. 미입장 또는 만료 (입장 키 없음)
+        when(redis.getExpire("tago:queue:active:1:token-1")).thenReturn(-2L);
+        assertEquals(ErrorCode.QUEUE_NOT_ADMITTED, assertThrows(ApiException.class,
+                () -> service.validateAndExtendForHold("token-1", 1L, "user1", 300)).getErrorCode());
 
-        // 4. 정상 (1)
-        when(redis.execute(any(RedisScript.class), anyList(), any(), any(), any(), any(), any(), any()))
-                .thenReturn(1L);
-        assertDoesNotThrow(() -> service.validateAndExtendForHold("valid-token", 1L, "user1", 300));
+        // 4. 정상: 남은 100초 < 300초 이므로 300초로 연장
+        when(redis.getExpire("tago:queue:active:1:token-1")).thenReturn(100L);
+        when(redis.expire(eq("tago:queue:active:1:token-1"), any(Duration.class))).thenReturn(true);
+        assertDoesNotThrow(() -> service.validateAndExtendForHold("token-1", 1L, "user1", 300));
+        verify(redis).expire("tago:queue:active:1:token-1", Duration.ofSeconds(300));
     }
 }

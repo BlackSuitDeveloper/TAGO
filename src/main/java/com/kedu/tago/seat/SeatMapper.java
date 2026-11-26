@@ -1,5 +1,6 @@
 package com.kedu.tago.seat;
 
+import com.kedu.tago.reservation.dto.ReservationRequestDTO;
 import com.kedu.tago.seat.dto.CarSummaryDTO;
 import com.kedu.tago.seat.dto.SeatDTO;
 import org.apache.ibatis.annotations.Mapper;
@@ -11,18 +12,21 @@ import java.util.List;
 @Mapper
 public interface SeatMapper {
 
-    /** 호차별 점유 좌석 목록 조회 */
+    /** 호차별 확정 좌석 목록 조회 */
     List<SeatDTO> selectSeatList(@Param("scheduleSeq") Long scheduleSeq, @Param("carNo") Integer carNo);
 
-    /** 호차별 점유 좌석 수 조회 */
+    /** 호차별 확정 좌석 수 조회 */
     List<CarSummaryDTO> selectCarSummaries(@Param("scheduleSeq") Long scheduleSeq);
 
-    /** 좌석 단건 조회 */
+    /** 확정 좌석 단건 조회 */
     SeatDTO selectSeat(@Param("scheduleSeq") Long scheduleSeq, @Param("carNo") Integer carNo, @Param("seatNo") String seatNo);
 
-    /** 점유 좌석 등록 */
+    /** 여러 좌석 중 이미 확정된 좌석 조회 */
+    List<SeatDTO> selectSeatsIn(@Param("scheduleSeq") Long scheduleSeq, @Param("seats") List<ReservationRequestDTO.SeatSelection> seats);
+
+    /** 확정 좌석 등록 */
     int insertOccupiedSeat(SeatDTO seat);
 
-    /** 좌석 삭제 (점유 해제) */
+    /** 좌석 삭제 (예매 취소) */
     int deleteSeatBySeq(@Param("seatSeq") Long seatSeq);
 }

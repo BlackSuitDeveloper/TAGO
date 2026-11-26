@@ -7,6 +7,7 @@ import RouteLine from '../../components/RouteLine/RouteLine';
 import PaymentPanel, { PaymentOverlay } from './PaymentPanel';
 import client from '../Api/client';
 import errorText from '../Api/errorText';
+import { clearQueueToken, enterQueue, getQueueToken, saveQueueToken } from '../Api/queue';
 import { dialog, notify } from '../../components/Dialog/dialogService';
 import { autoPickSeats } from '../../lib/trainDomain';
 import './ReservationPage.css';
@@ -146,9 +147,14 @@ const CAR_LEVEL_LABEL = { ok: '여유', normal: '보통', busy: '혼잡', low: '
 
 // GET /api/v1/seat: 한 호차의 점유(AVAILABLE 이 아닌) 좌석 번호 목록. 실패하면 null.
 // onSummary: 같은 응답의 carSummaryList(호차별 잔여석)를 넘겨 받는 콜백(선택).
+// 좌석 조회도 대기열을 통과한 사용자만 가능하므로 X-Queue-Token 을 함께 보낸다.
 async function fetchOccupiedSeats(scheduleSeq, carNo, onSummary) {
   try {
-    const res = await client.get(`/seat`, { params: { scheduleSeq, carNo } });
+    const token = getQueueToken(scheduleSeq);
+    const res = await client.get(`/seat`, {
+      params: { scheduleSeq, carNo },
+      headers: token ? { 'X-Queue-Token': token } : {},
+    });
     if (res.data && res.data.seatList) {
       if (Array.isArray(res.data.carSummaryList)) onSummary?.(res.data.carSummaryList);
       return res.data.seatList.filter((s) => s.status !== 'AVAILABLE').map((s) => s.seatNo);
@@ -274,8 +280,14 @@ const seatsText = (seats) => {
   return [...byCar].map(([carNo, ids]) => `${carNo}호차 ${ids.join('·')}`).join(', ');
 };
 
-// 다인원 예매는 좌석마다 예약이 생긴다(reservationIds). 해제·취소는 전부 대상으로 한다.
-const holdIds = (hold) => (hold.reservationIds?.length ? hold.reservationIds : [hold.reservationId]);
+// 선점은 운행(scheduleSeq) 단위로 서버(Redis)에 있다. 왕복이면 [가는 편, 오는 편] 두 개.
+const holdSchedules = (hold) => hold?.scheduleSeqs || [];
+// 좌석 다시 고르기·만료: 선점만 반납 (대기열 입장은 유지)
+const releaseHolds = (hold) =>
+  Promise.all(holdSchedules(hold).map((scheduleSeq) => client.delete('/reservation/hold', { params: { scheduleSeq } })));
+// 결제 요청마다 한 번 만드는 멱등키. 같은 결제를 다시 보내도(더블클릭·재시도) 서버가 한 번만 처리한다.
+const newIdempotencyKey = () =>
+  globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 export default function ReservationPage() {
   const navigate = useNavigate();
@@ -293,7 +305,7 @@ export default function ReservationPage() {
     const baseUnitPrice = Number.isNaN(parsedPrice) || parsedPrice <= 0 ? 59800 : parsedPrice;
     return {
       scheduleSeq,
-      queueToken: state.queueToken || sessionStorage.getItem(`tago_queue_token_${scheduleSeq}`) || null,
+      queueToken: getQueueToken(scheduleSeq) || state.queueToken || null,
       trainName: state.trainName || state.train?.name || 'KTX 001',
       trainType: state.trainType || 'KTX',
       depTime: state.depTime || state.train?.depTime || '05:15',
@@ -352,7 +364,7 @@ export default function ReservationPage() {
 
   // 진행 단계: 'seat'(좌석 선택) -> 'pay'(선점 완료 · 결제 수단) -> 'done'(발권 완료)
   const [step, setStep] = useState('seat');
-  // 선점 결과: { reservationId, seats, deadline, totalMs }
+  // 선점 결과: { scheduleSeqs, idempotencyKey, seats, deadline, totalMs }
   const [holds, setHolds] = useState(null);
   const [receipt, setReceipt] = useState(null);
   const [isHolding, setIsHolding] = useState(false); // POST /reservation 진행 중
@@ -472,7 +484,7 @@ export default function ReservationPage() {
       isMounted = false;
       if (eventSource) eventSource.close();
     };
-  }, [bookingInfo.scheduleSeq, selectedCarNo, applySummary]);
+  }, [activeScheduleSeq, selectedCarNo, applySummary]);
 
   // 선택된 호차가 스트립 안에서 보이도록 스트립만 가로 스크롤 (페이지 스크롤은 건드리지 않음)
   useEffect(() => {
@@ -601,7 +613,6 @@ export default function ReservationPage() {
   const isOutboundComplete = outboundSeats.length === targetSeatCount;
   const isReturnComplete = !isRoundTrip || returnSeats.length === targetSeatCount;
   const isSelectionComplete = isOutboundComplete && isReturnComplete;
-  const totalSelectedSeatCount = outboundSeats.length + (isRoundTrip ? returnSeats.length : 0);
   const totalPrice =
     outboundSeats.length * bookingInfo.unitPrice +
     (isRoundTrip ? returnSeats.length * bookingInfo.returnUnitPrice : 0);
@@ -638,24 +649,18 @@ export default function ReservationPage() {
     const seatNoList = outboundSeats.map((s) => s.seatId);
     const outboundCarNo = outboundSeats[0]?.carNo || selectedCarNo;
     const seatSelections = outboundSeats.map((s) => ({ carNo: s.carNo, seatNo: s.seatId }));
-    const outboundQueueToken =
-      bookingInfo.queueToken ||
-      sessionStorage.getItem(`tago:queueToken:${bookingInfo.scheduleSeq}`) ||
-      '';
 
-    let outboundHoldIds = [];
     try {
-      let activeToken = bookingInfo.queueToken;
+      let activeToken = getQueueToken(bookingInfo.scheduleSeq) || bookingInfo.queueToken;
       if (!activeToken) {
-        const qRes = await client.post('/queue', { scheduleSeq: bookingInfo.scheduleSeq });
-        const qData = qRes.data || {};
+        const qData = await enterQueue(bookingInfo.scheduleSeq);
         if (!qData.isAvailable || !qData.queueToken) {
           dialog.alert('현재 대기열이 혼잡합니다. 열차 선택 화면에서 대기열에 다시 진입해 주세요.', { title: '대기열 안내', tone: 'warning' })
             .then(() => navigate('/schedule'));
           return;
         }
         activeToken = qData.queueToken;
-        sessionStorage.setItem(`tago_queue_token_${bookingInfo.scheduleSeq}`, activeToken);
+        saveQueueToken(bookingInfo.scheduleSeq, activeToken);
       }
 
       const sendHold = (token) => client.post('/reservation', {
@@ -672,11 +677,10 @@ export default function ReservationPage() {
       } catch (firstErr) {
         const code = firstErr.response?.data?.code;
         if (code === 6000 || code === 6001) {
-          sessionStorage.removeItem(`tago_queue_token_${bookingInfo.scheduleSeq}`);
-          const qRes = await client.post('/queue', { scheduleSeq: bookingInfo.scheduleSeq });
-          const qData = qRes.data || {};
+          clearQueueToken(bookingInfo.scheduleSeq);
+          const qData = await enterQueue(bookingInfo.scheduleSeq);
           if (qData.isAvailable && qData.queueToken) {
-            sessionStorage.setItem(`tago_queue_token_${bookingInfo.scheduleSeq}`, qData.queueToken);
+            saveQueueToken(bookingInfo.scheduleSeq, qData.queueToken);
             resHold = await sendHold(qData.queueToken);
           } else {
             throw firstErr;
@@ -687,10 +691,8 @@ export default function ReservationPage() {
       }
 
       const data = resHold.data || {};
-      const outboundPrimaryId = data.reservationId || data.reservationSeq;
-      outboundHoldIds = data.reservationIds || (outboundPrimaryId ? [outboundPrimaryId] : []);
+      const heldSchedules = [bookingInfo.scheduleSeq];
 
-      let returnHoldIds = [];
       let returnTotalPrice = 0;
       let returnData = null;
 
@@ -699,19 +701,14 @@ export default function ReservationPage() {
         const returnCarNo = returnSeats[0]?.carNo || selectedCarNo;
         const returnSeatSelections = returnSeats.map((s) => ({ carNo: s.carNo, seatNo: s.seatId }));
         const targetReturnScheduleSeq = bookingInfo.returnScheduleSeq || bookingInfo.scheduleSeq;
-        const returnQueueToken =
-          location.state?.returnQueueToken ||
-          sessionStorage.getItem(`tago:queueToken:${targetReturnScheduleSeq}`) ||
-          outboundQueueToken;
 
         try {
-          let returnToken = location.state?.returnQueueToken || sessionStorage.getItem(`tago_queue_token_${targetReturnScheduleSeq}`);
+          let returnToken = getQueueToken(targetReturnScheduleSeq) || location.state?.returnQueueToken;
           if (!returnToken) {
-            const rqRes = await client.post('/queue', { scheduleSeq: targetReturnScheduleSeq });
-            const rqData = rqRes.data || {};
+            const rqData = await enterQueue(targetReturnScheduleSeq);
             if (rqData.isAvailable && rqData.queueToken) {
               returnToken = rqData.queueToken;
-              sessionStorage.setItem(`tago_queue_token_${targetReturnScheduleSeq}`, returnToken);
+              saveQueueToken(targetReturnScheduleSeq, returnToken);
             }
           }
           const resReturnHold = await client.post('/reservation', {
@@ -722,13 +719,12 @@ export default function ReservationPage() {
             count: returnSeatSelections.length,
           }, { headers: returnToken ? { 'X-Queue-Token': returnToken } : {} });
           returnData = resReturnHold.data || {};
-          const returnPrimaryId = returnData.reservationId || returnData.reservationSeq;
-          returnHoldIds = returnData.reservationIds || (returnPrimaryId ? [returnPrimaryId] : []);
+          heldSchedules.push(targetReturnScheduleSeq);
           returnTotalPrice =
             returnData.totalPrice ?? returnSeats.length * bookingInfo.returnUnitPrice;
         } catch (returnErr) {
-          // 오는 편 선점 실패 시 이미 선점한 가는 편 좌석은 즉시 취소해 반쪽 선점을 방지한다
-          outboundHoldIds.forEach((id) => client.post(`/reservation/${id}/cancel`).catch(() => {}));
+          // 오는 편 선점 실패 시 이미 선점한 가는 편 좌석은 즉시 반납해 반쪽 선점을 방지한다
+          client.delete('/reservation/hold', { params: { scheduleSeq: bookingInfo.scheduleSeq } }).catch(() => {});
           throw returnErr;
         }
       }
@@ -736,13 +732,12 @@ export default function ReservationPage() {
       const receivedAt = Date.now(); // 응답을 받은 시점 기준으로 deadline 을 만든다(서버 시계 차이 회피)
       const totalMs = holdDurationMs(data.reservedAt, data.expiresAt);
       const outboundTotalPrice = data.totalPrice ?? outboundSeats.length * bookingInfo.unitPrice;
-      const combinedReservationIds = [...outboundHoldIds, ...returnHoldIds];
 
       paidRef.current = false;
       releasedOnHideRef.current = false;
       setHolds({
-        reservationId: outboundPrimaryId,
-        reservationIds: combinedReservationIds,
+        scheduleSeqs: heldSchedules,
+        idempotencyKey: newIdempotencyKey(), // 이 선점에 대한 결제는 몇 번을 보내도 한 번만 처리된다
         totalPrice: outboundTotalPrice + returnTotalPrice,
         seats: outboundSeats,
         returnSeats: isRoundTrip ? returnSeats : [],
@@ -761,7 +756,7 @@ export default function ReservationPage() {
         const fresh = await refreshCars(outboundSeatCarNos());
         setOutboundSeats((prev) => prev.filter((s) => !fresh[s.carNo]?.includes(s.seatId)));
       } else if ([6000, 6001, 6002].includes(err.response?.data?.code)) {
-        sessionStorage.removeItem(`tago_queue_token_${bookingInfo.scheduleSeq}`);
+        clearQueueToken(bookingInfo.scheduleSeq);
         dialog.alert(errorText(err, '대기열 입장이 필요합니다. 예매를 처음부터 다시 진행해 주세요.'), { title: '대기열 안내', tone: 'warning' })
           .then(() => navigate('/schedule'));
       } else {
@@ -779,8 +774,8 @@ export default function ReservationPage() {
     if (payingRef.current) return; // 결제 응답을 먼저 기다린다(성공하면 발권, 실패/410 이면 아래에서 다시 호출됨)
 
     expiringRef.current = true;
-    // 서버 스케줄러가 해제하지만, 먼저 풀리도록 시도만 한다(이미 해제됐다면 실패해도 무시)
-    holdIds(hold).forEach((id) => client.post(`/reservation/${id}/cancel`).catch(() => {}));
+    // 서버 TTL 이 해제하지만, 먼저 풀리도록 시도만 한다(이미 해제됐다면 실패해도 무시)
+    releaseHolds(hold).catch(() => {});
     await dialog.alert('좌석 선점 시간이 지나 좌석이 해제되었습니다. 좌석을 다시 선택해 주세요.', {
       title: '선점 시간 만료',
       tone: 'warning',
@@ -801,12 +796,16 @@ export default function ReservationPage() {
     const payAmount = holds.totalPrice ?? totalPrice; // 서버가 계산한 금액을 우선한다
 
     try {
-      const resPay = await client.post('/payment', {
-        reservationId: holds.reservationId,
-        reservationIds: holdIds(holds),
-        payMethod: paymentMethod === 'card' ? 'CARD' : paymentMethod === 'easy' ? 'EASY' : 'TRANSFER',
-        totalPrice: payAmount,
-      });
+      const resPay = await client.post(
+        '/payment',
+        {
+          scheduleSeq: holds.scheduleSeqs[0],
+          scheduleSeqs: holds.scheduleSeqs, // 왕복이면 가는 편·오는 편을 한 번에 확정
+          payMethod: paymentMethod === 'card' ? 'CARD' : paymentMethod === 'easy' ? 'EASY' : 'TRANSFER',
+          totalPrice: payAmount,
+        },
+        { headers: { 'Idempotency-Key': holds.idempotencyKey } }
+      );
 
       // 승인 오버레이는 응답이 빨라도 최소 시간 동안 보여 준다(둘 다 끝나면 발권 화면으로)
       const rest = PAY_OVERLAY_MIN_MS - (Date.now() - startedAt);
@@ -829,6 +828,27 @@ export default function ReservationPage() {
       if (expired) {
         setIsPaying(false);
         await handleExpire();
+        return;
+      }
+      if (err.response?.status === 409) {
+        const code = err.response?.data?.code;
+        if (code === 5015 || code === 5016) {
+          // 같은 결제(멱등키)가 처리 중이거나 좌석 확인이 잠시 지연: 같은 키로 다시 누르면 한 번만 처리된다
+          notify.warning(errorText(err, '결제를 처리하고 있습니다. 잠시 후 다시 시도해 주세요.'));
+          return;
+        }
+        // 이미 판매된 좌석(DB 최종 방어선): 결제는 취소됐으므로 선점을 반납하고 좌석 선택부터 다시
+        setIsPaying(false);
+        releaseHolds(holds).catch(() => {});
+        await dialog.alert(errorText(err, '이미 판매된 좌석이 있어 결제하지 못했습니다.'), { title: '결제 실패', tone: 'error' });
+        resetToSeatStep(holds.seats.map((s) => s.carNo));
+        return;
+      }
+      if (err.response?.status === 402) {
+        // 결제 거절: 서버가 선점 좌석을 이미 반납했으므로 좌석 선택부터 다시
+        setIsPaying(false);
+        await dialog.alert(errorText(err, '결제가 승인되지 않았습니다.'), { title: '결제 실패', tone: 'error' });
+        resetToSeatStep(holds.seats.map((s) => s.carNo));
         return;
       }
       dialog.alert(errorText(err, '결제 처리 중 오류가 발생했습니다.'), { title: '결제 실패', tone: 'error' });
@@ -862,7 +882,7 @@ export default function ReservationPage() {
 
     setIsReleasing(true);
     try {
-      await Promise.all(holdIds(hold).map((id) => client.post(`/reservation/${id}/cancel`)));
+      await releaseHolds(hold);
       resetToSeatStep(hold.seats.map((s) => s.carNo));
     } catch (err) {
       console.error('좌석 해제 실패:', err);
@@ -882,7 +902,7 @@ export default function ReservationPage() {
 
   // 이탈 시 해제(best effort): 결제 단계에서 라우트를 벗어나면 선점을 풀어 준다.
   //  - 결제 완료 후, 결제 요청 진행 중에는 해제하지 않는다(결제 결과를 모르는 상태에서 취소하면 안 됨).
-  //  - 탭 닫기/새로고침(pagehide)은 keepalive fetch 로 같은 cancel 을 보낸다.
+  //  - 탭 닫기/새로고침(pagehide)은 keepalive fetch 로 leave 를 보낸다.
   useEffect(() => {
     const shouldRelease = () => {
       const hold = holdsRef.current;
@@ -896,8 +916,9 @@ export default function ReservationPage() {
       if (!hold) return;
       const token = sessionStorage.getItem('token') || localStorage.getItem('token');
       releasedOnHideRef.current = true;
-      holdIds(hold).forEach((id) => {
-        fetch(`${client.defaults.baseURL}/reservation/${id}/cancel`, {
+      // 페이지를 떠나면 예매를 그만두는 것: 선점 + 대기열 입장권 반납
+      holdSchedules(hold).forEach((scheduleSeq) => {
+        fetch(`${client.defaults.baseURL}/reservation/leave?scheduleSeq=${scheduleSeq}`, {
           method: 'POST',
           keepalive: true,
           headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -922,7 +943,11 @@ export default function ReservationPage() {
       window.removeEventListener('pagehide', onPageHide);
       window.removeEventListener('pageshow', onPageShow);
       const hold = shouldRelease(); // 언마운트(라우트 이동)
-      if (hold) holdIds(hold).forEach((id) => client.post(`/reservation/${id}/cancel`).catch(() => {}));
+      if (hold) {
+        holdSchedules(hold).forEach((scheduleSeq) =>
+          client.post('/reservation/leave', null, { params: { scheduleSeq } }).catch(() => {})
+        );
+      }
     };
   }, []);
 

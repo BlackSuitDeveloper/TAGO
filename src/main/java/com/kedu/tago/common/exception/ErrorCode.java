@@ -47,11 +47,13 @@ public enum ErrorCode {
     SEAT_ALREADY_TAKEN(4003, HttpStatus.CONFLICT, "이미 선택되었거나 예약이 진행 중인 좌석입니다."),
 
     RESERVATION_NOT_FOUND(5000, HttpStatus.NOT_FOUND, "예매 내역을 찾을 수 없습니다."),
-    RESERVATION_ID_REQUIRED(5001, HttpStatus.BAD_REQUEST, "예약 번호가 필요합니다."),
     RESERVATION_ALREADY_CANCELLED(5002, HttpStatus.BAD_REQUEST, "이미 취소된 예매입니다."),
-    PAYMENT_NOT_AVAILABLE(5010, HttpStatus.BAD_REQUEST, "결제 가능한 상태가 아닙니다."),
-    HOLD_EXPIRED(5011, HttpStatus.GONE, "좌석 선점 유효시간(5분)이 만료되었습니다. 다시 예매해 주세요."),
+    HOLD_EXPIRED(5011, HttpStatus.GONE, "좌석 선점 유효시간이 만료되었습니다. 다시 예매해 주세요."),
     PAYMENT_AMOUNT_INVALID(5012, HttpStatus.BAD_REQUEST, "결제 요청 금액이 유효하지 않습니다."),
+    PAYMENT_DECLINED(5013, HttpStatus.PAYMENT_REQUIRED, "결제가 승인되지 않았습니다. 선점한 좌석은 반납되었습니다."),
+    IDEMPOTENCY_KEY_REQUIRED(5014, HttpStatus.BAD_REQUEST, "결제 요청에는 Idempotency-Key 헤더가 필요합니다."),
+    PAYMENT_IN_PROGRESS(5015, HttpStatus.CONFLICT, "같은 결제 요청을 처리하고 있습니다. 잠시 후 결과를 확인해 주세요."),
+    HOLD_BUSY(5016, HttpStatus.CONFLICT, "좌석 확인이 잠시 지연되고 있습니다. 잠시 후 다시 결제해 주세요."),
 
     QUEUE_TOKEN_REQUIRED(6000, HttpStatus.BAD_REQUEST, "대기열 입장이 필요합니다. 예매를 처음부터 다시 진행해 주세요."),
     QUEUE_TOKEN_INVALID(6001, HttpStatus.FORBIDDEN, "대기열 입장 시간이 만료되었습니다. 다시 시도해 주세요."),

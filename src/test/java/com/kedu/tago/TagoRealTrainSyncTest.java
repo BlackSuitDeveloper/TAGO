@@ -16,7 +16,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /** 실제 TAGO API 로 KTX 마스터/일정/좌석 동기화 테스트 (DB 초기화 후 적재) */
-@SpringBootTest
+@SpringBootTest(properties = "tago.queue.scheduler-enabled=false")
 class TagoRealTrainSyncTest {
 
     @Autowired

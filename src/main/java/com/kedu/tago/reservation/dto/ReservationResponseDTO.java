@@ -13,9 +13,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ReservationResponseDTO {
-    private Long reservationId;
-    private Long reservationSeq;
-    private List<Long> reservationIds;
     private Long scheduleSeq;
     private Integer carNo;
     private List<String> seatList;
